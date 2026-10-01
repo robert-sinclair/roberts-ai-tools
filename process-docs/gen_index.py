@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Generate the Process Docs index from the inventory captured via the SharePoint connector."""
-from datetime import date
+from datetime import date, datetime, timezone
 
 TODAY = date(2026, 10, 1)
 STALE_CUTOFF = date(2024, 10, 1)   # older than 2 years
+INDEXED_THROUGH = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+FOLDER_URI = ("file:///b!1aWbwLjUHke3ywyMg6GfPtd8g5c8I4VLnyVqPk_ezCnaE-2HtPeLRJPZ5Di_SVS7"
+              "/Team/Process Docs")
 
 # (name, folder, modified or None, note)
 PROCESS = [
@@ -16,8 +19,8 @@ PROCESS = [
  ("BM - Log analysis in SaaS Environments with Bravura Monitor.docx","/", "2025-04-21",""),
  ("Bravura Cloud First Sign In.docx","/", "2025-05-06",""),
  ("BSF - Software patching process.docx","/", "2024-09-18",""),
- ("Cloud - Creating alerts and examples.docx","/", None,""),
- ("Cloud - Using BCloud.docx","/", None,""),
+ ("BCloud - Creating alerts and examples.docx","/", None,""),
+ ("BCloud - Using BCloud.docx","/", None,""),
  ("Configuring a Linux VM for SaaS Environment.docx","/", "2026-06-09","Points at bitbucket.org/bravura-security/saas-automation"),
  ("Configuring a Windows VM for SaaS environment.docx","/", "2025-07-09","Points at gitlab.hitachi-id.com — its Linux twin points at Bitbucket. One of the two is wrong"),
  ("Configuring mobproxy in the SaaS environment.docx","/", "2021-01-19",""),
@@ -43,6 +46,7 @@ PROCESS = [
  ("Mailenable Domain whitelisting.docx","/", None,""),
  ("Make Client DB backups Using Ansible.docx","/", "2025-02-13","Uses WHAT / WHO / HOW headings — the closest existing doc to a roles header"),
  ("MobProxy Troubleshooting doc.docx","/", "2024-05-09","Content is client-specific (Konica) despite the generic title"),
+ ("Pagerduty - Schedule Maintenance Period.docx","/", None,"Suppresses alerting during planned work"),
  ("Portal UI psadmin update fix.docx","/", None,""),
  ("Procedure for sanitizing client data.docx","/", None,"Likely audit-relevant — worth confirming it is current"),
  ("Process_ Restoring a Snapshot in AWS.docx","/", "2024-09-04","RECOVERY"),
@@ -154,6 +158,41 @@ SUBFOLDERS = [
  ("KT - How to provision Safe instances - 2024-March-4.mp4","SAFE","2024-04-11","292 MB — roughly 80% of the whole library by size"),
 ]
 
+
+# Topic -> documents. This is the lookup that makes the index fast to consult.
+TOPICS = [
+ ("access, VPN down, MGMT1, bastion, jump host", ["How to access MGMT1 when VPN is not working.docx", "Connecting to SaaS environment.docx", "SaaS Alternative Management Pathways.docx"]),
+ ("AWS CLI, SSO, console credentials", ["AWS SSO from command line.docx"]),
+ ("certificates, RDGW, self-signed, expiry", ["Renew RDGW certificates.docx", "Renew Self signed certificates.docx"]),
+ ("RDS, database migration, SQL Express", ["RDS - Migrate DB to RDS (No App Node Rebuild).docx", "RDS Migration steps.docx", "Removing SQL Express after RDS Migration.docx", "RDS Instance resize and parameter group change.docx"]),
+ ("database replication", ["Add database replication and known issues.docx"]),
+ ("backup, restore, BCP, reports", ["Make Client DB backups Using Ansible.docx", "How to backup and restore reports.docx", "How to use BCP utility - When you have to backup and restore a big data set.docx"]),
+ ("snapshot, revert, rollback, instance recovery", ["Process_ Restoring a Snapshot in AWS.docx", "WIP_ Instance snapshot_revert process with RDS backend.docx", "How to retain Sesmon_ SMON _ Session monitoring data when rebuilding privilege instances.docx"]),
+ ("EC2 lost RDP, node unreachable", ["Recover an ec2 when we lose RDP access.docx", "Appstate Stuck RBAC recovery - WIP.docx"]),
+ ("patching, minor upgrade, build upgrade", ["BSF - Software patching process.docx", "Deploying Minor upgrades using ansible - WIP.docx", "WIP_ Semi-Automatic Patching via AWS Systems Manager.docx", "Upgrade Scripts.docx", "Disconnecting logged in users before idmsuite upgrades.docx", "Minor upgrade checklist - template.xlsx"]),
+ ("CrowdStrike, endpoint agent", ["crowdstrike-upgrade-procedure.docx"]),
+ ("deployment, release, code promotion, branches", ["SaaS deployment processes.docx", "SAAS Environment Management.docx", "WIP - SaaS Environment Management and Release Management.docx", "Deployment document template - SaaS.docx", "Fixing a production issue when UAT and the git master has undeployed code.docx"]),
+ ("new client, node build, Terraform, Ansible provisioning", ["WIP - Create and Deploy SaaS Client Nodes.docx", "Configuring a Linux VM for SaaS Environment.docx", "Configuring a Windows VM for SaaS environment.docx"]),
+ ("client offboarding, decommission", ["Decommissioning SaaS Clients - WIP.docx"]),
+ ("superuser access, client_su, admin access policy", ["Client SU Access Creation - WIP.docx", "SaaS Client Superuser Access Client Policy 2025-March-14.pdf", "Add saas Admin's IP to whitelist.docx"]),
+ ("password reset, SaaS domain account", ["SAAS Domain - Reset a users password.docx"]),
+ ("email, SES, MailEnable, bounces, DKIM", ["Email - Add Domain to AWS SES Domains.docx", "SES - Convert Email IAM user secret key to region specific credentials for email.docx", "SES Bounces rate commands and processes.docx", "MailEnable.docx", "Mailenable Domain whitelisting.docx", "MailEnable - Fix custom header failure cause by install.docx"]),
+ ("logs, log analysis, Bravura Monitor, ELK, filebeat", ["BM - Log analysis in SaaS Environments with Bravura Monitor.docx", "Bravura Monitor - Setting up a New Instance.docx", "Bravura Monitor - Saas changes after creation.docx", "Bravura Monitor - ECE Setup.docx", "Filebeat setup from external networks.docx", "ELK - Users - Create Readonly accounts.docx"]),
+ ("alerting, on-call, paging, OpsGenie, PagerDuty", ["On Call Ops Genie Doc - WIP.docx", "RTMS Real Time Monitoring Server_ Config + PagerDuty + ZD integration.docx", "Pagerduty - Schedule Maintenance Period.docx", "BCloud - Creating alerts and examples.docx"]),
+ ("IDTrack threshold breach", ["Idtrack threshold validation error.docx", "WIP - IDTrack Threshold violation process - SaaS MA process.docx"]),
+ ("mobproxy, mobile proxy, SAML on proxy", ["Configuring mobproxy in the SaaS environment.docx", "MobProxy Troubleshooting doc.docx", "ZD-12517_ Workaround to fix saml authentication for Mob proxy.docx"]),
+ ("Kubernetes, EKS, Bravura Cloud, BC-Alloy", ["BC_Kubernetes_Troubleshooting_Runbook.docx", "How to setup BC-Alloy agent - WIP.docx", "BCloud - Using BCloud.docx", "Bravura Cloud First Sign In.docx"]),
+ ("Bravura Safe, HYPR, 2FA, bootstrap user", ["Safe_ Create a temporary Bravura Safe bootstrap User.docx", "Change 2FA for SAFE users to Email.docx", "HYPR Configuration.docx", "Safe migration between regions.docx", "Bravura Safe Onboarding Checklist.xlsx"]),
+ ("training environments, training VMs, AMI", ["Create Monthly Training VMs.docx", "Training - SaaS env - process.docx", "AMI Training Regen Guide.docx", "Training environments trakcing.docx"]),
+ ("maintenance page, outage banner", ["Update maintenance page during deployments or outage.docx"]),
+ ("load balancer, ALB, NLB, client IP, health checks", ["Guide - Enable Client IP Forwarding & IIS Log Delivery for BSF Behind ALB.docx", "Ignore unwanted Handshake errors for AWS loadbalancer healthchecks.docx", "How to fix BCBSNC NLB Target healthcheck failure.docx"]),
+ ("client data sanitization", ["Procedure for sanitizing client data.docx"]),
+ ("team split, who owns what, RACI, project team handoff", ["SaaS engagements RACI.xlsx", "SAAS Environment Management.docx", "SaaS projects - collaboration with HIDS project teams.docx"]),
+ ("scheduled tasks, long-running scripts, Windows services", ["Long Run Script as Scheduled Task.docx", "Creating a windows service.docx"]),
+ ("reCAPTCHA, portal UI", ["ReCaptcha.docx", "Portal UI psadmin update fix.docx"]),
+ ("demo environment", ["Demo environment - cheat sheet.docx"]),
+]
+
 def age(d):
     if d is None:
         return "not captured"
@@ -177,42 +216,122 @@ def table(rows, show_folder=False):
             out.append(f"| {esc(name)} | {m} | {a} | | | {esc(note)} |")
     return "\n".join(out)
 
+def topic_table():
+    out = ["| If the question is about | Look at |", "|---|---|"]
+    for topic, docs in TOPICS:
+        out.append(f"| {esc(topic)} | {esc('; '.join(docs))} |")
+    return "\n".join(out)
+
 allrows = PROCESS + WIP + TEMPLATES + RECORDS + CLIENT + POLICY + HOUSEKEEPING + SUBFOLDERS
 total = len(allrows)
 undated = sum(1 for r in allrows if r[2] is None)
 stale = sum(1 for r in allrows if r[2] and age(r[2]) == "stale")
 current = sum(1 for r in allrows if r[2] and age(r[2]) == "current")
+undated_names = sorted((r[0] for r in allrows if r[2] is None), key=str.lower)
 
-doc = f"""# SaaS Process Docs — Index
+doc = f"""---
+artifact: saas-process-docs-index
+schema_version: 1
+indexed_through: "{INDEXED_THROUGH}"
+indexed_scope: "GRP SaaS (Bravura Security)-Team > Documents > Team > Process Docs (recursive)"
+sharepoint_folder_uri: "{FOLDER_URI}"
+index_method: "file listing + search excerpts; most documents not read in full"
+items_indexed: {total}
+items_without_captured_date: {undated}
+owner: "Robert Sinclair, SaaS Team"
+status: draft
+rebuild: "python3 gen_index.py > SaaS-Process-Docs-Index.md"
+---
 
-**Covers:** `GRP SaaS (Bravura Security)-Team > Documents > Team > Process Docs`, including sub-folders
-**Compiled:** {TODAY.isoformat()}
-**Compiled by:** Robert Sinclair
-**Method:** Read-only listing and search through the Microsoft 365 connector. Nothing in the library was changed.
-**Status:** Draft for team review
+# SaaS Process Docs — Index
+
+**Last indexing run: {INDEXED_THROUGH}**
+
+Everything below reflects the library as it stood at that moment. Any file added or
+changed in SharePoint after that timestamp is **not** in this index.
 
 ---
 
-## How to read this
+## For AI agents — read this first
 
-This index lists what is in the library and what can be determined about each file from
-the outside — name, location, modified date, and whichever first lines the search index
-returned. It is a map, not a verdict.
+This file exists so you do not have to crawl every file in a {total}-item SharePoint library to answer
+"do we have a process for X?". Use it as a first pass, not as the final word.
 
-**Owner** and **Verified** are deliberately blank. They cannot be derived from file
-metadata; a person has to supply them. Filling those two columns is the work that turns
-this index into something the team can rely on.
+### The freshness contract
 
-**Modified dates are weak evidence.** Opening a document in Word and saving it bumps the
-date without changing a word. `SAAS Environment Management.docx` is the clearest example:
-it last saved in 2025 but still says "revision July 2021" in its own text. Treat "current"
-below as "recently touched", not "known good".
+`indexed_through` in the frontmatter is the moment this index was built. It is a
+hard boundary:
 
-Dates were harvested through content search, which did not return every file. {undated} of
-{total} rows show no date rather than a guessed one.
+- Files **modified at or before** `indexed_through` → this index describes them.
+- Files **modified after** `indexed_through` → this index knows nothing about them.
+  A process may well be documented in one of them.
 
-**Age** is mechanical: `stale` means last modified before {STALE_CUTOFF.isoformat()} (over two
-years ago), `current` means after.
+**Always run the gap check before concluding that a process is undocumented.**
+Saying "there is no process for X" without it is wrong, because someone may have
+added exactly that document since the last run.
+
+### Gap check
+
+Pass `indexed_through` as `afterDateTime` to the SharePoint search, scoped to this
+folder:
+
+```
+sharepoint_search(
+    query="<your topic>",
+    folderName="Process Docs",
+    afterDateTime="{INDEXED_THROUGH}"
+)
+```
+
+Anything returned is newer than this index. Read it directly.
+
+Search alone is not reliable here — its `folderName` filter leaks into other
+drives and multi-term queries frequently return nothing. For an authoritative
+listing, read the folder:
+
+```
+read_resource(uri="{FOLDER_URI}")
+```
+
+then compare against the tables below. Names present in the folder but absent
+here were added after the last run.
+
+### Answering a lookup
+
+1. Check **Topic lookup** below for the subject.
+2. Run the gap check above for anything added since.
+3. Read the candidate documents before answering. The Notes column records what
+   is visible from outside — filename, location, opening lines — not a content
+   review.
+4. Report the document's `Age` and `Verified` state alongside the answer. A
+   document existing is not the same as a document being correct.
+
+### What this index does not tell you
+
+- **Whether a document is accurate.** `Age` is derived from the SharePoint
+  modified date only. Opening a file in Word and saving it bumps that date
+  without changing a word. `SAAS Environment Management.docx` last saved in 2025
+  and still says "revision July 2021" in its own text.
+- **Who owns a process, or when it was last verified.** Those columns are blank
+  by design; the data does not exist yet. Do not infer an owner from the Notes.
+- **Anything about {undated} files whose date was not captured** (listed under
+  Limitations). For those, the gap check cannot tell you whether they changed,
+  so treat them as unknown and read them directly if relevant.
+
+### Rebuilding
+
+`gen_index.py` in the `roberts-ai-tools` repo, under `process-docs/`. Re-running it
+refreshes `indexed_through`. The inventory is held in the script as literal data, so
+a rebuild needs the SharePoint listing re-read and the data lists updated first.
+
+---
+
+## Topic lookup
+
+Subject to candidate documents. Ordered roughly by how often each comes up.
+Names are exactly as they appear in SharePoint, including typos.
+
+{topic_table()}
 
 ---
 
@@ -232,67 +351,58 @@ years ago), `current` means after.
 | Superseded or housekeeping | {len(HOUSEKEEPING)} |
 | In sub-folders | {len(SUBFOLDERS)} |
 
+`Age` is mechanical: `stale` means last modified before {STALE_CUTOFF.isoformat()}
+(over two years before the indexing run), `current` means after. It measures when a
+file was last saved, nothing more.
+
 ---
 
 ## What stands out
 
-**{len(WIP)} documents are marked WIP, and five of them are recovery or access-control procedures.**
-Appstate stuck RBAC recovery, instance snapshot/revert with RDS, client superuser access
-creation, client decommissioning, and the on-call OpsGenie runbook. These get reached for
-under pressure, by whoever is on call, often at the worst possible moment. WIP is the
-riskiest state for exactly these docs, because someone will follow one during an incident
-and find the gap then.
+**{len(WIP)} documents are marked WIP, and five of them are recovery or access-control
+procedures.** Appstate stuck RBAC recovery, instance snapshot/revert with RDS, client
+superuser access creation, client decommissioning, and the on-call OpsGenie runbook.
+These get reached for under pressure, by whoever is on call. WIP is the riskiest state
+for exactly these docs, because someone will follow one during an incident and find the
+gap then.
 
 **Four documents describe environment and release management, and they disagree.**
-`SAAS Environment Management`, `WIP - SaaS Environment Management and Release Management`,
-`SaaS deployment processes`, and `SaaS Alternative Management Pathways`. The first two are
-near-duplicates; the WIP copy has empty Test and Prod headings under its deploy-process
-section and an unresolved note about expert-services tracking. A new engineer has no way to
-tell which to follow.
+`SAAS Environment Management`, `WIP - SaaS Environment Management and Release
+Management`, `SaaS deployment processes`, and `SaaS Alternative Management Pathways`.
+The first two are near-duplicates; the WIP copy has empty Test and Prod headings under
+its deploy-process section. A new engineer has no way to tell which to follow.
 
 **Three copies of the Superuser Access policy.** A `.docx` marked wip, a PDF dated
-2025-March-14, and an undated PDF from 2025-03-06. This one goes to clients, so the
-"which is current" question has a customer-facing answer.
+2025-March-14, and an undated PDF from 2025-03-06. This one goes to clients, so "which
+is current" has a customer-facing answer.
 
 **Two templates share one body.** `Docusign Deploy Document Template.docx` and
 `Release Notes Template - docusign_release_YYYYMMDD.docx` both open with the same
-release-notes template text. One of the two filenames is lying about its contents.
+release-notes text. One of the two filenames is wrong about its contents.
 
 **The two VM configuration docs point at different source repositories.** The Linux one
-points at Bitbucket; the Windows one points at `gitlab.hitachi-id.com`. Both describe the
-same automation step. At least one is out of date, and the GitLab host is pre-Bravura
-branding.
+points at Bitbucket; the Windows one at `gitlab.hitachi-id.com`. Both describe the same
+automation step, and the GitLab host predates the Bravura rebrand.
 
 **Nine files are completed execution records, not procedures.** Six dated minor-upgrade
-checklists for UOregon and Upfield, two DocuSign release records, and a Vericast go-live.
-Worth keeping as evidence; they just make search noisier while they sit beside the
-procedures.
+checklists, two DocuSign release records, and a Vericast go-live. Worth keeping as
+evidence; they make search noisier sitting beside the procedures.
 
-**Some docs already capture roles — informally.** `Bravura Monitor - Setting up a New
+**Some docs already capture roles, informally.** `Bravura Monitor - Setting up a New
 Instance` opens with a request form capturing Internal Owner/Trustee and Customer
 Owner/Trustee. `Make Client DB backups Using Ansible` uses WHAT / WHO / HOW headings.
-`Create Monthly Training VMs` names the requesting team and the performing team in its
-first two sentences. `Deployment document template - SaaS` has "Changed requested by".
-The instinct is already in the library; it is just not consistent.
+`Create Monthly Training VMs` names requesting and performing teams in its first two
+sentences. `Deployment document template - SaaS` has "Changed requested by". Four docs,
+four shapes.
 
-**Two docs name a single person as the dependency.** `Demo environment - cheat sheet` says
-"Sole surviving author: JohnN" in its own text. `Training - SaaS env - process` routes
-requests through a named individual rather than a role.
+**Two docs name a single person as the dependency.** `Demo environment - cheat sheet`
+says "Sole surviving author: JohnN" in its own text. `Training - SaaS env - process`
+routes requests through a named individual rather than a role.
 
 **Housekeeping.** A folder named `delete these`, an `Untitled spreadsheet.xlsx`, a
-`Document.docx` under Bravura Monitor/Watchers, one doc with a trailing space in its
-filename, and three filenames with typos (`procress`, `trakcing`, `effeincy`). A single
-292 MB training video accounts for most of the library's total size.
-
----
-
-## Suggested next step
-
-Take the {len(WIP)} WIP rows first and decide, for each, one of three things: finish it,
-demote it to a named sub-folder for drafts, or delete it. That is a short meeting, it
-addresses the highest-risk items, and it needs no new process to carry out.
-
-Owner and Verified can then be filled in a pass over the ~{len(PROCESS)} live procedures.
+`Document.docx` under Bravura Monitor/Watchers, one filename with a trailing space, and
+three with typos (`procress`, `trakcing`, `effeincy`). A single 292 MB training video is
+most of the library's total size.
 
 ---
 
@@ -350,17 +460,24 @@ Tied to one client or one incident. Useful history; not general procedure.
 
 ## Limitations
 
-- Compiled from file metadata and the first lines of each document as returned by search.
-  Most documents were not opened and read in full, so the Notes column flags what is
-  visible from outside, not a content review.
+- Compiled from file metadata and the opening lines returned by search. Most documents
+  were **not** opened and read in full. The Notes column flags what is visible from
+  outside, not a content review.
 - Modified dates come from SharePoint and reflect the last save, not the last meaningful
   change or the last time anyone confirmed the steps still work.
-- {undated} rows have no date because content search did not return them. The files exist —
-  they are in the folder listing — only the date is missing.
-- Categories are judgements based on filename and opening lines. A few will be wrong, in
-  particular where a generic title hides client-specific content, as with
-  `MobProxy Troubleshooting doc`.
+- Categories are judgements from filenames and opening lines. Some will be wrong, in
+  particular where a generic title hides client-specific content — `MobProxy
+  Troubleshooting doc` is the clearest example.
+- Owner and Verified are empty throughout. Neither can be derived from metadata.
 - Nothing in SharePoint was created, modified, moved or deleted to produce this index.
+
+### Files with no captured date ({undated})
+
+Content search did not return these, so no modified date was recorded. The files exist —
+they are in the folder listing. The gap check above cannot tell you whether they have
+changed since the last run, so read them directly when they are relevant.
+
+{chr(10).join('- `' + n + '`' for n in undated_names)}
 """
 
 print(doc)
