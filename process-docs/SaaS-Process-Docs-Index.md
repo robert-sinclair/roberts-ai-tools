@@ -9,7 +9,7 @@ items_indexed: 125
 items_without_captured_date: 33
 owner: "Robert Sinclair, SaaS Team"
 status: draft
-rebuild: "python3 gen_index.py > SaaS-Process-Docs-Index.md"
+maintenance: "hand-maintained snapshot; no generator"
 ---
 
 # SaaS Process Docs — Index
@@ -87,11 +87,15 @@ here were added after the last run.
   Limitations). For those, the gap check cannot tell you whether they changed,
   so treat them as unknown and read them directly if relevant.
 
-### Rebuilding
+### Refreshing this index
 
-`gen_index.py` in the `roberts-ai-tools` repo, under `process-docs/`. Re-running it
-refreshes `indexed_through`. The inventory is held in the script as literal data, so
-a rebuild needs the SharePoint listing re-read and the data lists updated first.
+There is no generator. This file is a hand-maintained snapshot, and that is deliberate:
+a generator that re-stamped `indexed_through` without re-reading SharePoint would quietly
+turn the freshness contract into a lie.
+
+To refresh it, re-read the folder through the connector, update the tables, and set
+`indexed_through` to the time of that read. Never change the timestamp on its own —
+it is only meaningful if a real SharePoint read sits behind it.
 
 ---
 

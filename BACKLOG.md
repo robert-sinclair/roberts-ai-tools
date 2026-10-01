@@ -11,14 +11,16 @@ Open threads from the process-documentation work. Nothing here is scheduled.
 
 ### The problem
 
-`process-docs/gen_index.py` holds the library inventory as Python literals. Re-running
-it refreshes `indexed_through` but does **not** re-read SharePoint. A casual re-run
-therefore stamps a fresh timestamp on stale data, which is worse than an honestly old
-index: the freshness contract tells every reader that anything older than that timestamp
-is covered, and after a blind re-run that claim is false.
+`process-docs/SaaS-Process-Docs-Index.md` is a hand-maintained snapshot. Refreshing it
+means someone running a session, reading the folder through the connector, and updating
+the tables. Nobody will remember to do that, so the index will drift and the freshness
+contract will go stale.
 
-Today the inventory is refreshed by hand — a person runs a session, the connector is
-read, the data lists in the script are updated, then the script runs.
+The generator that previously produced it was deleted deliberately. It held the inventory
+as Python literals, so re-running it refreshed `indexed_through` without re-reading
+SharePoint — stamping a fresh timestamp on stale data, which is worse than an honestly
+old index. Any automation that replaces it must read SharePoint on every run, or it
+reintroduces exactly that failure.
 
 ### What a Routine would do
 
@@ -28,7 +30,7 @@ A scheduled trigger firing a fresh session with the Microsoft 365 connector atta
 2. Harvest modified dates. Single-term content searches worked; multi-term queries and
    the `folderName` filter are unreliable and leak across drives.
 3. Diff against the committed index: new files, removed files, changed dates.
-4. Regenerate the index with a genuine `indexed_through`.
+4. Write the index fresh, with an `indexed_through` that reflects that read.
 5. Commit to the repo and open a PR, or report the diff if nothing changed.
 
 Monthly is probably right. The library changes slowly — roughly a dozen documents
@@ -50,13 +52,6 @@ already exempts. But it constrains where the output lands:
   SharePoint rather than in the repo.
 
 Decide which before building, because it determines whether the rule needs amending.
-
-### Cheaper interim fix
-
-Split the timestamp in two: `data_captured` (updated by hand when the inventory is
-re-read) and `generated_at` (set at run time). Have the script fail, or print a loud
-warning, when `data_captured` is older than some threshold. Roughly five lines, and it
-removes the trap without any automation. Worth doing if the Routine slips.
 
 ### Done looks like
 
@@ -104,9 +99,11 @@ make the Notes column worth more than it currently is.
 
 **Status:** not started
 
-`SaaS-Process-Documentation-Standard.md` and `Process-Doc-Template.md` are drafts in the
-repo. Per the format rule they ship as `.docx`, built with the Bravura brand template.
-Do this once the content has been reviewed, not before.
+`docs/SaaS-Process-Documentation-Standard.md` and `docs/Process-Doc-Template.md` live in
+the repo as the authoritative source. If the team wants them in SharePoint as well, they
+ship as `.docx` per the format rule, built with the Bravura brand template — and the repo
+copy stays the source, so the two will need keeping in step. Decide whether that is worth
+it before converting.
 
 ---
 

@@ -33,9 +33,17 @@ noise at best; an overwrite is damage.
 Read-only SharePoint operations — search, folder listing, reading file
 contents — need no prompt. Prefer them.
 
+## Layout
+
+- `docs/` — repo-native documentation. The process-documentation standard and
+  the process-doc template live here. They are the authoritative source for how
+  processes get written; they are not copies of anything in SharePoint.
+- `process-docs/` — artifacts destined for the SharePoint Process Docs library.
+  Currently just the library index. Nothing here is published until explicitly
+  approved and uploaded, per the SharePoint rule above.
+- `BACKLOG.md` — open threads, including automation that has been deferred.
+
 ## Other notes
 
 - Platform is built with Terraform and deployed with Ansible. Python is the
   primary language.
-- Process doc drafts live in `process-docs/`. They are drafts until
-  explicitly published; nothing in that directory is live documentation.
