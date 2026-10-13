@@ -2,8 +2,8 @@
 
 **Against:** `requirements.md` v0.1 baseline
 **Raised:** 2026-10-13
-**Status:** A1, A3, A4, A5, B4 closed and C3/C8 partly closed (see `decisions.md`).
-A2 deferred. Everything else open.
+**Status:** A1, A3-A5, B4, C3, C6, E3 closed, C8 partly closed (see `decisions.md`).
+A2 deferred. C2 reopened as a first-class problem by D12.
 
 Each item has my read and a recommendation so it can be answered quickly. Answer, and
 the baseline gets amended. UI questions are parked — see section D.
@@ -196,7 +196,7 @@ asks for.
 **Recommendation:** a structured append-only audit log of every write attempt — actor,
 timestamp, action, target ARN, parameters, outcome — separate from the error log.
 
-### C2. No client/tenant scoping
+### C2. No client/tenant scoping — REOPENED and escalated by D12; tags are not a boundary
 
 Nothing in the baseline mentions which client's resources are in view. If the platform is
 multi-tenant and resources are tagged by client, the tool needs filtering at minimum, and
@@ -238,7 +238,7 @@ to silence it. Alarms you cannot mute get ignored, which kills the feature.
 
 **Recommendation:** per-rule acknowledgement with an expiry.
 
-### C7. Testing approach
+### C7. Testing approach — defaulting to moto unless objected to
 
 Not mentioned. Python + boto3 means deciding between `moto`, `botocore.stub.Stubber`, or
 recorded fixtures. It affects how the client layer is structured, so it is a now decision,
@@ -277,7 +277,7 @@ Parked until the other project is ready. Noting it so it is not forgotten.
 
 ## E. Raised by the first two rounds of decisions
 
-### C3a. Multi-volume instances — snapshot all, or make the user pick?
+### C3a. Multi-volume instances — snapshot all, or make the user pick? — CLOSED, see D9
 
 Not answered by D7. An instance with a data volume separate from its root volume is the
 normal case on this platform. Snapshotting one of them and calling it a backup is a
@@ -287,7 +287,7 @@ restore that fails when someone needs it.
 action captures the instance. Asking an engineer to choose a volume mid-incident is where
 mistakes get made.
 
-### C3b. Retention — nothing deletes these
+### C3b. Retention — nothing deletes these — CLOSED, see D10
 
 Deletion is correctly out of scope for the tool, so snapshots created through it
 accumulate and are billed forever. D7 did not take the "inherit existing DLM tags" option,
@@ -311,7 +311,7 @@ different intervals per rule type rather than one global number.
 Dedup key, priority per rule type, and what closes an alert — does a resolved finding
 auto-close the OpsGenie alert, or does on-call close it manually?
 
-### E3. Does account equal client?
+### E3. Does account equal client? — CLOSED, see D12 (no)
 
 D1 made the tool multi-account. If each client's environment is its own AWS account, then
 account selection *is* tenant scoping and C2 is largely answered — the blast radius of a

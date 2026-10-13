@@ -150,3 +150,97 @@ objects were considered and not taken.
 - ACM expiry is a natural drift rule — "expires within N days" — and fits D4's
   operational-state scope, since a certificate's remaining life is not something
   `terraform plan` reports on. Worth adding as a rule type.
+
+## D9 — Snapshot every attached volume as a set
+
+**Closes:** C3a · **Decided:** 2026-10-13
+
+"Snapshot this instance" captures every currently attached volume. All snapshots in one
+action share a set ID tag so the set can be identified as a unit.
+
+**Consequences:**
+- Snapshot listing groups by set, not by individual snapshot. A partial set — some
+  snapshots succeeded, some failed — must be visibly marked, because a set that looks
+  complete but isn't is a restore that fails later.
+- The create path is now multiple API calls that can partially fail. It needs a defined
+  outcome for partial failure: report which volumes succeeded, do not silently claim the
+  instance was snapshotted.
+
+## D10 — Retention by explicit expiry tag, deletion owned elsewhere
+
+**Closes:** C3b · **Decided:** 2026-10-13
+
+Snapshots carry an explicit expiry date tag. The tool never deletes anything; a separate
+platform job enforces the expiry.
+
+**Consequences:**
+- The tool stays read-only-plus-create. No deletion permission is added to the IAM policy.
+- **This is only a retention policy if the enforcing job exists.** Without it the outcome
+  is identical to no retention at all, except that the tags imply otherwise, which is
+  worse than being honest about it. The job needs a named owner before this decision is
+  real.
+- Default retention period, and whether the user can override it per snapshot, are open.
+- The UI should show expiry on each snapshot, so an engineer can see that the backup they
+  are relying on disappears in three days.
+
+## D11 — Suppression: scheduled maintenance windows plus ad-hoc acknowledgement
+
+**Closes:** C6 · **Decided:** 2026-10-13
+
+Two mechanisms. A maintenance window declared ahead of time against a resource stops its
+rules evaluating inside that window. An ad-hoc acknowledgement mutes a specific live
+finding for a set duration.
+
+**Consequences:**
+- Acknowledgements expire. A permanent mute is a disabled rule nobody remembers disabling,
+  so there is no "forever" option.
+- Both are audited like any other write: who suppressed what, when, and until when. A
+  suppressed finding during an incident is a question someone will ask afterwards.
+- The dashboard must show suppressed findings as suppressed, not hide them. Hidden
+  suppression is how a real outage gets missed.
+- Windows and acknowledgements can overlap, so finding state needs to be computed rather
+  than stored as a flag.
+
+## D12 — Shared AWS accounts, clients separated by tag
+
+**Closes:** E3, reopens C2 as a first-class problem · **Decided:** 2026-10-13
+
+An AWS account holds more than one client. Client identity is carried on resource tags.
+
+**Consequences, and this is the most significant risk in the design so far:**
+
+- **A tag is not a security boundary by default.** If scoping is implemented only as a
+  filter in the app, then an operator working on client A can still deregister client B's
+  target — the credentials permit it and only a UI filter stood in the way. Under D1 the
+  assumed role no longer bounds blast radius, because the role spans clients.
+
+  The boundary has to be enforced in IAM with `aws:ResourceTag` conditions on the write
+  actions, so the API itself refuses a cross-client write. App-side filtering is then a
+  convenience layer over a real control rather than the control itself. Confirm per action
+  that the condition key is supported before relying on it.
+
+- **Write actions must re-check the tag at execution time.** A target ARN arriving from a
+  browser is user input. Verifying the client tag on the listing and trusting it on the
+  subsequent write is a time-of-check/time-of-use gap and, more simply, a forgeable
+  parameter.
+
+- **Untagged resources are invisible to tag queries.** `GetResources` in the Resource
+  Groups Tagging API explicitly does not return untagged resources
+  ([GetResources](https://docs.aws.amazon.com/resourcegroupstagging/latest/APIReference/API_GetResources.html)).
+  An untagged production target group would therefore belong to no client and appear in no
+  scoped view. The app needs a deliberate "untagged" view so these surface rather than
+  hide, and drift rules should be able to flag untagged resources as a finding in their
+  own right.
+
+- **Tag lookup is not uniform across services.** EC2 supports `tag:` filters natively on
+  its describe calls. RDS's describe filters do not cover tags — tags come from
+  `ListTagsForResource` per resource, which is one call per instance and a throttling risk
+  under D6's scheduled evaluation. The Resource Groups Tagging API is the better primitive
+  for cross-service tenant queries: it filters by tag and resource type in one regional,
+  paginated call, though it carries its own rate limit.
+
+- The client tag key must be the one the platform already uses. It is not invented here,
+  and it is the same key as the cost allocation tag in D7.
+
+- Drift rules gain a client dimension, so findings can be filtered and alerts routed per
+  client.
