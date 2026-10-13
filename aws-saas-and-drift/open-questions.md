@@ -2,7 +2,7 @@
 
 **Against:** `requirements.md` v0.1 baseline
 **Raised:** 2026-10-13
-**Status:** none closed
+**Status:** A1, A3, A4 closed (see `decisions.md`). A2 deferred. A5 open.
 
 Each item has my read and a recommendation so it can be answered quickly. Answer, and
 the baseline gets amended. UI questions are parked — see section D.
@@ -11,7 +11,7 @@ the baseline gets amended. UI questions are parked — see section D.
 
 ## A. Blocking — these change the architecture, decide before any code
 
-### A1. Is this single-account/single-region, or multi-account?
+### A1. Is this single-account/single-region, or multi-account? — CLOSED, see D1
 
 The baseline assumes one set of credentials and one configurable region (Req 2.3). A SaaS
 platform almost never is. If the tool has to reach more than one client account, it needs
@@ -23,7 +23,7 @@ every page and every client method.
 around "session for (account, region)" from day one even if the registry starts with one
 entry.
 
-### A2. Who is allowed to use the app, and can they all do the writes?
+### A2. Who is allowed to use the app, and can they all do the writes? — DEFERRED, see D2
 
 Req 2 covers how the app authenticates to *AWS*. Nothing covers how a *person*
 authenticates to the app. The glossary says "an authenticated person" and then no
@@ -40,7 +40,7 @@ Two sub-questions:
 
 **Recommendation:** SSO, and two roles. Default every user to read-only.
 
-### A3. Where does it run?
+### A3. Where does it run? — CLOSED, see D3
 
 Not stated anywhere. This determines the credential model (instance profile vs. env vars),
 whether the Defined_Config file survives a restart (see B4), whether it needs TLS, and
@@ -48,7 +48,7 @@ whether it is internet-reachable.
 
 **Recommendation:** needs an answer before the config storage question can be closed.
 
-### A4. Does drift detection overlap with Terraform, and is that deliberate?
+### A4. Does drift detection overlap with Terraform, and is that deliberate? — CLOSED, see D4
 
 The platform's desired state already lives in Terraform. Req 11 adds a second,
 hand-maintained JSON file describing expected state. That is two sources of truth that
@@ -63,7 +63,7 @@ Target group membership during an incident is exactly that.
 requirement. Anything Terraform already owns should be caught by `terraform plan`, not
 re-declared here. If the intent is broader, say so and the file needs a different design.
 
-### A5. Is drift only checked when someone opens a page?
+### A5. Is drift only checked when someone opens a page? — OPEN
 
 Req 11.8 fires the comparison on page load. That means drift is detected only if a human
 happens to look. For a detection feature that is close to useless — the value is being
@@ -122,6 +122,8 @@ editing it through the UI. Those fight each other:
 - In a container, the file is gone on restart.
 - Two users editing at once silently clobber each other — no locking, no revision.
 - No schema version, so the first format change breaks every existing file.
+
+**Now unblocked by D3** — the VM has persistent disk, so both models below are viable.
 
 **Recommendation:** pick one of two models and drop the other.
 - **Git-native:** the file is edited in the repo by PR, and the app reads it read-only.
