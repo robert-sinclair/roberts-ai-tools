@@ -2,7 +2,8 @@
 
 **Against:** `requirements.md` v0.1 baseline
 **Raised:** 2026-10-13
-**Status:** A1, A3, A4 closed (see `decisions.md`). A2 deferred. A5 open.
+**Status:** A1, A3, A4, A5, B4 closed and C3/C8 partly closed (see `decisions.md`).
+A2 deferred. Everything else open.
 
 Each item has my read and a recommendation so it can be answered quickly. Answer, and
 the baseline gets amended. UI questions are parked — see section D.
@@ -63,7 +64,7 @@ Target group membership during an incident is exactly that.
 requirement. Anything Terraform already owns should be caught by `terraform plan`, not
 re-declared here. If the intent is broader, say so and the file needs a different design.
 
-### A5. Is drift only checked when someone opens a page? — OPEN
+### A5. Is drift only checked when someone opens a page? — CLOSED, see D6
 
 Req 11.8 fires the comparison on page load. That means drift is detected only if a human
 happens to look. For a detection feature that is close to useless — the value is being
@@ -111,7 +112,7 @@ time, making lookup exact for anything this tool creates. (2) For legacy snapsho
 specify exact-match-only on the Name tag and label those results as
 "matched by name, unverified" in the output.
 
-### B4. Defined_Config as a git-tracked file the app writes to itself (Req 11.1 + 11.2)
+### B4. Defined_Config as a git-tracked file the app writes to itself (Req 11.1 + 11.2) — CLOSED, see D5
 
 Req 11.1 wants the file version-controlled in the project directory. Req 11.2 wants users
 editing it through the UI. Those fight each other:
@@ -173,7 +174,7 @@ guard: refuse to deregister if it would drop the healthy target count below a fl
 (the Defined_Config expected healthy count is the natural source for that number — the
 two features fit together well).
 
-### B9. "Config_Alarm" collides with two AWS product names
+### B9. "Config_Alarm" collides with two AWS product names — OPEN, naming not yet chosen
 
 AWS Config and CloudWatch Alarms are both in use on the platform. A third thing called a
 "Config Alarm" will cause confusion in incident channels.
@@ -202,7 +203,7 @@ multi-tenant and resources are tagged by client, the tool needs filtering at min
 possibly a hard boundary so an operator working on client A cannot deregister a target
 belonging to client B.
 
-### C3. Snapshot lifecycle is undefined
+### C3. Snapshot lifecycle is undefined — PARTLY CLOSED by D7; C3a and C3b below remain
 
 Snapshots can be created and never deleted — deletion is correctly out of scope. So they
 accumulate and cost money forever.
@@ -230,7 +231,7 @@ promise, not a control — one careless call in a future PR breaks it silently.
 client layer that raises on anything else, plus a test asserting the allowlist contents.
 Then the guarantee is enforced in two places (IAM and code) and a reviewer can see it.
 
-### C6. Suppression / maintenance windows for drift
+### C6. Suppression / maintenance windows for drift — now mandatory under D6, model not chosen
 
 An instance deliberately stopped for maintenance will alarm on every page load with no way
 to silence it. Alarms you cannot mute get ignored, which kills the feature.
@@ -243,7 +244,7 @@ Not mentioned. Python + boto3 means deciding between `moto`, `botocore.stub.Stub
 recorded fixtures. It affects how the client layer is structured, so it is a now decision,
 not a later one.
 
-### C8. Resource coverage — is the list complete?
+### C8. Resource coverage — is the list complete? — PARTLY CLOSED by D8
 
 Baseline covers EC2, S3, Lambda, RDS, CloudWatch Logs, target groups. Worth asking what
 actually gets looked up during an incident that is missing: ACM certificate expiry, Route
@@ -271,3 +272,68 @@ What this still needs from the UI side, eventually, is only the contract:
 - If it is an API, that shape needs agreeing before the backend is written.
 
 Parked until the other project is ready. Noting it so it is not forgotten.
+
+---
+
+## E. Raised by the first two rounds of decisions
+
+### C3a. Multi-volume instances — snapshot all, or make the user pick?
+
+Not answered by D7. An instance with a data volume separate from its root volume is the
+normal case on this platform. Snapshotting one of them and calling it a backup is a
+restore that fails when someone needs it.
+
+**Recommendation:** snapshot every attached volume as a set, sharing a set ID tag, so one
+action captures the instance. Asking an engineer to choose a volume mid-incident is where
+mistakes get made.
+
+### C3b. Retention — nothing deletes these
+
+Deletion is correctly out of scope for the tool, so snapshots created through it
+accumulate and are billed forever. D7 did not take the "inherit existing DLM tags" option,
+which leaves no cleanup path at all.
+
+Either the snapshots carry whatever tag an existing Data Lifecycle Manager policy keys on
+so they age out automatically, or someone owns deleting them by hand, or storage grows
+without bound.
+
+**Recommendation:** inherit the existing DLM tag scheme. It costs one tag and removes the
+problem entirely.
+
+### E1. Drift evaluation interval
+
+D6 settled that evaluation is scheduled. How often is not settled. Target group membership
+during a failover wants minutes; certificate expiry wants daily. These probably want
+different intervals per rule type rather than one global number.
+
+### E2. OpsGenie alert shape
+
+Dedup key, priority per rule type, and what closes an alert — does a resolved finding
+auto-close the OpsGenie alert, or does on-call close it manually?
+
+### E3. Does account equal client?
+
+D1 made the tool multi-account. If each client's environment is its own AWS account, then
+account selection *is* tenant scoping and C2 is largely answered — the blast radius of a
+mistake is bounded by which role you assumed.
+
+If accounts are shared between clients and separation is by tag, C2 is still open and
+needs real filtering, because an operator working on client A can reach client B's
+resources with the same credentials.
+
+### E4. Global vs. regional services in the client layer
+
+Raised by D8. Route 53 is global. ACM is regional but CloudFront certificates are pinned
+to `us-east-1`. IAM and S3 bucket listing are global too. The `(account, region)` session
+key from D1 does not describe these correctly.
+
+**Recommendation:** the client layer carries a service classification — global, regional,
+or regional-with-a-fixed-home — rather than assuming a region applies to everything. Cheap
+now, invasive later.
+
+### E5. Backup for the SQLite database
+
+Required by D5. Persistent disk is not backup, and the database will hold the drift config
+and the audit log — the audit log especially, since losing it defeats the point of having
+one. Scheduled dump to versioned S3 is the obvious answer; it needs an owner and a
+restore test.

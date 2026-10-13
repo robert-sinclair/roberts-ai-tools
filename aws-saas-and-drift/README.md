@@ -24,9 +24,14 @@ feature covers operational state only, not what Terraform already declares. App
 authentication is deferred to the external UI project; the backend still carries an actor
 identity through every write.
 
-Still open before code: where the drift config lives, whether drift is evaluated on a
-schedule, the snapshot naming and tagging rules, and whether the resource list is
-complete.
+Drift config lives in SQLite on the VM and is edited through the app. Drift is evaluated
+on a schedule and raises OpsGenie alerts. Snapshots are tagged with `SourceInstanceId`
+plus client and environment cost tags. ACM certificate expiry and Route 53 records join
+the resource list.
+
+Still open before code: multi-volume snapshot behaviour, snapshot retention, the drift
+evaluation interval and suppression model, whether an AWS account maps to one client, and
+how global services fit the per-region client layer. Section E of `open-questions.md`.
 
 ## UI
 

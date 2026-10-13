@@ -72,3 +72,81 @@ and S3 bucket existence, are Terraform's to own and `terraform plan` catches the
   target groups, EC2 running state, and RDS availability.
 - The feature gets a sharper name than "Config_Alarm" (B9), which also removes the
   collision with AWS Config and CloudWatch Alarms.
+
+## D5 — Drift config lives in SQLite on the VM, edited through the app
+
+**Closes:** B4 · **Decided:** 2026-10-13
+
+The app owns the drift configuration in a SQLite database on the VM's persistent disk.
+Req 11.2's editing UI is kept. Req 11.1 — a git-tracked JSON file in the project
+directory — is dropped.
+
+**Consequences:**
+- Every config change is a row with an actor, a timestamp and a prior value. Revision
+  history comes from the schema, not from git.
+- `schema_version` from the first migration. Use a migration tool rather than ad-hoc
+  `ALTER TABLE`.
+- Concurrency stops being a silent clobber: writes are transactional, and a stale-read
+  edit can be rejected rather than overwriting.
+- **Backup is now required.** Persistent disk is not backup. The database needs a
+  scheduled dump to somewhere off the VM — S3 with versioning is the obvious target, and
+  it is a read-only concern for the tool itself since the dump is written by the platform,
+  not by the app's AWS client.
+- The audit log (C1) lands in the same database, in its own append-only table.
+
+## D6 — Drift is evaluated on a schedule and raises OpsGenie alerts
+
+**Closes:** A5 · **Decided:** 2026-10-13
+
+A background job evaluates drift rules on an interval. Findings raise an OpsGenie alert.
+Req 11.8's page-load-only evaluation is dropped; the page reads the last stored
+evaluation instead of calling AWS on render.
+
+**Consequences:**
+- The evaluator runs independently of any browser session, so it needs its own AWS
+  credentials path and its own account+region iteration. It is the heaviest AWS consumer
+  in the app and the main reason caching and backoff (C4) matter.
+- Findings are persisted with first-seen and last-seen timestamps, so the dashboard can
+  show history and OpsGenie can deduplicate rather than re-alerting every interval.
+- **Suppression is now mandatory, not optional (C6).** An instance stopped for planned
+  maintenance must be mutable without editing the rule, or on-call will mute the
+  integration and the feature dies. Per-rule acknowledgement with an expiry.
+- Alert payloads need a stable dedup key per rule, and a severity. Both still open.
+- The OpsGenie API key is a secret the app holds. It is the first non-AWS credential in
+  the design.
+
+## D7 — Snapshot tagging
+
+**Partially closes:** C3 · **Decided:** 2026-10-13
+
+Snapshots created by the tool are tagged with:
+- `SourceInstanceId` — the instance the volume was attached to at snapshot time. This is
+  the exact-match lookup key that fixes the Name-tag mislinking in B3.
+- Cost allocation tags identifying the client and the environment.
+
+Snapshot lookup therefore has two paths, and the UI must distinguish them: exact match on
+`SourceInstanceId` for snapshots this tool created, and exact match on the Name tag for
+legacy snapshots, shown as "matched by name, unverified". Substring matching is
+prohibited.
+
+**Still open:** the exact tag keys for client and environment must match whatever the
+platform already uses — not invented here. Multi-volume behaviour and retention are
+unresolved; see C3a and C3b in `open-questions.md`.
+
+## D8 — Add ACM certificate expiry and Route 53 records
+
+**Partially closes:** C8 · **Decided:** 2026-10-13
+
+Added to the resource list. Auto Scaling group state and EBS volumes as first-class
+objects were considered and not taken.
+
+**Consequences:**
+- **Both are awkward under the D1 (account, region) session model.** Route 53 is a global
+  service with no regional endpoint. ACM is regional, but certificates used by CloudFront
+  must live in `us-east-1` regardless of where everything else runs, so an ACM inventory
+  that only reads the configured region will miss them and report healthy.
+- The client layer needs an explicit notion of global vs. regional services, rather than
+  assuming every call takes a region.
+- ACM expiry is a natural drift rule — "expires within N days" — and fits D4's
+  operational-state scope, since a certificate's remaining life is not something
+  `terraform plan` reports on. Worth adding as a rule type.
