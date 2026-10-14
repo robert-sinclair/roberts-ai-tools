@@ -1,9 +1,9 @@
 # Open questions and review findings
 
-**Against:** `requirements.md` v0.1 baseline
+**Against:** `requirements-v0.1-baseline.md`. Current requirements are `requirements.md` v0.2.
 **Raised:** 2026-10-13
-**Status:** A1, A3-A5, B4, C3, C6, E3 closed, C8 partly closed (see `decisions.md`).
-A2 deferred. C2 reopened as a first-class problem by D12.
+**Status:** D1-D17 in `decisions.md` close most of A-E. A2 deferred to the UI project.
+Section F below is the live open list.
 
 Each item has my read and a recommendation so it can be answered quickly. Answer, and
 the baseline gets amended. UI questions are parked — see section D.
@@ -337,3 +337,60 @@ Required by D5. Persistent disk is not backup, and the database will hold the dr
 and the audit log — the audit log especially, since losing it defeats the point of having
 one. Scheduled dump to versioned S3 is the obvious answer; it needs an owner and a
 restore test.
+
+---
+
+## F. Still open after v0.2
+
+Sections A–E above are the review history, with each item's status marked. This section is
+the live list — what v0.2 does not answer.
+
+### F1. Do write paths re-verify the Client_Tag at execution time?
+
+D13 made application filtering the whole boundary. A target identifier arriving from the
+browser is caller-supplied input, so verifying the tag when listing and trusting it on the
+subsequent write leaves a gap that does not need a malicious actor to exploit — a stale
+browser tab is enough.
+
+**Recommendation:** re-read the resource's tag inside the write path and compare against
+the Client_Scope before calling AWS. One extra describe per write, which is nothing against
+the cost of a cross-client deregistration.
+
+### F2. Evaluation interval per rule type (was E1)
+
+Target group membership during a failover wants minutes. Certificate expiry wants daily.
+A single global interval serves neither well.
+
+### F3. OpsGenie alert shape (was E2)
+
+Priority per rule type, and whether a resolved Drift_Finding auto-closes its alert or
+on-call closes it manually.
+
+### F4. Who owns the snapshot expiry enforcement job?
+
+D10 and D15 put an expiry tag on every snapshot and left deletion to a separate platform
+job. Until that job exists and has an owner, the tag describes a policy that nothing
+enforces — which is worse than no retention at all, because it reads as handled.
+
+### F5. Exact tag keys
+
+The Client_Tag key, the environment tag, and the expiry tag must match what the platform
+already uses. Not invented here. Needs confirming against the Terraform.
+
+### F6. Concurrency and performance targets (was C9)
+
+How many engineers on it at once, and what page load is acceptable. These shape whether
+the evaluator and the request path share a process. Worth a rough number before the first
+structural commit.
+
+### F7. Backend/UI contract
+
+Server-rendered templates or a JSON API the UI project consumes. Parked until that project
+is ready, but it blocks the first HTTP-layer commit.
+
+### F8. Retained from the original review, not yet decided
+
+- B5/B6/B7 bounds are specified in v0.2 but the actual limits are placeholders.
+- Request timeout value (Requirement 18.3) replaced the baseline's fixed 30 seconds and
+  needs a number.
+- Cache TTL (Requirement 19.3) needs a number.

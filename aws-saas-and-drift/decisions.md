@@ -244,3 +244,77 @@ An AWS account holds more than one client. Client identity is carried on resourc
 
 - Drift rules gain a client dimension, so findings can be filtered and alerts routed per
   client.
+
+## D13 — Client separation is enforced by app-side filtering
+
+**Closes:** C2 · **Decided:** 2026-10-13
+
+Scoping to a client is implemented in the application. No `aws:ResourceTag` conditions are
+added to the IAM policy for this purpose.
+
+**Accepted risk, recorded deliberately:** the tool's credentials permit acting on any
+client's resources in a shared account. The application filter is the whole boundary, so
+a defect in that filter permits a cross-client write with nothing outside the app to stop
+it. This was raised and the decision stands.
+
+**What this obliges instead:**
+- The filter is a single chokepoint every listing and every write passes through, not
+  logic repeated per handler. One place to get right, one place to test.
+- Tests assert the negative case directly: a request scoped to client A must not return or
+  act on a client B resource.
+- The audit log (C1) carries the client scope in force at the time of each write, so a
+  cross-client action is at least detectable afterwards.
+- Revisiting this is a policy change, not a rewrite: the IAM conditions could be added
+  later without changing application structure. Worth reconsidering before the tool is
+  used on Production.
+
+**Open:** whether write paths re-verify the client tag at execution time rather than
+trusting the identifier supplied by the caller. See F1.
+
+## D14 — Untagged resources are visible and writable
+
+**Closes:** part of D12's fallout · **Decided:** 2026-10-13
+
+Resources carrying no client tag appear in a dedicated untagged view, and write actions
+against them are permitted.
+
+**Consequences:**
+- Untagged production resources stay operable, which is the point.
+- A write against an untagged resource is unattributable to a client. The audit log must
+  record the absence of a tag explicitly rather than leaving the field blank, so the gap
+  is visible in a review.
+- Drift should be able to flag untagged resources as a finding, so the untagged set shrinks
+  over time instead of becoming permanent.
+
+## D15 — Default snapshot retention is 30 days, overridable
+
+**Closes:** part of D10 · **Decided:** 2026-10-13
+
+Snapshots are tagged with an expiry 30 days out by default. The user may override per
+snapshot. Deletion remains owned by the separate platform job named in D10.
+
+## D16 — Secrets live in AWS Secrets Manager
+
+**Closes:** the secrets question raised by D6 · **Decided:** 2026-10-13
+
+The OpsGenie API key, and any later secret, are stored in AWS Secrets Manager and read at
+runtime.
+
+**Consequences:**
+- Adds `secretsmanager:GetSecretValue` to the IAM policy. A read action, so it does not
+  widen the write surface, but it should be scoped to the specific secret ARNs rather than
+  granted broadly.
+- Secrets are fetched in the account the VM's own identity lives in, not in the assumed
+  per-client roles. Two distinct credential paths in the same process.
+- Startup now depends on AWS reachability. A Secrets Manager failure must produce a clear
+  error, not a silent start with alerting disabled.
+- Rotation is available but only useful if the app re-reads rather than caching for the
+  lifetime of the process.
+
+## D17 — Drift naming
+
+**Closes:** B9 · **Decided:** 2026-10-14
+
+`Config_Alarm` is replaced throughout by `Drift_Rule` (the declared expectation) and
+`Drift_Finding` (a live mismatch). Removes the collision with AWS Config and CloudWatch
+Alarms. Adopted in v0.2; say if you want different terms.
