@@ -18,8 +18,7 @@ load balancer routing and certificate expiry, and take two bounded write actions
 an EBS snapshot, and register or deregister a load balancer target — without AWS Console
 access or CLI expertise.
 
-The app lives in `aws-saas-and-drift/` in the `roberts-ai-tools` repository. It runs on a
-long-lived VM with persistent disk. The browser UI is built in a separate project; this
+The app runs on a long-lived VM with persistent disk. The browser UI is built in a separate project; this
 document specifies backend behaviour and leaves UI design to that project.
 
 ## Glossary
