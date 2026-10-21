@@ -3,8 +3,11 @@
     Installs rNotice for all users on this machine.
 
 .DESCRIPTION
-    Publishes the projects, copies them to %ProgramFiles%\rNotice, registers rNotice in
-    Add or Remove Programs, and creates an All Users Start Menu shortcut.
+    Publishes the agent and the permission probe, copies them to %ProgramFiles%\rNotice,
+    registers rNotice in Add or Remove Programs, and creates All Users Start Menu shortcuts.
+
+    Autostart is not set here. The agent adds its own per-user Run entry on first run, so it
+    starts at logon only for people who have used it.
 
     Run from an elevated PowerShell prompt. Installing is the only step that needs
     administrator rights — rNotice itself runs unelevated, as the signed-in user.
@@ -24,7 +27,7 @@
     but no dependency on the .NET 8 Desktop Runtime.
 
 .PARAMETER Launch
-    Run the probe once when the install finishes.
+    Start rNotice as the signed-in user when the install finishes.
 
 .EXAMPLE
     .\Install.ps1
@@ -46,6 +49,7 @@ $AppName     = 'rNotice'
 $Publisher   = 'Bravura Security'
 $RepoRoot    = Split-Path -Parent $PSScriptRoot
 $StagingDir  = Join-Path $RepoRoot 'staging'
+$AppExe      = Join-Path $InstallDir 'rNotice.exe'
 $ProbeExe    = Join-Path $InstallDir 'rNotice.Probe.exe'
 $UninstallPs = Join-Path $InstallDir 'Uninstall.ps1'
 $ArpKey      = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\rNotice'
@@ -59,8 +63,8 @@ function Assert-Administrator {
 }
 
 function Get-ProductVersion {
-    # Single source of truth for the version: the csproj, not a constant in this script.
-    $csproj = Join-Path $RepoRoot 'src\rNotice.Probe\rNotice.Probe.csproj'
+    # Single source of truth for the version: the agent's csproj, not a constant in this script.
+    $csproj = Join-Path $RepoRoot 'src\rNotice.Agent\rNotice.Agent.csproj'
     $xml    = [xml](Get-Content $csproj)
     $value  = $xml.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
     if (-not $value) { throw "No <Version> found in $csproj." }
@@ -74,21 +78,23 @@ function Invoke-Publish {
 
     if (Test-Path $StagingDir) { Remove-Item $StagingDir -Recurse -Force }
 
-    $project = Join-Path $RepoRoot 'src\rNotice.Probe\rNotice.Probe.csproj'
-    Write-Host "Publishing $(Split-Path -Leaf $project)..." -ForegroundColor Cyan
+    foreach ($name in 'rNotice.Agent', 'rNotice.Probe') {
+        $project = Join-Path $RepoRoot "src\$name\$name.csproj"
+        Write-Host "Publishing $name..." -ForegroundColor Cyan
 
-    & dotnet publish $project `
-        --configuration Release `
-        --runtime win-x64 `
-        -p:SelfContained=$($SelfContained.IsPresent) `
-        --output $StagingDir | Out-Host
+        & dotnet publish $project `
+            --configuration Release `
+            --runtime win-x64 `
+            -p:SelfContained=$($SelfContained.IsPresent) `
+            --output $StagingDir | Out-Host
 
-    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)." }
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish of $name failed (exit $LASTEXITCODE)." }
+    }
 }
 
 function Stop-ExistingInstall {
-    Get-Process -Name 'rNotice.Probe' -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Host 'Closing the running probe...' -ForegroundColor Cyan
+    Get-Process -Name 'rNotice', 'rNotice.Probe' -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "Closing the running $($_.ProcessName)..." -ForegroundColor Cyan
         $_ | Stop-Process -Force
     }
     # Give Windows a moment to release the file handles before overwriting them.
@@ -128,7 +134,7 @@ function Register-AddRemovePrograms {
         DisplayVersion  = $Version
         Publisher       = $Publisher
         InstallLocation = $InstallDir
-        DisplayIcon     = $ProbeExe
+        DisplayIcon     = $AppExe
         UninstallString = $command
         # Lets Windows uninstall without showing a console window.
         QuietUninstallString = "$command -Quiet"
@@ -149,14 +155,15 @@ function Register-AddRemovePrograms {
 }
 
 function Install-Shortcut {
-    $startMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\rNotice.lnk'
-    $shell     = New-Object -ComObject WScript.Shell
-    $shortcut  = $shell.CreateShortcut($startMenu)
-    $shortcut.TargetPath       = $ProbeExe
+    param([string] $Name, [string] $Target, [string] $Description)
+
+    $path     = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\$Name.lnk"
+    $shell    = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($path)
+    $shortcut.TargetPath       = $Target
     $shortcut.WorkingDirectory = $InstallDir
-    $shortcut.Description      = 'rNotice permission probe'
+    $shortcut.Description      = $Description
     $shortcut.Save()
-    Write-Host "Start Menu shortcut created for all users." -ForegroundColor Cyan
 }
 
 Assert-Administrator
@@ -169,7 +176,9 @@ if (-not (Test-Path $StagingDir)) { throw "No build output at $StagingDir. Run w
 Stop-ExistingInstall
 Install-Files
 Register-AddRemovePrograms -Version $version
-Install-Shortcut
+Install-Shortcut -Name 'rNotice' -Target $AppExe -Description 'rNotice desktop assistant'
+Install-Shortcut -Name 'rNotice Probe' -Target $ProbeExe -Description 'rNotice permission probe'
+Write-Host 'Start Menu shortcuts created for all users.' -ForegroundColor Cyan
 
 Write-Host ''
 Write-Host "rNotice $version installed for all users." -ForegroundColor Green
@@ -177,15 +186,13 @@ Write-Host ''
 Write-Host "  Location   $InstallDir"
 Write-Host "  Uninstall  Settings > Apps > Installed apps > rNotice"
 Write-Host ''
-Write-Host 'This build is a read-only permission probe. It writes nothing to your mailbox,'
-Write-Host 'calendar or OneDrive. Run it as yourself, not from this elevated prompt:'
-Write-Host ''
-Write-Host "  & '$ProbeExe'"
+Write-Host 'Start it as yourself, not from this elevated prompt: Start Menu > rNotice. It adds'
+Write-Host 'itself to your own startup apps on first run and lives in the notification area.'
 Write-Host ''
 
 if ($Launch) {
-    # Launch via Explorer so the probe runs as the signed-in user rather than inheriting this
+    # Launch via Explorer so rNotice runs as the signed-in user rather than inheriting this
     # elevated token. Signing in as an administrator would cache the wrong account.
-    Write-Host 'Starting the probe as the signed-in user...' -ForegroundColor Cyan
-    Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$ProbeExe`""
+    Write-Host 'Starting rNotice as the signed-in user...' -ForegroundColor Cyan
+    Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$AppExe`""
 }

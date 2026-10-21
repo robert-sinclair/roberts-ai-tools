@@ -47,6 +47,7 @@ public sealed class Scheduler(SchedulerOptions options)
             if (!IsDue(item, nowUtc)) continue;
 
             var interrupt = EffectiveInterrupt(item, nowUtc);
+            if (interrupt == Interrupt.Silent) continue;
 
             // Takeover ignores busy and quiet hours. It is mostly about meetings, so suppressing
             // it during meetings would defeat it.
@@ -79,13 +80,20 @@ public sealed class Scheduler(SchedulerOptions options)
         return effective <= nowUtc;
     }
 
+    /// <summary>
+    /// A takeover past its grace period is stale. For a meeting that means it's under way —
+    /// you're in it or you aren't — so it stays in the queue without a window. Found on the
+    /// first real run: startup otherwise alerts for every long block already in progress.
+    /// Anything else (a workbook row set to takeover) is still overdue work, so it comes up as
+    /// an ordinary alert.
+    /// </summary>
     private Interrupt EffectiveInterrupt(Item item, DateTimeOffset nowUtc)
     {
         var interrupt = item.Classification.Interrupt;
         if (interrupt == Interrupt.Takeover && item.DueUtc is { } start &&
             nowUtc > start.AddSeconds(_options.TakeoverGraceSeconds))
         {
-            return Interrupt.Alert;
+            return item.Source == Source.Calendar ? Interrupt.Silent : Interrupt.Alert;
         }
         return interrupt;
     }

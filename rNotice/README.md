@@ -8,7 +8,49 @@ Full design in [`SPEC.md`](SPEC.md). This README covers installing and running w
 
 ---
 
+## Build 0.3 — the agent, workbook and calendar only
+
+`rNotice.exe` lives in the notification area and watches two sources: your Outlook calendar
+and the `Actions` table in `/efficiency/rNotice.xlsx`. Rules decide priority; there is no model
+call. It reads your mailbox and Teams not at all.
+
+**What it writes:** one thing, once. If `/efficiency/rNotice.xlsx` doesn't exist, it creates it
+with the `Actions` table and the date columns formatted as text. It never writes a row, never
+touches your calendar, and never acknowledges anything back to the workbook — that's step 4.
+
+| | |
+| --- | --- |
+| Tray icon | Blue: fine. Orange: a P1 or P2 needs you now. Grey `!`: sign-in needed, or a source is failing. |
+| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake, Planned, Done. |
+| Keys | **P** plan · **D** dismiss · **C** complete · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide |
+| Alert window | Topmost, doesn't steal focus, flashes the taskbar. Plan, Dismiss, Snooze, Open source, and Join for Teams meetings. |
+| Meetings | Every meeting not on `meetingBlocklist` alerts 60 seconds before it starts. The full-screen takeover is step 4; until then it uses the alert window. |
+| Autostart | First run of the installed copy adds you to your own startup apps. Untick **Start with Windows** in the tray menu to stop it. |
+
+Times are shown local first, UTC beside them.
+
+**Queue order.** Items that need you now come first, by priority. Upcoming ones follow, soonest
+first. Every meeting is P1, so ordering by priority alone would bury today's work under next
+week's meetings.
+
+**Settings** are in `%LOCALAPPDATA%\rNotice\settings.json`, written with defaults on first run.
+Edit, then restart rNotice from the tray. The useful ones: `rules.meetingBlocklist` (subject
+text, or `/regex/`), `rules.horizonDays`, `quietHours` (`{"start":"22:00","end":"07:00"}`),
+`snoozeMinutes`.
+
+**Logs** are in `%LOCALAPPDATA%\rNotice\logs`, one file a day. Titles go in; snippets never do.
+
+**The local store** is `%LOCALAPPDATA%\rNotice\rnotice.db`. Titles, senders, snippets and links
+are encrypted with DPAPI under your Windows account.
+
+**Both windows are excluded from screen capture** (`WDA_EXCLUDEFROMCAPTURE`). Whether Teams
+honours that is not yet checked — don't rely on it in a share until it is.
+
+---
+
 ## Build 0.1 — the permission probe
+
+Still installed as **Start Menu → rNotice Probe**.
 
 **This build does one thing: it tells you which Microsoft Graph permissions actually work.**
 
@@ -68,7 +110,7 @@ cd rNotice\install
 .\Install.ps1
 ```
 
-Add `-SelfContained` to bundle the .NET runtime, and `-Launch` to run the probe straight after.
+Add `-SelfContained` to bundle the .NET runtime, and `-Launch` to start rNotice straight after.
 
 **Installing is the only step that needs administrator rights.** rNotice itself runs unelevated,
 as you. It has no service, no driver and no scheduled task.
@@ -98,7 +140,9 @@ Run it **as yourself**, not from the elevated prompt you installed from — othe
 caches the administrator account instead of yours.
 
 - Start Menu → **rNotice**, or
-- `& "$env:ProgramFiles\rNotice\rNotice.Probe.exe"`
+- `& "$env:ProgramFiles\rNotice\rNotice.exe"`
+
+Launching it again while it's running opens the queue window instead of starting a second copy.
 
 The first run may show a Windows sign-in prompt. After that the broker signs you in silently and
 no prompt appears again.
@@ -127,7 +171,7 @@ uninstall first.
 Your settings, logs and sign-in state are in your own profile and are never touched by an
 upgrade. Other users' data is likewise untouched.
 
-The version comes from `<Version>` in `src/rNotice.Probe/rNotice.Probe.csproj` — bump it there
+The version comes from `<Version>` in `src/rNotice.Agent/rNotice.Agent.csproj` — bump it there
 and the installer picks it up. Nothing else needs editing.
 
 ## Uninstall
@@ -176,8 +220,8 @@ run `dotnet add package Microsoft.Identity.Client` and the same for
 
 ## What this build is not
 
-No tray icon, no alert window, no takeover, no queue, no MCP server, no Claude skill. None of
-that exists yet.
+No mail, no Teams, no model classification, no full-screen takeover, no acknowledgement
+write-back, no promotion, no MCP server, no Claude skill. Steps 4 onward in `SPEC.md`.
 
 The probe ran on 2026-10-21: all five permissions usable.
 

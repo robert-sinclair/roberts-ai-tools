@@ -153,6 +153,9 @@ public sealed class ItemStore : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Removes an item outright, leaving no tombstone. For items whose source thing is gone.</summary>
+    public void Delete(Guid id) => Execute("DELETE FROM items WHERE id = $id", ("$id", id.ToString()));
+
     public Item? Get(Guid id) =>
         Query("SELECT * FROM items WHERE id = $id", ("$id", id.ToString())).SingleOrDefault();
 

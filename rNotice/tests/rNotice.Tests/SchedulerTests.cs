@@ -105,7 +105,17 @@ public class SchedulerTests
     }
 
     [Fact]
-    public void Takeover_for_a_meeting_long_started_comes_up_as_an_alert()
+    public void Meeting_long_started_stays_in_the_queue_without_a_window()
+    {
+        var meeting = Item(Interrupt.Takeover, due: Now.AddMinutes(-10)) with { Source = Source.Calendar };
+        var result = _scheduler.Tick([meeting], Now, Free);
+
+        Assert.True(result.IsEmpty);
+        Assert.Empty(result.Deferred);
+    }
+
+    [Fact]
+    public void Overdue_non_meeting_takeover_comes_up_as_an_alert()
     {
         var result = _scheduler.Tick([Item(Interrupt.Takeover, due: Now.AddMinutes(-10))], Now, Free);
 

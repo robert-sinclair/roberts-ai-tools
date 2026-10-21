@@ -38,7 +38,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ArpKey    = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\rNotice'
-$Shortcut  = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\rNotice.lnk'
+$Shortcuts = 'rNotice', 'rNotice Probe' | ForEach-Object {
+    Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\$_.lnk"
+}
+$RunKey    = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $UserData  = Join-Path $env:LOCALAPPDATA 'rNotice'
 
 function Assert-Administrator {
@@ -61,15 +64,22 @@ if (-not $InstallDir) {
     }
 }
 
-Get-Process -Name 'rNotice.Probe' -ErrorAction SilentlyContinue | ForEach-Object {
-    Write-Host 'Closing the running probe...' -ForegroundColor Cyan
+Get-Process -Name 'rNotice', 'rNotice.Probe' -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "Closing the running $($_.ProcessName)..." -ForegroundColor Cyan
     $_ | Stop-Process -Force
 }
 Start-Sleep -Milliseconds 400
 
-if (Test-Path $Shortcut) {
-    Remove-Item $Shortcut -Force
-    Write-Host 'Start Menu shortcut removed.' -ForegroundColor Cyan
+foreach ($shortcut in $Shortcuts) {
+    if (Test-Path $shortcut) { Remove-Item $shortcut -Force }
+}
+Write-Host 'Start Menu shortcuts removed.' -ForegroundColor Cyan
+
+# Autostart is per user. This removes the entry for the account running the uninstall; other
+# users' entries point at a missing exe and do nothing.
+if (Get-ItemProperty -Path $RunKey -Name 'rNotice' -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path $RunKey -Name 'rNotice'
+    Write-Host 'Your startup entry removed.' -ForegroundColor Cyan
 }
 
 if (Test-Path $ArpKey) {

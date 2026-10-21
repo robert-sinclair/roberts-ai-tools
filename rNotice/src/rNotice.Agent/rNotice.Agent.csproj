@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 10.0.19041 for the MSAL broker's WAM interop, as in the probe. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <!-- WPF for the windows; WinForms only for NotifyIcon, which WPF lacks. -->
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>rNotice.Agent</RootNamespace>
+    <AssemblyName>rNotice</AssemblyName>
+    <Version>0.3.0</Version>
+    <Company>Bravura Security</Company>
+    <Product>rNotice</Product>
+    <!-- Shown in Settings > Personalization > Taskbar > Other system tray icons -->
+    <AssemblyTitle>rNotice</AssemblyTitle>
+    <Description>rNotice desktop assistant</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- With both UI stacks on, the WinForms implicit usings make Application, MessageBox and
+         friends ambiguous. WinForms types are referenced by alias instead. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF projects drop these two from the implicit set. -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.91.1" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.91.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\rNotice.Core\rNotice.Core.csproj" />
+  </ItemGroup>
+
+</Project>

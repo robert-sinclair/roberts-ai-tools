@@ -39,8 +39,8 @@ public sealed record SchedulerOptions
 {
     /// <summary>
     /// How long after a meeting's start its takeover may still fire. Past this — the app was
-    /// off, the machine asleep — it comes up as an ordinary alert instead of dimming every screen
-    /// for a meeting already under way.
+    /// off, the machine asleep — the meeting is under way and stays in the queue without a
+    /// window. A non-meeting takeover past this comes up as an ordinary alert.
     /// </summary>
     public int TakeoverGraceSeconds { get; init; } = 300;
 

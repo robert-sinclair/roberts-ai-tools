@@ -1032,6 +1032,19 @@ one means a poller and a mapping, nothing structural.
    network, no model.
 3. `rNotice.Agent` with **workbook and calendar only** — tray, queue window, alert window,
    autostart. Rules-only classification. Ships without touching your mailbox.
+   **Built 2026-10-21 (0.3.0).** Busy and quiet-hours suppression came along, since Core
+   already had it. Meetings use the alert window until step 4's takeover. The first real run
+   changed two things:
+   - **A meeting more than `takeoverGraceSeconds` past its start no longer alerts.** On startup,
+     every long block already under way (a 06:00 deploy window, at 12:30) put up an alert.
+     The meeting stays in the queue. Non-meeting takeovers that are overdue still alert.
+   - **The queue sorts "needs you now" before "upcoming"**, and the tray counts only the
+     former as urgent. Every meeting is P1, so 28 meetings over 14 days sat above everything,
+     and the tray would have shown urgent permanently.
+
+   Still open from the run: Intake fills with every meeting in the horizon. They are already
+   scheduled, so arguably they belong in Planned, or in no column until they fire. That is a
+   change to "Intake is the only stage the app sets", so it is your call.
 4. Takeover window, toast, suppression, acknowledge write-back.
 5. Mail source. Read-only, rules-only. The reply-toast rule is the whole value here.
 6. Teams source, named chats only.
