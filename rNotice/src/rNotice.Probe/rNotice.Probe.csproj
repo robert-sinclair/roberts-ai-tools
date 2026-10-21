@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- 10.0.19041 rather than plain net8.0-windows: the MSAL broker package needs the
+         Windows SDK projection for WAM interop. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>rNotice.Probe</RootNamespace>
+    <AssemblyName>rNotice.Probe</AssemblyName>
+    <Version>0.1.0</Version>
+    <Company>Bravura Security</Company>
+    <Product>rNotice</Product>
+    <AssemblyTitle>rNotice Probe</AssemblyTitle>
+    <Description>Reports which Microsoft Graph permissions rNotice can actually use.</Description>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Floating 4.* deliberately, for this spike only: pinning a version guessed without a
+         NuGet feed to hand would more likely break restore than help. Pin both to the exact
+         version that restores on the first successful build, before rNotice.Core starts. -->
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.*" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.*" />
+  </ItemGroup>
+
+</Project>

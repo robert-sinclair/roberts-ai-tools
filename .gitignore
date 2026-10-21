@@ -1,0 +1,19 @@
+## .NET
+bin/
+obj/
+out/
+*.user
+*.suo
+*.userprefs
+.vs/
+artifacts/
+
+## Publish output
+publish/
+staging/
+
+## OS / editor
+Thumbs.db
+.DS_Store
+.idea/
+*.swp
