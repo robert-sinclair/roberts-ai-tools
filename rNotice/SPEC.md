@@ -214,7 +214,8 @@ path make this OneDrive for Business, not a SharePoint site library, despite the
 
 **The file does not exist yet.** rNotice's repo carries the template and the app creates it on
 first run if it's missing, so there is no manual setup step and no schema drift between the
-spec and reality.
+spec and reality. The creation path is proven — see *Write path: proven by spike* under
+*Writes*.
 
 **What changed is its status.** It is no longer the system of record — it can't be, because an
 email or a Teams message has no row to live in and the app doesn't create rows. The workbook is
@@ -535,17 +536,50 @@ Three, all narrow, all on items you acted on.
 2. `Id` gone (row deleted) → drop from local state, log, one-line toast. Write nothing.
 3. `Status` no longer `Pending` (someone else got there) → accept theirs, update local, don't
    overwrite.
-4. Otherwise `PATCH` the three acknowledgement columns.
+4. Otherwise `PATCH .../tables/Actions/rows/itemAt(index={n})` with a one-row, twelve-column
+   values array: the three acknowledgement values, `null` in every other cell. `{n}` is the
+   index from the re-read in step 1, never a cached one.
 
 No optimistic concurrency exists on table rows, so 1–3 narrows the race rather than closing it.
 Acceptable: the window is milliseconds and the only contended field is one you're setting
 anyway.
 
-> **Verify before building on it.** The documented `PATCH .../rows/{index}` route has open
-> reports of `ApiNotFound`, with an undocumented `rows/itemAt(index={index})` form working
-> instead, and one report that a bare string fills every cell in the row.
-> ([Q&A](https://learn.microsoft.com/en-us/answers/questions/1333728/graph-workbook-api-update-row))
-> **First code task is a throwaway spike that proves the write path.**
+#### Write path: proven by spike, 2026-10-21
+
+A throwaway console app ran against a scratch workbook in `/efficiency` in this tenant, using
+the probe's WAM sign-in and `Files.ReadWrite` only. The file was deleted afterwards.
+
+| Call | Result |
+| --- | --- |
+| `PATCH .../rows/{index}` (documented) | **400 `ApiNotFound`**, with a full row and with a partial one. Do not use. |
+| `PATCH .../rows/itemAt(index={n})` | **200.** Full row works. |
+| Same, `null` in every cell except the ack columns | **200, and the `null` cells are left unchanged.** This is the route rNotice uses. |
+| `PATCH .../rows/itemAt(index={n})/range`, same `null` pattern | 200, same behaviour. Fallback if `itemAt` ever stops working. |
+| `{"values": "X"}` — a bare string, not a 2-D array | **200, and every cell in the row becomes `X`, `Id` included.** The report was right. |
+
+This matches the open reports
+([Q&A](https://learn.microsoft.com/en-us/answers/questions/1333728/graph-workbook-api-update-row)).
+Two rules follow for the writer:
+
+- **Always send a 2-D array, one row by twelve columns.** Build it from a typed object; never
+  pass a scalar. A malformed write doesn't fail — it wipes the row's `Id`, and with it the only
+  stable key.
+- **`null` means "leave this cell alone".** Never send `""` for a cell rNotice doesn't own.
+
+What else the spike showed:
+
+- **Creating the workbook works.** Upload a blank `.xlsx` (generated with OpenXML), write the
+  header row to `A1:L1`, set `numberFormat` `@` on the `DueUtc` and `AckedAtUtc` columns, then
+  `POST .../workbook/tables/add` (`address: Sheet1!A1:L1`, `hasHeaders: true`) and rename the
+  table from `Table1` to `Actions`. No session, no retries needed.
+- **Text format holds.** `DueUtc` came back as `String` with format `@` after rows were added.
+- **An ISO string written through Graph is not converted to a date, even in an unformatted
+  column.** So the "Excel converted your date" guard in `Intake` is for dates typed by hand in
+  Excel, not for anything rNotice writes.
+- **Blank cells come back as `""`, not `null`. Numbers come back as JSON numbers.** `Intake`
+  already treats `""` as blank and reads numbers through `IFormattable`.
+- **Rows carry an `index` and nothing else stable.** Finding a row by `Id` means listing the
+  rows and scanning — fine at this table's size.
 
 ### Promoting to the calendar
 

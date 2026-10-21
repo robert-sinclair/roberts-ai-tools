@@ -191,6 +191,7 @@ content columns. No network, no UI, no model calls.
 dotnet test tests\rNotice.Tests
 ```
 
-The risky Graph paths still need proving before anything is built on them: the table-row `PATCH`
-(the documented route has open `ApiNotFound` reports), `conversationId` reply-matching, and
-whether Teams defeats `WDA_EXCLUDEFROMCAPTURE`.
+The workbook write path is proven: the documented `rows/{index}` route returns `ApiNotFound`, and
+`rows/itemAt(index=)` works (details in `SPEC.md`, *Writes*). Two risky paths still need proving
+before anything is built on them: `conversationId` reply-matching, and whether Teams defeats
+`WDA_EXCLUDEFROMCAPTURE`.
