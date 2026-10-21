@@ -179,10 +179,18 @@ run `dotnet add package Microsoft.Identity.Client` and the same for
 No tray icon, no alert window, no takeover, no queue, no MCP server, no Claude skill. None of
 that exists yet.
 
-Next is **step 2 of the build order in [`SPEC.md`](SPEC.md)** — `rNotice.Core`, the item model,
-rules engine and scheduler. Pure logic, no network, fully testable.
+The probe ran on 2026-10-21: all five permissions usable.
+
+## rNotice.Core (build step 2)
+
+A library, not something you install. Item model, intake rules for all four sources, the
+scheduler with busy and quiet-hours suppression, and the SQLite store with DPAPI-encrypted
+content columns. No network, no UI, no model calls.
+
+```powershell
+dotnet test tests\rNotice.Tests
+```
 
 The risky Graph paths still need proving before anything is built on them: the table-row `PATCH`
 (the documented route has open `ApiNotFound` reports), `conversationId` reply-matching, and
-whether Teams defeats `WDA_EXCLUDEFROMCAPTURE`. Those come once this probe says the permissions
-are there.
+whether Teams defeats `WDA_EXCLUDEFROMCAPTURE`.

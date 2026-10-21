@@ -284,8 +284,7 @@ Three of your four examples need no judgement at all:
 | @mention in a watched Teams chat | Your user id appears in the message's `mentions` array | `P2` / `alert` |
 | *A Teams message that is a request for information* | — needs judgement — | model |
 
-Other deterministic rules: VIP sender list → `P1`/`alert`. Direct message in a watched chat
-(not a mention) → `P3`/`silent`. Workbook row inside its lead time → its own `Priority` and
+Other deterministic rules: VIP sender list → `P1`/`alert`. Workbook row inside its lead time → its own `Priority` and
 `Interrupt` columns. Message where you are the only recipient on the To line → one priority
 step up.
 
@@ -293,6 +292,11 @@ step up.
 > reply-tracking pattern.** It is how threads are grouped and it should work, but it is the
 > least-verified rule here and it carries your top priority. **Prove it in the spike** against
 > real threads, including ones where you were CC'd and ones forwarded from outside.
+
+**No rule for one-on-one Teams messages, by decision.** An earlier draft made a 1:1 message
+without a mention `P3`/`silent` by rule. That kept most requests for information away from the
+model, since that's how most of them arrive. Without a mention, 1:1 and group messages both go
+to the model.
 
 ### Then the model, for what's left
 
