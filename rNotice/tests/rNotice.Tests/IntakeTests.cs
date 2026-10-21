@@ -57,14 +57,34 @@ public class MailIntakeTests
         VipSenders = ["ceo@bravurasecurity.com"]
     }, User);
 
-    private static readonly IReadOnlySet<string> NoThreads = new HashSet<string>();
+    private static readonly IReadOnlyDictionary<string, DateTimeOffset> NoThreads = new Dictionary<string, DateTimeOffset>();
+
+    // You first sent in the conversation an hour before the test mail arrived.
+    private static IReadOnlyDictionary<string, DateTimeOffset> SentIn(string conv) =>
+        new Dictionary<string, DateTimeOffset> { [conv] = Now.AddHours(-1) };
 
     [Fact]
     public void Reply_on_a_thread_you_sent_in_is_P1_toast()
     {
-        var c = _intake.FromMail(Mail(conversationId: "conv-9"), new HashSet<string> { "conv-9" }).Item!.Classification;
+        var c = _intake.FromMail(Mail(conversationId: "conv-9"), SentIn("conv-9")).Item!.Classification;
 
         Assert.Equal((Priority.P1, Interrupt.Toast, ClassifiedBy.Rule), (c.Priority, c.Interrupt, c.By));
+    }
+
+    [Fact]
+    public void Mail_from_before_your_first_send_is_not_a_reply()
+    {
+        // The message you replied to shares the conversationId. 9 of 26 spike false alarms.
+        var earlier = Mail() with { ReceivedUtc = Now.AddHours(-2) };
+        Assert.Equal(ClassifiedBy.Default, _intake.FromMail(earlier, SentIn("conv-1")).Item!.Classification.By);
+    }
+
+    [Fact]
+    public void Meeting_messages_are_skipped_even_on_a_thread_you_sent_in()
+    {
+        // "Accepted:" responses to your invites. 17 of 26 spike false alarms.
+        var accepted = Mail() with { IsMeetingMessage = true };
+        Assert.True(_intake.FromMail(accepted, SentIn("conv-1")).Skipped);
     }
 
     [Fact]
@@ -77,7 +97,7 @@ public class MailIntakeTests
     [Fact]
     public void Reply_rule_wins_over_vip()
     {
-        var c = _intake.FromMail(Mail(from: "ceo@bravurasecurity.com"), new HashSet<string> { "conv-1" }).Item!.Classification;
+        var c = _intake.FromMail(Mail(from: "ceo@bravurasecurity.com"), SentIn("conv-1")).Item!.Classification;
         Assert.Equal(Interrupt.Toast, c.Interrupt);
     }
 
@@ -100,7 +120,7 @@ public class MailIntakeTests
     [Fact]
     public void Sole_To_recipient_leaves_P1_alone()
     {
-        var c = _intake.FromMail(Mail(to: ["robert.sinclair@bravurasecurity.com"]), new HashSet<string> { "conv-1" })
+        var c = _intake.FromMail(Mail(to: ["robert.sinclair@bravurasecurity.com"]), SentIn("conv-1"))
                        .Item!.Classification;
 
         Assert.Equal(Priority.P1, c.Priority);

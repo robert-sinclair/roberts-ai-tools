@@ -71,23 +71,30 @@ public sealed class Intake(RulesOptions options, Me me)
     // ── Mail ────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Skip: sent by you, ignored sender. Then: reply on a thread you've sent in → P1/toast;
-    /// VIP sender → P1/alert; otherwise the fallback. Being the only To recipient steps the
-    /// result up one priority.
+    /// Skip: sent by you, meeting messages, ignored sender. Then: reply on a thread you've sent
+    /// in → P1/toast; VIP sender → P1/alert; otherwise the fallback. Being the only To recipient
+    /// steps the result up one priority.
     ///
-    /// The reply rule matches on <c>conversationId</c>. That is an inference, not a documented
-    /// reply-tracking pattern, and must be proven in the spike before step 5 builds on it.
+    /// The reply rule is <c>conversationId</c> in a conversation you've sent in, received after
+    /// your first send there. Checked against In-Reply-To/References on real mail in the
+    /// 2026-10-21 spike — see SPEC.md. Without the time check, the message you replied to counts
+    /// as a reply to you; without skipping meeting messages, every "Accepted:" does.
     /// </summary>
-    public IntakeResult FromMail(MailMessage m, IReadOnlySet<string> sentConversationIds)
+    /// <param name="firstSentByConversation">conversationId → when you first sent in it, from Sent Items.</param>
+    public IntakeResult FromMail(MailMessage m, IReadOnlyDictionary<string, DateTimeOffset> firstSentByConversation)
     {
         if (m.FromAddress.Equals(_me.Address, StringComparison.OrdinalIgnoreCase))
             return IntakeResult.Skip("Sent by you");
+
+        // Invites, responses and cancellations. The calendar source already covers the meeting.
+        if (m.IsMeetingMessage)
+            return IntakeResult.Skip("Meeting message");
 
         if (TextMatch.SenderMatches(m.FromAddress, _options.IgnoreSenders))
             return IntakeResult.Skip("Ignored sender");
 
         Classification c;
-        if (sentConversationIds.Contains(m.ConversationId))
+        if (firstSentByConversation.TryGetValue(m.ConversationId, out var firstSent) && m.ReceivedUtc > firstSent)
             c = new(Priority.P1, Interrupt.Toast, ClassifiedBy.Rule, "Reply on a thread you've sent in");
         else if (TextMatch.SenderMatches(m.FromAddress, _options.VipSenders))
             c = new(Priority.P1, Interrupt.Alert, ClassifiedBy.Rule, "VIP sender");

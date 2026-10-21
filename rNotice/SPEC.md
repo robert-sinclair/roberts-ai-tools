@@ -282,7 +282,7 @@ Three of your four examples need no judgement at all:
 | Example | Rule | Result |
 | --- | --- | --- |
 | Meeting starting in ~1 min | Calendar instance start − now ≤ `takeoverLeadSeconds` | `P1` / `takeover` |
-| A reply to an email | Message `conversationId` matches a thread you have sent in, sender ≠ you | `P1` / `toast` |
+| A reply to an email | Message `conversationId` matches a thread you have sent in, received after your first send there, sender ≠ you, not a meeting message | `P1` / `toast` |
 | @mention in a watched Teams chat | Your user id appears in the message's `mentions` array | `P2` / `alert` |
 | *A Teams message that is a request for information* | — needs judgement — | model |
 
@@ -290,10 +290,47 @@ Other deterministic rules: VIP sender list → `P1`/`alert`. Workbook row inside
 `Interrupt` columns. Message where you are the only recipient on the To line → one priority
 step up.
 
-> **`conversationId` reply-matching is my inference, not something Microsoft documents as a
-> reply-tracking pattern.** It is how threads are grouped and it should work, but it is the
-> least-verified rule here and it carries your top priority. **Prove it in the spike** against
-> real threads, including ones where you were CC'd and ones forwarded from outside.
+#### Reply matching: checked by spike, 2026-10-21
+
+`conversationId` matching is still not something Microsoft documents as a way to track replies.
+So a read-only spike checked it against real mail, using RFC 5322 threading as the ground truth:
+an inbox message is a reply on your thread if its `In-Reply-To` or `References` header names
+the `Message-ID` of something you sent.
+
+Data: 101 sent messages (76 conversations) over 60 days, 374 inbox messages from others over
+30 days. Every inbox message had its internet headers. 24 were true replies.
+
+| Rule | Replies caught | Missed | False alarms |
+| --- | --- | --- | --- |
+| `conversationId` in a conversation you've sent in (as first specced) | 24 | 0 | **26** |
+| + received after your first send in that conversation | 24 | 0 | 17 |
+| + skip meeting messages (Graph `@odata.type` `eventMessage*`) | **24** | **0** | **0** |
+
+Where the 26 false alarms came from:
+
+- **9: the message you replied to.** It shares the conversation and arrives before your send.
+  The time check removes them.
+- **17: meeting traffic.** "Accepted:" and "Canceled:" for invites you sent go into the same
+  conversation, with no `References` header. Skipping `eventMessage*` removes them. There were
+  50 meeting messages in the inbox and none was a true reply, so skipping them entirely costs
+  nothing. The calendar source already covers the meeting itself.
+
+The 24 true replies included external senders (22) and messages where you were only on CC (4).
+All were caught.
+
+**What the spike did not cover.** No true reply in the sample had an edited subject or came
+from a thread forwarded on from outside, so those two cases are untested, not proven. Exchange
+groups conversations partly by subject, so an edited subject is the most likely way to miss a
+reply. If it matters, the fallback is to match `References` against your sent `Message-ID`s.
+That is the ground truth used here, but it needs `internetMessageHeaders`, which `messages/delta`
+may not return.
+
+**What this means for the poller:** keep `conversationId → first sent time` from Sent Items, not
+a bare set of ids, and carry `@odata.type` through to `MailMessage.IsMeetingMessage`.
+
+The time check matters for more than backfill. Marking a message read changes it, and changed
+messages come back through delta. Without the check, a mail you read after replying would be
+reclassified as a P1 reply.
 
 **No rule for one-on-one Teams messages, by decision.** An earlier draft made a 1:1 message
 without a mention `P3`/`silent` by rule. That kept most requests for information away from the

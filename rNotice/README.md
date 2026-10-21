@@ -192,6 +192,7 @@ dotnet test tests\rNotice.Tests
 ```
 
 The workbook write path is proven: the documented `rows/{index}` route returns `ApiNotFound`, and
-`rows/itemAt(index=)` works (details in `SPEC.md`, *Writes*). Two risky paths still need proving
-before anything is built on them: `conversationId` reply-matching, and whether Teams defeats
-`WDA_EXCLUDEFROMCAPTURE`.
+`rows/itemAt(index=)` works (details in `SPEC.md`, *Writes*). Reply matching on
+`conversationId` caught 24 of 24 real replies with no false alarms, once two fixes were added
+(details in `SPEC.md`, *Classification*). One risky path is still unproven: whether Teams
+defeats `WDA_EXCLUDEFROMCAPTURE`.

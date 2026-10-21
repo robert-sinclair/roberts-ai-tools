@@ -45,7 +45,10 @@ public sealed record MailMessage(
     DateTimeOffset ReceivedUtc,
     string? FromName = null,
     string? BodyPreview = null,
-    string? WebLink = null);
+    string? WebLink = null,
+    // Graph types invites, responses and cancellations as eventMessage*. The poller sets this
+    // from @odata.type.
+    bool IsMeetingMessage = false);
 
 /// <summary>One message from a watched chat's <c>messages/delta</c>.</summary>
 public sealed record ChatMessage(
