@@ -22,11 +22,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Floating 4.* deliberately, for this spike only: pinning a version guessed without a
-         NuGet feed to hand would more likely break restore than help. Pin both to the exact
-         version that restores on the first successful build, before rNotice.Core starts. -->
-    <PackageReference Include="Microsoft.Identity.Client" Version="4.*" />
-    <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.*" />
+    <!-- Pinned to the versions that resolved from 4.* on the first real build (2026-10-21). -->
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.91.1" />
+    <PackageReference Include="Microsoft.Identity.Client.Broker" Version="4.91.1" />
   </ItemGroup>
 
 </Project>
