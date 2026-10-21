@@ -24,7 +24,8 @@ what's urgent, what's waiting on me, plan this, close that.
 | Flow | Intake → Plan → Complete, in this app |
 | System of record | **The app's local store.** The workbook is a source, not the master. |
 | Stack | C# / .NET on Windows |
-| Privilege | User rights only. No admin, no service, no elevation. |
+| Privilege | Runs with user rights only. No service, no elevation at runtime. |
+| Install | **Machine-wide** to `%ProgramFiles%\rNotice`, registered in Add or Remove Programs. Needs admin once, to install. |
 | Calendar writes | Opt-in. A row reaches your calendar when you promote it, never automatically. |
 | Workbook writes | Acknowledgement columns, and `CalendarEventId` on promotion. No row creation. |
 | Drift | Row and event disagree → flag it, change nothing |
@@ -384,8 +385,18 @@ the opposite, and two constraints force a plain user-session process:
 2. **Services run in session 0 and cannot draw on your desktop.** The whole point is a window in
    front of everything.
 
-One process, your account, your token, your desktop. Install is a copy to `%LOCALAPPDATA%` and a
-`Run` registry key — the same approach as `rMic/src/rMic.Tray/AutoStart.cs`, no elevation.
+One process, your account, your token, your desktop.
+
+**Install is machine-wide, by decision.** Binaries go to `%ProgramFiles%\rNotice` with an Add or
+Remove Programs entry, via `install/Install.ps1` from an elevated prompt. That is the only step
+that needs admin. Everything per-user — sign-in, settings, the item store, logs — lives under
+each user's own profile, as the README describes.
+
+**Autostart is per user**, not machine-wide: the agent writes its own `HKCU\...\Run` value on
+first run, the same approach as `rMic/src/rMic.Tray/AutoStart.cs`. An `HKLM` Run key would start
+rNotice for every user on the machine, and the app registration only admits one — everyone else
+would get a sign-in failure at every logon. The uninstaller removes the current user's value;
+other users' values point at a missing exe and do nothing.
 
 ### Why the MCP server doesn't call Graph itself
 
