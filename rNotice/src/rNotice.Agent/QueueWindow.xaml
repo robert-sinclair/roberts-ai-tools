@@ -14,8 +14,10 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border x:Name="Badge" CornerRadius="3" Padding="5,1" Margin="0,1,8,0" VerticalAlignment="Top" Background="#8A8A8A">
-                    <TextBlock Text="{Binding Priority}" Foreground="White" FontWeight="SemiBold" FontSize="11" />
+                <Border x:Name="Badge" CornerRadius="3" Padding="5,1" Margin="0,1,8,0" MinWidth="38"
+                        VerticalAlignment="Top" Background="#8A8A8A">
+                    <TextBlock Text="{Binding Badge}" Foreground="White" FontWeight="SemiBold" FontSize="11"
+                               HorizontalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1">
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -34,8 +36,26 @@
                 <DataTrigger Binding="{Binding Priority}" Value="P4">
                     <Setter TargetName="Badge" Property="Background" Value="#B8B8B8" />
                 </DataTrigger>
+                <!-- Last, so it wins: a meeting's badge is its start time, not a priority. -->
+                <DataTrigger Binding="{Binding IsMeeting}" Value="True">
+                    <Setter TargetName="Badge" Property="Background" Value="#2B6CB0" />
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <GroupStyle x:Key="ByDay">
+            <GroupStyle.HeaderTemplate>
+                <DataTemplate>
+                    <Border BorderThickness="0,0,0,1" Margin="0,10,0,2" Padding="2,0,0,2"
+                            BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
+                        <TextBlock FontWeight="SemiBold">
+                            <Run Text="{Binding Name, Mode=OneWay}" />
+                            <Run Text="{Binding ItemCount, Mode=OneWay, StringFormat='· {0}'}" Foreground="Gray" />
+                        </TextBlock>
+                    </Border>
+                </DataTemplate>
+            </GroupStyle.HeaderTemplate>
+        </GroupStyle>
 
         <Style TargetType="ListBox">
             <Setter Property="ItemTemplate" Value="{StaticResource ItemTemplate}" />
@@ -51,10 +71,22 @@
     </Window.Resources>
 
     <DockPanel Margin="14">
-        <TextBlock x:Name="StatusText" DockPanel.Dock="Top" Opacity="0.75" Margin="0,0,0,10" TextWrapping="Wrap" />
-
-        <TextBlock DockPanel.Dock="Bottom" Opacity="0.75" Margin="0,10,0,0" TextWrapping="Wrap"
-                   Text="P plan · D dismiss · C complete · S snooze · Enter open source · ←/→ switch column · F5 refresh · Esc hide" />
+        <!-- Footer: keys left, who you are right; source status underneath. -->
+        <Grid DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Opacity="0.75" TextWrapping="Wrap"
+                       Text="P plan · D dismiss · C complete · S snooze · Enter open source · ←/→ switch column · F5 refresh · Esc hide" />
+            <TextBlock x:Name="SignedInText" Grid.Column="1" Opacity="0.75" Margin="16,0,0,0" />
+            <TextBlock x:Name="SourcesText" Grid.Row="1" Grid.ColumnSpan="2" Opacity="0.6" FontSize="12"
+                       Margin="0,4,0,0" TextWrapping="Wrap" />
+        </Grid>
 
         <Border x:Name="Detail" DockPanel.Dock="Bottom" BorderThickness="1" Padding="10" Margin="0,10,0,0"
                 BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">

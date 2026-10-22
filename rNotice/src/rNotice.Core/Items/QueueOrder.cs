@@ -22,4 +22,19 @@ public static class QueueOrder
         items.OrderBy(i => IsCurrent(i, nowUtc) ? 0 : 1)
              .ThenBy(i => IsCurrent(i, nowUtc) ? (int)i.Classification.Priority : 0)
              .ThenBy(i => i.DueUtc ?? i.FireAtUtc ?? i.ReceivedUtc);
+
+    /// <summary>
+    /// The local calendar day an item belongs to: when it's due, or when it arrived if it has no
+    /// due time. Local, not UTC — a 17:00 meeting in Mountain time is 23:00 UTC, and grouping by
+    /// UTC would put evening meetings on the wrong day.
+    /// </summary>
+    public static DateOnly DayOf(Item item, TimeZoneInfo zone) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(item.DueUtc ?? item.ReceivedUtc, zone).DateTime);
+
+    /// <summary>
+    /// Grouped by day, days in order, and within each day the usual queue order. The day sort is
+    /// stable, so "needs you now" still leads inside today.
+    /// </summary>
+    public static IEnumerable<Item> SortByDay(IEnumerable<Item> items, DateTimeOffset nowUtc, TimeZoneInfo zone) =>
+        Sort(items, nowUtc).OrderBy(i => DayOf(i, zone));
 }

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using rNotice.Core.Items;
@@ -42,28 +43,40 @@ public partial class QueueWindow : Window
     {
         if (!IsVisible) return;
 
+        var now = DateTimeOffset.UtcNow;
         var items = _host.Items();
-        Fill(IntakeList, IntakeHeader, "Intake", items.Where(i => i.Stage == Stage.Intake));
-        Fill(PlannedList, PlannedHeader, "Planned", items.Where(i => i.Stage == Stage.Planned));
-        Fill(DoneList, DoneHeader, "Done", items.Where(i => i.Stage == Stage.Done)
-            .OrderByDescending(i => i.DueUtc ?? i.ReceivedUtc).Take(50), sort: false);
+        Fill(IntakeList, IntakeHeader, "Intake",
+            QueueOrder.SortByDay(items.Where(i => i.Stage == Stage.Intake), now, TimeZoneInfo.Local), byDay: true);
+        Fill(PlannedList, PlannedHeader, "Planned",
+            QueueOrder.SortByDay(items.Where(i => i.Stage == Stage.Planned), now, TimeZoneInfo.Local), byDay: true);
+        Fill(DoneList, DoneHeader, "Done",
+            items.Where(i => i.Stage == Stage.Done).OrderByDescending(i => i.DueUtc ?? i.ReceivedUtc).Take(50), byDay: false);
 
-        var parts = _host.Statuses.Select(s =>
-            $"{s.Name}: {(s.Failing ? "⚠ " : "")}{s.Summary}" +
-            (s.LastOkUtc is { } t ? $" (last ok {Display.Time(t)})" : ""));
-        var who = _host.NeedsSignIn ? "Sign-in needed (tray → Sign in)" : $"Signed in as {_host.SignedInAs ?? "…"}";
-        StatusText.Text = $"{who}   ·   {string.Join("   ·   ", parts)}   ·   Workbook {_host.WorkbookPath}";
+        SignedInText.Text = _host.NeedsSignIn ? "⚠ Sign-in needed (tray → Sign in)" : $"Signed in as {_host.SignedInAs ?? "…"}";
+        SourcesText.Text = string.Join("      ", _host.Statuses.Select(s =>
+            $"{s.Name}{(s.Name == "Workbook" ? $" {_host.WorkbookPath}" : "")}: {(s.Failing ? "⚠ " : "")}{s.Summary}" +
+            (s.LastOkUtc is { } t ? $" · checked {Display.Time(t)}" : "")));
 
         ShowDetail((_active.SelectedItem as ItemView)?.Item);
     }
 
-    private static void Fill(ListBox list, TextBlock header, string name, IEnumerable<Item> items, bool sort = true)
+    /// <summary>
+    /// Intake and Planned are grouped under day headers — Today, Tomorrow, Fri 24 Oct. Done is a
+    /// flat list, most recent first.
+    /// </summary>
+    private void Fill(ListBox list, TextBlock header, string name, IEnumerable<Item> items, bool byDay)
     {
         var selected = (list.SelectedItem as ItemView)?.Id;
-        var ordered = sort ? QueueOrder.Sort(items, DateTimeOffset.UtcNow) : items;
-        var views = ordered.Select(i => new ItemView(i)).ToList();
+        var views = items.Select(i => new ItemView(i)).ToList();
 
-        list.ItemsSource = views;
+        var view = new ListCollectionView(views);
+        if (byDay)
+        {
+            view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ItemView.Day)));
+            if (list.GroupStyle.Count == 0) list.GroupStyle.Add((GroupStyle)FindResource("ByDay"));
+        }
+
+        list.ItemsSource = view;
         list.SelectedItem = views.FirstOrDefault(v => v.Id == selected);
         header.Text = $"{name} ({views.Count})";
     }

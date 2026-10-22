@@ -35,6 +35,19 @@ internal static class Display
             : $"Received {Time(item.ReceivedUtc)}";
     }
 
+    /// <summary>Group header: Today, Tomorrow, Yesterday, else "Fri 24 Oct".</summary>
+    public static string DayLabel(DateOnly day)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        return (day.DayNumber - today.DayNumber) switch
+        {
+            0 => "Today",
+            1 => "Tomorrow",
+            -1 => "Yesterday",
+            _ => day.ToString("ddd d MMM", CultureInfo.InvariantCulture)
+        };
+    }
+
     public static string SourceLabel(Source s) => s switch
     {
         Source.Workbook => "Workbook",
@@ -51,6 +64,16 @@ public sealed class ItemView(Item item)
     public Item Item { get; } = item;
     public Guid Id => Item.Id;
     public string Priority => Item.Classification.Priority.ToString();
+    public bool IsMeeting => Item.Source == Source.Calendar;
+
+    /// <summary>
+    /// What the badge says. Every meeting is P1, so for meetings the badge carries the local
+    /// start time instead — the thing that actually tells them apart.
+    /// </summary>
+    public string Badge => IsMeeting && Item.DueUtc is { } start ? $"{start.ToLocalTime():HH:mm}" : Priority;
+
+    /// <summary>The group this item sits under in the queue.</summary>
+    public string Day => Display.DayLabel(QueueOrder.DayOf(Item, TimeZoneInfo.Local));
     public string Title => Item.Title;
     public string Meta => $"{Display.SourceLabel(Item.Source)} · {Display.When(Item)}" +
                           (Item.From is null ? "" : $" · {Item.From}");

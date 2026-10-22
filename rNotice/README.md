@@ -21,7 +21,7 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | | |
 | --- | --- |
 | Tray icon | Blue: fine. Orange: a P1 or P2 needs you now. Grey `!`: sign-in needed, or a source is failing. |
-| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake (workbook rows waiting on a decision), Planned (meetings land here, already scheduled), Done. |
+| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake (workbook rows waiting on a decision), Planned (meetings land here, already scheduled), Done. Intake and Planned are grouped by day — Today, Tomorrow, then dates. A meeting's badge shows its start time; everything else shows its priority. Who you're signed in as and when each source was last checked are in the footer. |
 | Keys | **P** plan · **D** dismiss · **C** complete · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide |
 | Alert window | Topmost, doesn't steal focus, flashes the taskbar. Plan, Dismiss, Snooze, Open source, and Join for Teams meetings. |
 | Meetings | Every meeting not on `meetingBlocklist` alerts 60 seconds before it starts. The full-screen takeover is step 4; until then it uses the alert window. |

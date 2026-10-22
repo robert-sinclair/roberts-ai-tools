@@ -49,6 +49,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     private IReadOnlyList<BusyBlock> _busy = [];
     private string? _lastWorkbookCTag;
+    private string _workbookSummary = "";
     private DateTimeOffset _nextPurge;
     private readonly PollState _calendarPoll = new("Calendar");
     private readonly PollState _workbookPoll = new("Workbook");
@@ -202,7 +203,8 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         var report = _sync!.SyncCalendar(events, now);
         LogSync("Calendar", report);
-        return $"{events.Count} events · {report}";
+        // The footer gets the count; what changed goes to the log.
+        return $"{events.Count - report.Skipped.Count} meetings";
     }
 
     private async Task<string> PollWorkbookAsync(DateTimeOffset now)
@@ -217,13 +219,13 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         // Unchanged content, nothing to read. The cheap pre-check SPEC.md calls for.
         if (file.CTag is not null && file.CTag == _lastWorkbookCTag)
-            return "unchanged";
+            return _workbookSummary;
 
         var rows = await _workbook.ReadRowsAsync(file, CancellationToken.None);
         var report = _sync!.SyncWorkbook(rows, now);
         _lastWorkbookCTag = file.CTag;
         LogSync("Workbook", report);
-        return $"{rows.Count} rows · {report}";
+        return _workbookSummary = $"{rows.Count} {(rows.Count == 1 ? "row" : "rows")}";
     }
 
     /// <summary>Each distinct skip is logged once, not every poll.</summary>

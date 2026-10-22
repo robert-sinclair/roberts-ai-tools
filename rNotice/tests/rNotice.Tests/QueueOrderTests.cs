@@ -27,6 +27,32 @@ public class QueueOrderTests
             QueueOrder.Sort([nextWeekP1, tomorrowP3, currentP2, currentP1], Now).Select(i => i.Id));
     }
 
+    private static readonly TimeZoneInfo Mountain = TimeZoneInfo.FindSystemTimeZoneById("Mountain Standard Time");
+
+    [Fact]
+    public void Day_is_the_local_day_not_the_UTC_day()
+    {
+        // 03:00 UTC on the 22nd is 21:00 MDT on the 21st.
+        var evening = Item(due: new DateTimeOffset(2026, 10, 22, 3, 0, 0, TimeSpan.Zero));
+        Assert.Equal(new DateOnly(2026, 10, 21), QueueOrder.DayOf(evening, Mountain));
+    }
+
+    [Fact]
+    public void Undated_items_belong_to_the_day_they_arrived() =>
+        Assert.Equal(new DateOnly(2026, 10, 21), QueueOrder.DayOf(Item() with { DueUtc = null }, Mountain));
+
+    [Fact]
+    public void By_day_puts_days_in_order_and_keeps_queue_order_within_a_day()
+    {
+        var tomorrow = Item(priority: Priority.P1, fireAt: Now.AddDays(1), due: Now.AddDays(1));
+        var todayLater = Item(priority: Priority.P1, fireAt: Now.AddHours(2), due: Now.AddHours(2));
+        var todayNowP2 = Item(priority: Priority.P2, fireAt: Now.AddMinutes(-5), due: Now.AddHours(1));
+        var todayNowP1 = Item(priority: Priority.P1, fireAt: Now.AddMinutes(-5), due: Now.AddHours(3));
+
+        Assert.Equal([todayNowP1.Id, todayNowP2.Id, todayLater.Id, tomorrow.Id],
+            QueueOrder.SortByDay([tomorrow, todayLater, todayNowP2, todayNowP1], Now, Mountain).Select(i => i.Id));
+    }
+
     [Fact]
     public void Only_current_unsnoozed_P1_P2_intake_items_need_attention()
     {
