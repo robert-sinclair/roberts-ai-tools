@@ -100,6 +100,10 @@ What follows from that:
   meeting gets its own alert at T−1; it doesn't need the badge as well.
 - **Meetings can't go back to Intake.** The sync moves any calendar item it finds in Intake to
   Planned. Dismiss and Complete still stick.
+- **No "rebook" action, by decision (2026-10-22).** Moving a meeting happens in Outlook, and
+  **Open in Outlook** gets you there from the alert and the queue. Moving it back to Intake was
+  considered and dropped: it conflicts with the rule above. A "needs rebooking" flag that kept
+  it in Planned but also showed it in Intake was offered as the alternative, and left out for now.
 
 ### The item
 
