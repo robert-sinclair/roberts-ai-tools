@@ -221,6 +221,13 @@ internal sealed class AgentHost(Application app) : IDisposable
                       .Select(e => new BusyBlock(e.StartUtc, e.EndUtc, e.ShowAs))
                       .ToList();
 
+        // For planning, anything not marked free takes the time: busy, out of office,
+        // tentative, working elsewhere — all-day ones included, so a day off isn't offered.
+        _meetingBlocks = events.Where(e => !e.IsCancelled && e.ShowAs != ShowAs.Free)
+                               .Select(e => new TimeBlock(e.StartUtc, e.EndUtc))
+                               .ToList();
+        _calendarKnownUtc = now;
+
         var report = _sync!.SyncCalendar(events, now);
         LogSync("Calendar", report);
         // The footer gets the count; what changed goes to the log.
@@ -320,7 +327,10 @@ internal sealed class AgentHost(Application app) : IDisposable
     {
         if (_store.Get(id) is not { } item) return;
 
-        var dialog = new PlanDialog(item);
+        var dialog = new PlanDialog(item, _settings.PlanMinutes,
+            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), _settings.ToWorkHours(),
+                BlockedTime(except: id)),
+            _calendarKnownUtc);
         if (owner is { IsVisible: true })
         {
             dialog.Owner = owner;
@@ -334,10 +344,23 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         if (dialog.ShowDialog() != true) return;
 
-        Update(id, i => i.Plan(dialog.StartUtc));
+        Update(id, i => i.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes));
         if (dialog.StartUtc is { } start)
-            Log.Info($"'{item.Title}' planned for {Display.Time(start)}");
+            Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
     }
+
+    private IReadOnlyList<TimeBlock> _meetingBlocks = [];
+    private DateTimeOffset? _calendarKnownUtc;
+
+    /// <summary>
+    /// Meetings, plus everything else you've planned a time for — so a second plan doesn't land
+    /// on the first. The item being planned is left out, so re-planning can keep its own slot.
+    /// </summary>
+    private IEnumerable<TimeBlock> BlockedTime(Guid except) =>
+        _meetingBlocks.Concat(_store.List(Stage.Planned)
+            .Where(i => i.Id != except && i.Source != Source.Calendar && i.PlannedStartUtc is not null)
+            .Select(i => new TimeBlock(i.PlannedStartUtc!.Value,
+                i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes))));
 
     public void Snooze(Guid id) =>
         Update(id, i => i.Snooze(DateTimeOffset.UtcNow.AddMinutes(_settings.SnoozeMinutes)));

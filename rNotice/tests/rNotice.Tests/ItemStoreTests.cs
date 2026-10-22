@@ -28,7 +28,9 @@ public sealed class ItemStoreTests : IDisposable
         JoinUrl = "https://teams.microsoft.com/l/meetup-join/x",
         CalendarEventId = "evt-9",
         SnoozedUntilUtc = Now.AddMinutes(3),
-        IsRead = true
+        IsRead = true,
+        PlannedStartUtc = Now.AddHours(2),
+        PlannedMinutes = 45
     };
 
     [Fact]

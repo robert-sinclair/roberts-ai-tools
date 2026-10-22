@@ -8,6 +8,12 @@ namespace rNotice.Agent;
 public sealed record QuietHoursSetting(TimeOnly Start, TimeOnly End);
 
 /// <summary>
+/// The hours you plan work into. <see cref="TimeZone"/> is a Windows zone id; the default,
+/// "Canada Central Standard Time", is UTC-6 all year with no daylight saving.
+/// </summary>
+public sealed record WorkHoursSetting(TimeOnly Start, TimeOnly End, string TimeZone, IReadOnlyList<DayOfWeek> Days);
+
+/// <summary>
 /// <c>%LOCALAPPDATA%\rNotice\settings.json</c>. Written with defaults on first run so every
 /// setting is visible and editable. Read at startup; restart the agent after editing.
 /// </summary>
@@ -48,6 +54,29 @@ public sealed record AgentSettings
 
     public RulesOptions Rules { get; init; } = new();
 
+    /// <summary>When planning suggests times, they fall inside these hours and end by the close.</summary>
+    public WorkHoursSetting WorkHours { get; init; } = new(
+        new TimeOnly(8, 0), new TimeOnly(16, 0), "Canada Central Standard Time",
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday]);
+
+    /// <summary>The duration the Plan dialog starts on.</summary>
+    public int PlanMinutes { get; init; } = 30;
+
+    public WorkHours ToWorkHours()
+    {
+        TimeZoneInfo zone;
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById(WorkHours.TimeZone);
+        }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            Log.Warn($"Unknown work-hours time zone '{WorkHours.TimeZone}'; using this PC's zone");
+            zone = TimeZoneInfo.Local;
+        }
+        return new WorkHours(WorkHours.Start, WorkHours.End, zone, WorkHours.Days.ToHashSet());
+    }
+
     /// <summary>
     /// The file existed but couldn't be read. Saving is refused while this is set: the defaults
     /// in memory would overwrite whatever the user had, typo and all.
@@ -61,7 +90,8 @@ public sealed record AgentSettings
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
         ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
+        AllowTrailingCommas = true,
+        Converters = { new JsonStringEnumConverter() }   // "Monday", not 1
     };
 
     public SchedulerOptions ToSchedulerOptions() => new()
@@ -79,7 +109,13 @@ public sealed record AgentSettings
         try
         {
             if (File.Exists(Paths.Settings))
-                return JsonSerializer.Deserialize<AgentSettings>(File.ReadAllText(Paths.Settings), Json) ?? new();
+            {
+                var loaded = JsonSerializer.Deserialize<AgentSettings>(File.ReadAllText(Paths.Settings), Json) ?? new();
+                // Write it straight back, so settings added since the file was made appear in it
+                // with their defaults, where they can be seen and edited.
+                loaded.Save();
+                return loaded;
+            }
         }
         catch (Exception ex)
         {

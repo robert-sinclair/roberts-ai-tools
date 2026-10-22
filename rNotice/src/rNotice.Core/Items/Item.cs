@@ -45,6 +45,9 @@ public sealed record Item
     public bool? IsRead { get; init; }
 
     public DateTimeOffset? PlannedStartUtc { get; init; }
+
+    /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>
+    public int? PlannedMinutes { get; init; }
     public string? CalendarEventId { get; init; }
     public DateTimeOffset? AckedAtUtc { get; init; }
     public DateTimeOffset? SnoozedUntilUtc { get; init; }
@@ -61,8 +64,8 @@ public sealed record Item
     /// timing — a workbook row still alerts at its lead time. Local only; nothing reaches the
     /// calendar until promotion (step 8).
     /// </summary>
-    public Item Plan(DateTimeOffset? startUtc) => startUtc is { } start
-        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null }
+    public Item Plan(DateTimeOffset? startUtc, int? minutes = null) => startUtc is { } start
+        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null }
         : this with { Stage = Stage.Planned };
 
     /// <summary>A user override. Sticky: later polls won't replace it.</summary>

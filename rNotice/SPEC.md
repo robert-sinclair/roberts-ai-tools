@@ -926,9 +926,25 @@ Next gap of at least `durationMinutes`, inside working hours, before `DueUtc`. C
 calendar window already in memory — no `getSchedule` call. It **suggests**; acting on it means
 promoting, which stays explicit.
 
-**Working hours come from your mailbox settings**, read once a day from
-`GET /me/mailboxSettings` and cached. One honest source: it's already correct, and it changes
-when you change it in Outlook rather than drifting in a config file nobody revisits.
+~~**Working hours come from your mailbox settings.**~~ **Changed by decision (2026-10-22): work
+hours are an rNotice setting**, `workHours`, default 08:00–16:00 Mon–Fri in *Canada Central
+Standard Time* (fixed UTC−6, no daylight saving). They're the hours you want to plan work into,
+which isn't necessarily what Outlook shows colleagues. `MailboxSettings.Read` stays consented
+but unused for now.
+
+**As built (0.4.4), ahead of step 8.** The Plan dialog suggests slots now, without promotion:
+
+- **Duration** chosen in the dialog: 15, 30, 45, 60, 90 or 120 minutes; default `planMinutes` (30).
+- **Starts on the quarter hour** (:00 :15 :30 :45), from now rounded up.
+- **Clear of anything not marked free** on the calendar — busy, out of office, tentative,
+  working elsewhere, all-day ones included — **and of other planned items** (start plus their
+  planned duration, now stored per item).
+- **Ends by the close of the working day.** A 30-minute slot is never offered at 15:45.
+- **One suggestion per free gap**, five at most, up to two weeks out.
+
+Found the hard way: the first Plan dialog's fixed "tomorrow 09:00" put a task on top of a
+meeting. Checked against the live calendar on Thu 22 Oct at 15:53: Fri 08:00, Fri 10:30
+(after 09:00/09:30/10:00 meetings), Mon 08:00, Mon 10:00, Tue 08:00.
 
 > **This adds `MailboxSettings.Read` to the app registration.** It is the only scope added since
 > the request was drafted — fold it in before the request goes to IT, or free-slot search falls
