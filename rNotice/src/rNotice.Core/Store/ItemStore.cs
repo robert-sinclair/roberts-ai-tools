@@ -77,7 +77,33 @@ public sealed class ItemStore : IDisposable
             source_id TEXT    NOT NULL,
             PRIMARY KEY (source, source_id)
         );
+
+        -- Sync state that has to survive a restart, such as the inbox deltaLink. Encrypted
+        -- like content: a delta token is opaque, but it is still a pointer into the mailbox.
+        CREATE TABLE IF NOT EXISTS sync_state (
+            key   TEXT PRIMARY KEY,
+            value BLOB NOT NULL
+        );
         """);
+
+    public string? GetState(string key)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT value FROM sync_state WHERE key = $k";
+        cmd.Parameters.AddWithValue("$k", key);
+        return cmd.ExecuteScalar() is byte[] value ? _protector.Unprotect(value) : null;
+    }
+
+    public void SetState(string key, string? value)
+    {
+        if (value is null)
+        {
+            Execute("DELETE FROM sync_state WHERE key = $k", ("$k", key));
+            return;
+        }
+        Execute("INSERT INTO sync_state (key, value) VALUES ($k, $v) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            ("$k", key), ("$v", _protector.Protect(value)));
+    }
 
     /// <summary>
     /// Stores what a poller produced. New → inserted. Known → merged with

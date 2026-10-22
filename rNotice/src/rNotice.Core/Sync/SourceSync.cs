@@ -114,6 +114,52 @@ public sealed class SourceSync(ItemStore store, Intake intake)
         return new SyncReport(inserted, updated, removed, closed, skipped);
     }
 
+    /// <summary>
+    /// How old a message can be when rNotice first sees it and still interrupt. Older ones —
+    /// the backlog on first run, or mail that arrived while the machine was off — go into the
+    /// queue quietly. A toast is "it just arrived", so it shouldn't fire for something an hour old.
+    /// </summary>
+    public static readonly TimeSpan MailAlertWindow = TimeSpan.FromMinutes(15);
+
+    /// <summary>
+    /// One round of inbox changes. Messages go through the mail rules. A message that left the
+    /// inbox — deleted, or moved by you or an Outlook rule — removes its item if it's still in
+    /// Intake; if you'd planned or finished it, it stays.
+    /// </summary>
+    public SyncReport SyncMail(IReadOnlyList<MailMessage> changed, IReadOnlyList<string> removedIds,
+        IReadOnlyDictionary<string, DateTimeOffset> firstSentByConversation, DateTimeOffset nowUtc)
+    {
+        int inserted = 0, updated = 0, removed = 0;
+        var skipped = new List<(string, string)>();
+
+        foreach (var id in removedIds)
+        {
+            if (_store.GetBySource(Source.Mail, id) is { Stage: Stage.Intake } item)
+            {
+                _store.Delete(item.Id);
+                removed++;
+            }
+        }
+
+        foreach (var message in changed)
+        {
+            var result = _intake.FromMail(message, firstSentByConversation);
+            if (result.Skipped) { skipped.Add((message.Id, result.SkipReason!)); continue; }
+
+            var item = result.Item!;
+            if (nowUtc - item.ReceivedUtc > MailAlertWindow)
+                item = item with { LastFiredUtc = nowUtc };   // backlog: queue, don't interrupt
+
+            switch (_store.Ingest(item, nowUtc).Outcome)
+            {
+                case IngestOutcome.Inserted: inserted++; break;
+                case IngestOutcome.Updated: updated++; break;
+            }
+        }
+
+        return new SyncReport(inserted, updated, removed, 0, skipped);
+    }
+
     private static string? Text(object? cell)
     {
         var s = Convert.ToString(cell, System.Globalization.CultureInfo.InvariantCulture)?.Trim();

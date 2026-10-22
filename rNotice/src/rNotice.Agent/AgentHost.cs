@@ -37,6 +37,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     private GraphClient _graph = null!;
     private CalendarClient _calendar = null!;
     private WorkbookClient _workbook = null!;
+    private MailClient _mail = null!;
     private ItemStore _store = null!;
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
@@ -53,21 +54,25 @@ internal sealed class AgentHost(Application app) : IDisposable
     private DateTimeOffset _nextPurge;
     private readonly PollState _calendarPoll = new("Calendar");
     private readonly PollState _workbookPoll = new("Workbook");
+    private readonly PollState _mailPoll = new("Mail");
     private readonly HashSet<string> _loggedSkips = [];
 
     public event Action? Changed;
 
-    public IReadOnlyList<SourceStatus> Statuses => [_calendarPoll.Status, _workbookPoll.Status];
+    public IReadOnlyList<SourceStatus> Statuses =>
+        _settings.MailEnabled ? [_calendarPoll.Status, _workbookPoll.Status, _mailPoll.Status] : [_calendarPoll.Status, _workbookPoll.Status];
 
     /// <summary>True while either source is mid-poll.</summary>
-    public bool Refreshing => _calendarPoll.Running || _workbookPoll.Running;
+    public bool Refreshing => _calendarPoll.Running || _workbookPoll.Running || _mailPoll.Running;
 
     /// <summary>
     /// When the next poll starts — the sooner of the two sources. Later than a minute away only
     /// when a source is backing off after failures, which is exactly when it's worth seeing.
     /// </summary>
     public DateTimeOffset NextRefreshUtc =>
-        _calendarPoll.Next < _workbookPoll.Next ? _calendarPoll.Next : _workbookPoll.Next;
+        new[] { _calendarPoll, _workbookPoll, _mailPoll }
+            .Where(p => p != _mailPoll || _settings.MailEnabled)
+            .Min(p => p.Next);
     public bool NeedsSignIn => _auth.NeedsSignIn;
     public string? SignedInAs => _auth.Upn;
     public int SnoozeMinutes => _settings.SnoozeMinutes;
@@ -92,6 +97,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _auth.StateChanged += () => Changed?.Invoke();
         _graph = new GraphClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }, _auth.GetTokenAsync);
         _calendar = new CalendarClient(_graph);
+        _mail = new MailClient(_graph);
         _workbook = new WorkbookClient(_graph, _settings.WorkbookFolder, _settings.WorkbookFile);
         _store = new ItemStore(Paths.Database, new DpapiFieldProtector());
         _scheduler = new Scheduler(_settings.ToSchedulerOptions());
@@ -122,6 +128,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         if (_calendarPoll.IsDue(now)) _ = PollAsync(_calendarPoll, PollCalendarAsync, _settings.RefreshInterval);
         if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.RefreshInterval);
+        if (_settings.MailEnabled && _mailPoll.IsDue(now)) _ = PollAsync(_mailPoll, PollMailAsync, _settings.RefreshInterval);
 
         if (now >= _nextPurge)
         {
@@ -153,7 +160,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         }
 
         foreach (var toast in result.Toasts)
-            _tray.Notify(toast.Title, Display.When(toast));
+            _tray.Notify(toast.Title, toast.From is { } from ? $"{from} · {toast.Classification.Reason}" : Display.When(toast));
 
         Changed?.Invoke();
     }
@@ -237,6 +244,34 @@ internal sealed class AgentHost(Application app) : IDisposable
         _lastWorkbookCTag = file.CTag;
         LogSync("Workbook", report);
         return _workbookSummary = $"{rows.Count} {(rows.Count == 1 ? "row" : "rows")}";
+    }
+
+    private const string MailDeltaKey = "mail.inbox.deltaLink";
+
+    /// <summary>
+    /// Sent Items first, so a reply that lands right after you sent is matched; then the inbox
+    /// changes since the last round. The deltaLink is saved only after the round is stored, so
+    /// a crash mid-poll repeats the round rather than skipping it.
+    /// </summary>
+    private async Task<string> PollMailAsync(DateTimeOffset now)
+    {
+        var firstSent = await _mail.GetFirstSentByConversationAsync(now.AddDays(-_settings.ReplyLookbackDays), CancellationToken.None);
+        var delta = await _mail.GetInboxChangesAsync(_store.GetState(MailDeltaKey), now.AddDays(-_settings.MailBackfillDays), CancellationToken.None);
+
+        if (delta.Restarted)
+            Log.Info($"Mail: reading the inbox from the last {_settings.MailBackfillDays} days");
+
+        var report = _sync!.SyncMail(delta.Changed, delta.RemovedIds, firstSent, now);
+        _store.SetState(MailDeltaKey, delta.DeltaLink);
+        LogSync("Mail", report);
+
+        // Counts by reason, never subjects: enough to see the filters working on a first read.
+        if (delta.Restarted && report.Skipped.Count > 0)
+            Log.Info("Mail skipped: " + string.Join(", ", report.Skipped
+                .GroupBy(s => s.Reason).Select(g => $"{g.Count()} {g.Key.ToLowerInvariant()}")));
+
+        var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Mail);
+        return $"{open} in Intake";
     }
 
     /// <summary>Each distinct skip is logged once, not every poll.</summary>
@@ -325,6 +360,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _lastWorkbookCTag = null;
         _calendarPoll.Now();
         _workbookPoll.Now();
+        _mailPoll.Now();
         Tick();
     }
 

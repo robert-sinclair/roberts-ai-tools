@@ -8,11 +8,26 @@ Full design in [`SPEC.md`](SPEC.md). This README covers installing and running w
 
 ---
 
-## Build 0.3 — the agent, workbook and calendar only
+## Build 0.4 — the agent: calendar, workbook and mail
 
-`rNotice.exe` lives in the notification area and watches two sources: your Outlook calendar
-and the `Actions` table in `/efficiency/rNotice.xlsx`. Rules decide priority; there is no model
-call. It reads your mailbox and Teams not at all.
+`rNotice.exe` lives in the notification area and watches three sources: your Outlook calendar,
+the `Actions` table in `/efficiency/rNotice.xlsx`, and your Outlook inbox. Rules decide
+priority; there is no model call. It doesn't read Teams yet.
+
+**Mail is read-only.** rNotice reads your inbox and Sent Items. It never sends, replies,
+moves, flags or marks anything read, and it holds no scope that could. What reaches the queue:
+
+| Mail | Becomes |
+| --- | --- |
+| A reply on a thread you've sent in | P1, a toast in the corner |
+| From someone on `rules.vipSenders` | P1, an alert |
+| Sent to you alone on the To line | One priority step up |
+| Anything else | P3, quietly in Intake |
+| Sent by you, meeting invites and responses, `rules.ignoreSenders` | Nothing |
+
+On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the queue without
+toasting. Only mail that arrives while it's running interrupts you. A message you delete or
+move out of the inbox drops out of Intake.
 
 **What it writes:** one thing, once. If `/efficiency/rNotice.xlsx` doesn't exist, it creates it
 with the `Actions` table and the date columns formatted as text. It never writes a row, never
@@ -239,7 +254,7 @@ run `dotnet add package Microsoft.Identity.Client` and the same for
 
 ## What this build is not
 
-No mail, no Teams, no model classification, no full-screen takeover, no acknowledgement
+No Teams, no model classification, no full-screen takeover, no acknowledgement
 write-back, no promotion, no MCP server, no Claude skill. Steps 4 onward in `SPEC.md`.
 
 The probe ran on 2026-10-21: all five permissions usable.

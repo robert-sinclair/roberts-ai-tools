@@ -24,6 +24,18 @@ public sealed record AgentSettings
     public int RefreshSeconds { get; init; } = 60;
 
     public TimeSpan RefreshInterval => TimeSpan.FromSeconds(Math.Max(30, RefreshSeconds));
+
+    /// <summary>Read the inbox. Off means no mail calls at all.</summary>
+    public bool MailEnabled { get; init; } = true;
+
+    /// <summary>
+    /// On the first sync, or after Graph drops the delta token, how far back the inbox is read.
+    /// Older mail never enters the queue.
+    /// </summary>
+    public int MailBackfillDays { get; init; } = 3;
+
+    /// <summary>How far back Sent Items is read to know which threads you've sent in.</summary>
+    public int ReplyLookbackDays { get; init; } = 60;
     public int RetentionDays { get; init; } = 30;
     public int SnoozeMinutes { get; init; } = 15;
     public int TakeoverGraceSeconds { get; init; } = 300;

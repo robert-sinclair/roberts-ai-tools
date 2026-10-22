@@ -151,9 +151,31 @@ what classification needs. Taking `Mail.Read` is a real step up in what the app 
 move out of the Inbox is — by your own earlier decision, encoded in those rules — not something
 you need alerting on. Watching filed mail would mean re-litigating every rule you already wrote.
 
-Not every inbox mail is an item. Also skipped: anything you sent, and anything matching
+Not every inbox mail is an item. Also skipped: anything you sent, meeting messages (invites,
+responses, cancellations — Graph types them `eventMessage*`), and anything matching
 `ignoreSenders` (build automation, newsletters, monitoring). What survives goes to
 classification.
+
+**As built (0.4.0, 2026-10-22):**
+
+- **First read, or after Graph drops the delta token:** only mail received in the last
+  `mailBackfillDays` (3) is read, using delta's one supported filter,
+  `receivedDateTime ge` ([message: delta](https://learn.microsoft.com/en-us/graph/api/message-delta)).
+  The `deltaLink` is stored, encrypted, and saved only after the round is stored.
+- **Backlog doesn't interrupt.** A message more than 15 minutes old when rNotice first sees it
+  goes into the queue without a toast or alert. A toast means "this just arrived".
+- **Leaving the inbox:** delta reports a deleted *or moved* message as `@removed`. If its item
+  is still in Intake, the item goes; if you planned or finished it, it stays.
+- **Read/unread changes** come back through delta. They update the item and never fire again.
+- **Sent Items** is read each poll for the last `replyLookbackDays` (60), before the inbox, so
+  a reply arriving just after you sent is matched.
+
+First real run: 62 messages over 3 days; 9 meeting messages skipped, 53 into Intake, no toasts.
+
+> **Open: Intake now mirrors the inbox.** With the model off, everything no rule claims lands
+> in Intake as P3/silent: 53 items after one sync. You'll handle most of them in Outlook and
+> then have to clear them here too. Options: close an item when you read the message in
+> Outlook (delta already reports it), or leave it for step 7's model to sort. Not decided.
 
 ### Calendar
 
@@ -546,7 +568,7 @@ behind corporate NAT is not that. So: delta queries on a timer.
 | Source | Interval | Mechanism |
 | --- | --- | --- |
 | Calendar | 60s | `calendarView`; the takeover needs minute-level accuracy |
-| Mail | 120s | `messages/delta` |
+| Mail | 60s | Sent Items for the reply rule, then inbox `messages/delta` |
 | Teams | 120s | per-chat `messages/delta` |
 | Workbook | 60s | `cTag` pre-check, then table rows only if it changed |
 
@@ -1069,6 +1091,8 @@ one means a poller and a mapping, nothing structural.
      filled with every meeting in the horizon.
 4. Takeover window, toast, suppression, acknowledge write-back.
 5. Mail source. Read-only, rules-only. The reply-toast rule is the whole value here.
+   **Built 2026-10-22 (0.4.0), ahead of step 4** — see *Mailbox*. It shares `refreshSeconds`
+   with calendar and workbook, so one countdown covers all three.
 6. Teams source, named chats only.
 7. Model classification, behind a flag, off by default.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.

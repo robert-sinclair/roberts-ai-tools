@@ -14,12 +14,14 @@ public sealed class SignInRequiredException(string message) : Exception(message)
 internal sealed class AgentAuth
 {
     // Calendars.ReadWrite rather than .Read: it is the scope that was consented, and step 8
-    // writes promoted events. This build only reads.
+    // writes promoted events. This build only reads. Mail.Read is read-only by definition —
+    // there is no send scope, so the app cannot send mail even by mistake.
     private static readonly string[] Scopes =
     [
         "https://graph.microsoft.com/User.Read",
         "https://graph.microsoft.com/Calendars.ReadWrite",
-        "https://graph.microsoft.com/Files.ReadWrite"
+        "https://graph.microsoft.com/Files.ReadWrite",
+        "https://graph.microsoft.com/Mail.Read"
     ];
 
     private const string ClientId = "2923549f-f444-48f7-8084-c8b7799db2e0";
