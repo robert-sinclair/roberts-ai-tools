@@ -32,6 +32,8 @@ public sealed record CalendarEvent(
     ShowAs ShowAs,
     IReadOnlyList<string> Categories,
     string? Organizer = null,
+    // You organised it. Your own name isn't shown as who it's from.
+    bool IsOrganizer = false,
     string? JoinUrl = null,
     string? WebLink = null);
 

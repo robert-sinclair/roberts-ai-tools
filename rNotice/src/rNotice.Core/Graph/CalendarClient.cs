@@ -11,7 +11,7 @@ namespace rNotice.Core.Graph;
 public sealed class CalendarClient(GraphClient graph)
 {
     private const string Select =
-        "subject,start,end,isAllDay,isCancelled,showAs,categories,organizer,onlineMeeting,webLink";
+        "subject,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink";
 
     private readonly GraphClient _graph = graph;
 
@@ -43,6 +43,7 @@ public sealed class CalendarClient(GraphClient graph)
         Categories: e.TryGetProperty("categories", out var cats) && cats.ValueKind == JsonValueKind.Array
             ? cats.EnumerateArray().Select(c => c.GetString() ?? "").ToList()
             : [],
+        IsOrganizer: Bool(e, "isOrganizer"),
         Organizer: e.TryGetProperty("organizer", out var org) && org.ValueKind == JsonValueKind.Object
             ? org.GetProperty("emailAddress").TryGetProperty("name", out var n) ? n.GetString() : null
             : null,

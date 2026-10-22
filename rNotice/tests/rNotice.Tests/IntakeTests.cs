@@ -23,6 +23,13 @@ public class CalendarIntakeTests
     }
 
     [Fact]
+    public void A_meeting_you_organised_has_no_from_and_others_name_the_organiser()
+    {
+        Assert.Null(_intake.FromCalendar(Event() with { IsOrganizer = true }, Now).Item!.From);
+        Assert.Equal("Alice", _intake.FromCalendar(Event(), Now).Item!.From);
+    }
+
+    [Fact]
     public void Meeting_enters_as_Planned_not_Intake() =>
         Assert.Equal(Stage.Planned, _intake.FromCalendar(Event(), Now).Item!.Stage);
 

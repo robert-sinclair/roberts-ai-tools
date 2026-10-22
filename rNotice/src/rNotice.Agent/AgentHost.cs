@@ -209,6 +209,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         {
             var me = await _graph.GetMeAsync(CancellationToken.None);
             _me = me;
+            Display.MyDomain = me.Address.Contains('@') ? Senders.DomainEntry(me.Address) : null;
             _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
             Log.Info($"Signed in as {me.Address}");
         }

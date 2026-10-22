@@ -20,6 +20,26 @@ public static class Senders
         return address.Contains('@') ? address.ToLowerInvariant() : null;
     }
 
+    /// <summary>
+    /// How a sender reads at the front of an item's line. A colleague is known by name, so the
+    /// address goes to the end of the line (<paramref name="TrailingAddress"/>); anyone outside
+    /// keeps the address beside the name, since the domain is often what tells you who they are.
+    /// </summary>
+    public static (string? Label, string? TrailingAddress) Describe(string? from, string? myDomain)
+    {
+        if (string.IsNullOrWhiteSpace(from)) return (null, null);
+
+        var address = AddressOf(from);
+        var lt = from.IndexOf('<');
+        var name = lt > 0 ? from[..lt].Trim() : address is null ? from.Trim() : null;
+        if (string.IsNullOrEmpty(name)) name = null;
+
+        if (address is null) return (name, null);                       // a meeting organiser: name only
+        if (name is null) return (address, null);                       // bare address
+        var colleague = myDomain is not null && address.EndsWith(myDomain, StringComparison.OrdinalIgnoreCase);
+        return colleague ? (name, address) : ($"{name} <{address}>", null);
+    }
+
     /// <summary><c>@domain.com</c> for an address.</summary>
     public static string DomainEntry(string address) => "@" + address[(address.IndexOf('@') + 1)..].ToLowerInvariant();
 

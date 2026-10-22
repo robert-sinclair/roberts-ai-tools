@@ -12,6 +12,15 @@ public class SendersTests
     public void Address_out_of_From(string? from, string? expected) =>
         Assert.Equal(expected, Senders.AddressOf(from));
 
+    [Theory]
+    [InlineData("Andreea Oncescu <andreea.oncescu@bravurasecurity.com>", "Andreea Oncescu", "andreea.oncescu@bravurasecurity.com")]
+    [InlineData("Alice <alice@contoso.com>", "Alice <alice@contoso.com>", null)]
+    [InlineData("noreply@contoso.com", "noreply@contoso.com", null)]
+    [InlineData("Bart Allan", "Bart Allan", null)]
+    [InlineData(null, null, null)]
+    public void Sender_label_puts_colleagues_by_name_and_others_with_address(string? from, string? label, string? trailing) =>
+        Assert.Equal((label, trailing), Senders.Describe(from, "@bravurasecurity.com"));
+
     [Fact]
     public void Domain_entry() => Assert.Equal("@contoso.com", Senders.DomainEntry("alice@Contoso.com"));
 

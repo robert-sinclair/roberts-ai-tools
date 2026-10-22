@@ -1,5 +1,6 @@
 using System.Globalization;
 using rNotice.Core.Items;
+using rNotice.Core.Rules;
 
 namespace rNotice.Agent;
 
@@ -54,12 +55,18 @@ internal static class Display
 
     public static string SourceLabel(Source s) => s switch
     {
-        Source.Workbook => "Workbook",
+        Source.Workbook => "Task",
         Source.Calendar => "Meeting",
-        Source.Mail => "Mail",
-        Source.Teams => "Teams",
+        Source.Mail => "Email",
+        Source.Teams => "Chat",
         _ => s.ToString()
     };
+
+    /// <summary>
+    /// <c>@yourdomain.com</c>, once sign-in has said who you are. Colleagues' addresses move to
+    /// the end of the line.
+    /// </summary>
+    public static string? MyDomain { get; set; }
 }
 
 /// <summary>What the windows bind to.</summary>
@@ -119,18 +126,27 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     /// <summary>The group this item sits under in the queue.</summary>
     public string Day => Display.DayLabel(QueueOrder.DayOf(Item, TimeZoneInfo.Local));
     public string Title => Item.Title;
-    public string Meta => $"{Display.SourceLabel(Item.Source)}{ReadNote} · {Display.When(Item)}" +
-                          (Item.From is null ? "" : $" · {Item.From}");
+    /// <summary>
+    /// Who, then when, then the rest:
+    /// <c>Email from: Andreea Oncescu - Received 13:32 · 19:32 UTC - andreea.oncescu@… - read in Outlook</c>
+    /// for a colleague; <c>Email from: Alice &lt;alice@contoso.com&gt; - Received …</c> for anyone else.
+    /// Same shape for every source, so the name is always at the left.
+    /// </summary>
+    public string Meta
+    {
+        get
+        {
+            var (sender, trailing) = Senders.Describe(Item.From, Display.MyDomain);
+            var kind = Display.SourceLabel(Item.Source);
+            var parts = new List<string> { sender is null ? kind : $"{kind} from: {sender}", Display.When(Item) };
+            if (trailing is not null) parts.Add(trailing);
+            if (Item.IsRead is { } read) parts.Add(read ? "read in Outlook" : "unread");
+            return string.Join("  -  ", parts);
+        }
+    }
 
     /// <summary>Unread mail is bold in the queue, as in Outlook. Read mail says so.</summary>
     public bool IsUnread => Item.IsRead == false;
-
-    private string ReadNote => Item.IsRead switch
-    {
-        true => " (read in Outlook)",
-        false => " (unread)",
-        _ => ""
-    };
     public string Reason => $"{Item.Classification.Priority}/{Item.Classification.Interrupt.ToString().ToLowerInvariant()} — {Item.Classification.Reason}";
     public string? Snippet => Item.Snippet;
     public bool HasSnippet => !string.IsNullOrWhiteSpace(Item.Snippet);

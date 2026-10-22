@@ -62,7 +62,7 @@ public sealed class Intake(RulesOptions options, Me me)
             Stage = Stage.Planned,
             SourceRef = e.WebLink,
             Title = e.Subject,
-            From = e.Organizer,
+            From = e.IsOrganizer ? null : e.Organizer,
             ReceivedUtc = nowUtc,
             DueUtc = e.StartUtc,
             FireAtUtc = e.StartUtc.AddSeconds(-_options.TakeoverLeadSeconds),
