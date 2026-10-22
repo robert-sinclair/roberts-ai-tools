@@ -23,6 +23,8 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | Tray icon | Blue: fine. Orange: a P1 or P2 needs you now. Grey `!`: sign-in needed, or a source is failing. |
 | Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake (workbook rows waiting on a decision), Planned (meetings land here, already scheduled), Done. Intake and Planned are grouped by day — Today, Tomorrow, then dates. A meeting's badge shows its start time; everything else shows its priority. Who you're signed in as and when each source was last checked are in the footer. |
 | Keys | **P** plan · **D** dismiss · **C** complete · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide |
+| Mouse | Right-click an item for the same actions, plus Join for meetings. Drag onto **Done** to complete. Drag from **Intake** onto **Planned** to plan. |
+| Planning | P, Plan… in the menu, a drag into Planned and the alert's Plan button all open one dialog: *when will you do it?* No time keeps the item's usual alert. In 1 hour, in 3 hours, tomorrow 09:00 or a time you type set a reminder for then, and the item moves to that day in Planned. Nothing goes on your calendar; that's promotion, step 8. |
 | Alert window | Topmost, doesn't steal focus, flashes the taskbar. Plan, Dismiss, Snooze, Open source, and Join for Teams meetings. |
 | Meetings | Every meeting not on `meetingBlocklist` alerts 60 seconds before it starts. The full-screen takeover is step 4; until then it uses the alert window. |
 | Autostart | First run of the installed copy adds you to your own startup apps. Untick **Start with Windows** in the tray menu to stop it. |

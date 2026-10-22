@@ -48,6 +48,16 @@ public sealed record Item
     /// <summary>Snoozing re-arms the item, so it fires again once the snooze ends.</summary>
     public Item Snooze(DateTimeOffset untilUtc) => this with { SnoozedUntilUtc = untilUtc, LastFiredUtc = null };
 
+    /// <summary>
+    /// Moves the item to Planned. With a start time, rNotice reminds you then: the fire time
+    /// becomes the planned start and the item is re-armed. Without one, the item keeps its own
+    /// timing — a workbook row still alerts at its lead time. Local only; nothing reaches the
+    /// calendar until promotion (step 8).
+    /// </summary>
+    public Item Plan(DateTimeOffset? startUtc) => startUtc is { } start
+        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null }
+        : this with { Stage = Stage.Planned };
+
     /// <summary>A user override. Sticky: later polls won't replace it.</summary>
     public Item Reclassify(Priority priority, Interrupt interrupt, string reason) =>
         this with { Classification = new Classification(priority, interrupt, ClassifiedBy.User, reason) };
@@ -58,13 +68,17 @@ public sealed record Item
     /// Source fields (title, times, links) come from the poll. User state (stage, acks, snooze,
     /// promotion) stays. Sticky classifications stay. If the fire time moved — a meeting dragged
     /// in Outlook, a row's due date edited — the item is re-armed so it fires at the new time.
+    ///
+    /// A planned start time is the user's choice and wins over the source's fire time, so
+    /// editing a row's due date doesn't undo "remind me at 15:00".
     /// </summary>
     public Item MergeFrom(Item incoming)
     {
         if (incoming.Source != Source || incoming.SourceId != SourceId)
             throw new ArgumentException("Can only merge a poll of the same source item.", nameof(incoming));
 
-        var fireMoved = incoming.FireAtUtc != FireAtUtc;
+        var fireAt = PlannedStartUtc ?? incoming.FireAtUtc;
+        var fireMoved = fireAt != FireAtUtc;
 
         return this with
         {
@@ -73,7 +87,7 @@ public sealed record Item
             Snippet = incoming.Snippet,
             From = incoming.From,
             DueUtc = incoming.DueUtc,
-            FireAtUtc = incoming.FireAtUtc,
+            FireAtUtc = fireAt,
             JoinUrl = incoming.JoinUrl,
             Classification = Classification.IsSticky ? Classification : incoming.Classification,
             LastFiredUtc = fireMoved ? null : LastFiredUtc

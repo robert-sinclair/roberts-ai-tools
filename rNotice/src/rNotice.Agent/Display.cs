@@ -30,9 +30,13 @@ internal static class Display
     public static string When(Item item)
     {
         var now = DateTimeOffset.UtcNow;
-        return item.DueUtc is { } due
+        var when = item.DueUtc is { } due
             ? $"{(item.Source == Source.Calendar ? "Starts" : "Due")} {Time(due)} ({Relative(due, now)})"
             : $"Received {Time(item.ReceivedUtc)}";
+
+        return item.PlannedStartUtc is { } planned
+            ? $"Planned {Time(planned)} ({Relative(planned, now)}) · {when}"
+            : when;
     }
 
     /// <summary>Group header: Today, Tomorrow, Yesterday, else "Fri 24 Oct".</summary>

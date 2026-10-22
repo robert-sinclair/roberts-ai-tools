@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using rNotice.Core.Items;
 
 namespace rNotice.Agent;
@@ -112,14 +113,158 @@ public partial class QueueWindow : Window
             case Key.F5: _host.RefreshNow(); break;
             case Key.Left: Move(-1); break;
             case Key.Right: Move(+1); break;
-            case Key.P when selected is not null: _host.SetStage(selected.Id, Stage.Planned); break;
+            case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
             case Key.D when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
-            case Key.S when selected is not null: _host.Snooze(selected.Id); break;
+            case Key.S when selected is not null && selected.IsOpen: _host.Snooze(selected.Id); break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
             default: return;
         }
         e.Handled = true;
+    }
+
+    /// <summary>Intake items, and planned non-meetings (to change the time). Meetings already have one.</summary>
+    private static bool CanPlan(Item item) =>
+        item.Stage == Stage.Intake || (item.Stage == Stage.Planned && item.Source != Source.Calendar);
+
+    // ── Right-click menu ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Built fresh for whichever item is under the pointer, offering only what applies to it.
+    /// Each entry shows its key, so the menu also teaches the shortcuts.
+    /// </summary>
+    private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var list = (ListBox)sender;
+        if (ContainerAt(e.OriginalSource) is not { DataContext: ItemView view } container)
+        {
+            e.Handled = true;   // right-click on a header or empty space: no menu
+            return;
+        }
+
+        container.IsSelected = true;
+        _active = list;
+        var item = view.Item;
+        var menu = list.ContextMenu!;
+        menu.Items.Clear();
+
+        if (CanPlan(item))
+            menu.Items.Add(Entry(item.Stage == Stage.Intake ? "Plan…" : "Change plan…", "P", () => _host.Plan(item.Id, this)));
+        if (item.Stage != Stage.Done)
+            menu.Items.Add(Entry("Complete", "C", () => _host.SetStage(item.Id, Stage.Done)));
+        if (item.IsOpen)
+            menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => _host.Snooze(item.Id)));
+        menu.Items.Add(Entry("Dismiss", "D", () => _host.SetStage(item.Id, Stage.Dismissed)));
+
+        if (view.HasJoin || view.HasSource) menu.Items.Add(new Separator());
+        if (view.HasJoin)
+            menu.Items.Add(Entry("Join meeting", "", () => AgentHost.OpenLink(item.JoinUrl)));
+        if (view.HasSource)
+            menu.Items.Add(Entry(item.Source switch
+            {
+                Source.Calendar or Source.Mail => "Open in Outlook",
+                Source.Workbook => "Open in Excel",
+                _ => "Open source"
+            }, "Enter", () => AgentHost.OpenLink(item.SourceRef)));
+    }
+
+    private static MenuItem Entry(string header, string key, Action action)
+    {
+        var entry = new MenuItem { Header = header, InputGestureText = key };
+        entry.Click += (_, _) => action();
+        return entry;
+    }
+
+    // ── Drag and drop ───────────────────────────────────────────────────────────────────────
+    //
+    // Onto Done: complete. From Intake onto Planned: the Plan dialog. Nothing else is a valid
+    // drop — the cursor says so before you let go.
+
+    private Point? _dragStart;
+    private ItemView? _dragItem;
+
+    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragItem = ContainerAt(e.OriginalSource)?.DataContext as ItemView;
+        _dragStart = _dragItem is null ? null : e.GetPosition(this);
+    }
+
+    private void OnMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _dragStart is not { } start || _dragItem is null) return;
+
+        var delta = e.GetPosition(this) - start;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+        var item = _dragItem;
+        _dragStart = null;
+        _dragItem = null;
+        DragDrop.DoDragDrop((ListBox)sender, new DataObject(typeof(ItemView), item), DragDropEffects.Move);
+    }
+
+    private Stage TargetStage(ListBox list) =>
+        list == DoneList ? Stage.Done : list == PlannedList ? Stage.Planned : Stage.Intake;
+
+    private bool IsValidDrop(ListBox target, DragEventArgs e) =>
+        e.Data.GetData(typeof(ItemView)) is ItemView { Item: var item } && TargetStage(target) switch
+        {
+            Stage.Done => item.Stage != Stage.Done,
+            Stage.Planned => item.Stage == Stage.Intake,
+            _ => false
+        };
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        var target = (ListBox)sender;
+        var valid = IsValidDrop(target, e);
+        e.Effects = valid ? DragDropEffects.Move : DragDropEffects.None;
+        Highlight(target, valid);
+        e.Handled = true;
+    }
+
+    private void OnDragLeave(object sender, DragEventArgs e) => Highlight((ListBox)sender, false);
+
+    private void OnDrop(object sender, DragEventArgs e)
+    {
+        var target = (ListBox)sender;
+        Highlight(target, false);
+        if (!IsValidDrop(target, e) || e.Data.GetData(typeof(ItemView)) is not ItemView view) return;
+
+        // After the drag finishes, not inside it: a modal dialog opened mid-drop would hold the
+        // drag loop open until it closed.
+        var toDone = TargetStage(target) == Stage.Done;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (toDone) _host.SetStage(view.Id, Stage.Done);
+            else _host.Plan(view.Id, this);
+        });
+        e.Handled = true;
+    }
+
+    private static void Highlight(ListBox list, bool on)
+    {
+        if (on)
+        {
+            list.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2B, 0x6C, 0xB0));
+            list.BorderThickness = new Thickness(2);
+        }
+        else
+        {
+            list.ClearValue(BorderBrushProperty);
+            list.ClearValue(BorderThicknessProperty);
+        }
+    }
+
+    /// <summary>The list item a mouse event happened on, if any.</summary>
+    private static ListBoxItem? ContainerAt(object source)
+    {
+        for (var d = source as DependencyObject; d is not null; d = d is Visual or System.Windows.Media.Media3D.Visual3D
+                 ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+        {
+            if (d is ListBoxItem item) return item;
+        }
+        return null;
     }
 
     private void Move(int step)

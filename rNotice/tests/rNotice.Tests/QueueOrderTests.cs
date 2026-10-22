@@ -38,6 +38,11 @@ public class QueueOrderTests
     }
 
     [Fact]
+    public void Planned_items_belong_to_the_day_you_planned_them_for() =>
+        Assert.Equal(new DateOnly(2026, 10, 23),
+            QueueOrder.DayOf(Item(due: Now).Plan(Now.AddDays(2)), Mountain));
+
+    [Fact]
     public void Undated_items_belong_to_the_day_they_arrived() =>
         Assert.Equal(new DateOnly(2026, 10, 21), QueueOrder.DayOf(Item() with { DueUtc = null }, Mountain));
 

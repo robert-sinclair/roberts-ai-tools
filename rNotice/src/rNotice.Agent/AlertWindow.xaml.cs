@@ -86,7 +86,7 @@ public partial class AlertWindow : Window
     private static Guid IdOf(object sender) => (Guid)((FrameworkElement)sender).Tag;
     private Item? ItemOf(object sender) => _host.Items().FirstOrDefault(i => i.Id == IdOf(sender));
 
-    private void OnPlan(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Planned);
+    private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
     private void OnDismiss(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Dismissed);
     private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
     private void OnOpen(object sender, RoutedEventArgs e) => AgentHost.OpenLink(ItemOf(sender)?.SourceRef);

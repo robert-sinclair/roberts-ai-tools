@@ -82,7 +82,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <TextBlock Opacity="0.75" TextWrapping="Wrap"
-                       Text="P plan · D dismiss · C complete · S snooze · Enter open source · ←/→ switch column · F5 refresh · Esc hide" />
+                       Text="Right-click an item for options · drag to Done to complete, Intake → Planned to plan · P plan · D dismiss · C complete · S snooze · Enter open · ←/→ column · F5 refresh · Esc hide" />
             <TextBlock x:Name="SignedInText" Grid.Column="1" Opacity="0.75" Margin="16,0,0,0" />
             <TextBlock x:Name="SourcesText" Grid.Row="1" Grid.ColumnSpan="2" Opacity="0.6" FontSize="12"
                        Margin="0,4,0,0" TextWrapping="Wrap" />
@@ -109,15 +109,30 @@
 
             <DockPanel Grid.Column="0">
                 <TextBlock x:Name="IntakeHeader" DockPanel.Dock="Top" Style="{StaticResource Header}" Text="Intake" />
-                <ListBox x:Name="IntakeList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus" />
+                <ListBox x:Name="IntakeList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus"
+                         AllowDrop="True" DragOver="OnDragOver" DragLeave="OnDragLeave" Drop="OnDrop"
+                         PreviewMouseLeftButtonDown="OnMouseDown" PreviewMouseMove="OnMouseMove"
+                         ContextMenuOpening="OnContextMenuOpening">
+                    <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
+                </ListBox>
             </DockPanel>
             <DockPanel Grid.Column="2">
                 <TextBlock x:Name="PlannedHeader" DockPanel.Dock="Top" Style="{StaticResource Header}" Text="Planned" />
-                <ListBox x:Name="PlannedList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus" />
+                <ListBox x:Name="PlannedList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus"
+                         AllowDrop="True" DragOver="OnDragOver" DragLeave="OnDragLeave" Drop="OnDrop"
+                         PreviewMouseLeftButtonDown="OnMouseDown" PreviewMouseMove="OnMouseMove"
+                         ContextMenuOpening="OnContextMenuOpening">
+                    <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
+                </ListBox>
             </DockPanel>
             <DockPanel Grid.Column="4">
                 <TextBlock x:Name="DoneHeader" DockPanel.Dock="Top" Style="{StaticResource Header}" Text="Done" />
-                <ListBox x:Name="DoneList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus" />
+                <ListBox x:Name="DoneList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus"
+                         AllowDrop="True" DragOver="OnDragOver" DragLeave="OnDragLeave" Drop="OnDrop"
+                         PreviewMouseLeftButtonDown="OnMouseDown" PreviewMouseMove="OnMouseMove"
+                         ContextMenuOpening="OnContextMenuOpening">
+                    <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
+                </ListBox>
             </DockPanel>
         </Grid>
     </DockPanel>

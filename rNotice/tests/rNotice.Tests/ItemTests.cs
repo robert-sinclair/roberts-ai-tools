@@ -60,6 +60,41 @@ public class ItemTests
     }
 
     [Fact]
+    public void Plan_with_a_time_rearms_for_that_time()
+    {
+        var fired = Item() with { LastFiredUtc = Now, SnoozedUntilUtc = Now.AddMinutes(5) };
+        var planned = fired.Plan(Now.AddHours(3));
+
+        Assert.Equal(Stage.Planned, planned.Stage);
+        Assert.Equal((Now.AddHours(3), Now.AddHours(3)), (planned.PlannedStartUtc, planned.FireAtUtc));
+        Assert.Null(planned.LastFiredUtc);
+        Assert.Null(planned.SnoozedUntilUtc);
+    }
+
+    [Fact]
+    public void Plan_without_a_time_keeps_the_source_timing()
+    {
+        var item = Item(fireAt: Now.AddHours(1));
+        var planned = item.Plan(null);
+
+        Assert.Equal(Stage.Planned, planned.Stage);
+        Assert.Equal(item.FireAtUtc, planned.FireAtUtc);
+        Assert.Null(planned.PlannedStartUtc);
+    }
+
+    [Fact]
+    public void Planned_start_survives_a_repoll_with_a_new_due_date()
+    {
+        var planned = Item(fireAt: Now.AddHours(1)).Plan(Now.AddHours(5));
+        var repoll = Item(fireAt: Now.AddHours(2), due: Now.AddHours(2));
+
+        var merged = planned.MergeFrom(repoll);
+
+        Assert.Equal(Now.AddHours(5), merged.FireAtUtc);
+        Assert.Equal(Now.AddHours(2), merged.DueUtc);
+    }
+
+    [Fact]
     public void Merge_refuses_a_different_source_item() =>
         Assert.Throws<ArgumentException>(() => Item(sourceId: "a").MergeFrom(Item(sourceId: "b")));
 }

@@ -254,6 +254,34 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     public void SetStage(Guid id, Stage stage) => Update(id, i => i with { Stage = stage });
 
+    /// <summary>
+    /// Asks "when will you do it?" and plans the item. Every way of planning comes through here —
+    /// P, the right-click menu, a drag from Intake, the alert's Plan button — so they all behave
+    /// the same. Cancel changes nothing.
+    /// </summary>
+    public void Plan(Guid id, Window? owner)
+    {
+        if (_store.Get(id) is not { } item) return;
+
+        var dialog = new PlanDialog(item);
+        if (owner is { IsVisible: true })
+        {
+            dialog.Owner = owner;
+            dialog.Topmost = owner.Topmost;
+        }
+        else
+        {
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Topmost = true;
+        }
+
+        if (dialog.ShowDialog() != true) return;
+
+        Update(id, i => i.Plan(dialog.StartUtc));
+        if (dialog.StartUtc is { } start)
+            Log.Info($"'{item.Title}' planned for {Display.Time(start)}");
+    }
+
     public void Snooze(Guid id) =>
         Update(id, i => i.Snooze(DateTimeOffset.UtcNow.AddMinutes(_settings.SnoozeMinutes)));
 
