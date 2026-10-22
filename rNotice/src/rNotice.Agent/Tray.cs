@@ -62,6 +62,7 @@ internal sealed class Tray : IDisposable
             new WinForms.ToolStripMenuItem("Refresh now", null, (_, _) => _host.RefreshNow()),
             new WinForms.ToolStripMenuItem("Preview meeting alert", null, (_, _) => _host.PreviewMeetingAlert()),
             new WinForms.ToolStripSeparator(),
+            new WinForms.ToolStripMenuItem("Ignored senders…", null, (_, _) => _host.OpenIgnoredSenders()),
             _startupItem,
             new WinForms.ToolStripMenuItem("Open log folder", null, (_, _) => OpenFolder(Paths.Logs)),
             new WinForms.ToolStripMenuItem("Open settings file", null, (_, _) => OpenFolder(Paths.Root)),

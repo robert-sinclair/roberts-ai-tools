@@ -172,6 +172,13 @@ classification.
 
 First real run: 62 messages over 3 days; 9 meeting messages skipped, 53 into Intake, no toasts.
 
+**Ignoring senders from the app (0.4.1).** `ignoreSenders` is editable without touching the
+file: *Dismiss and ignore sender* on a mail item (address, or domain except your own), and an
+*Ignored senders* editor from the tray. Ignoring dismisses that sender's Intake items. Removing
+an entry clears the inbox `deltaLink` so the backfill window is re-read: mail that was skipped
+while ignored comes back, quietly, and dismissed items stay dismissed. This makes
+`settings.json` app-written at runtime, so a file that fails to load is never overwritten.
+
 > **Open: Intake now mirrors the inbox.** With the model off, everything no rule claims lands
 > in Intake as P3/silent: 53 items after one sync. You'll handle most of them in Outlook and
 > then have to clear them here too. Options: close an item when you read the message in

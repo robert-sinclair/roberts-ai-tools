@@ -48,6 +48,13 @@ public sealed record AgentSettings
 
     public RulesOptions Rules { get; init; } = new();
 
+    /// <summary>
+    /// The file existed but couldn't be read. Saving is refused while this is set: the defaults
+    /// in memory would overwrite whatever the user had, typo and all.
+    /// </summary>
+    [JsonIgnore]
+    public bool LoadFailed { get; init; }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -77,7 +84,7 @@ public sealed record AgentSettings
         catch (Exception ex)
         {
             Log.Error($"Could not read {Paths.Settings}; using defaults until it is fixed", ex);
-            return new AgentSettings { StartWithWindows = false };
+            return new AgentSettings { StartWithWindows = false, LoadFailed = true };
         }
 
         var defaults = new AgentSettings();
@@ -85,16 +92,25 @@ public sealed record AgentSettings
         return defaults;
     }
 
-    public void Save()
+    /// <summary>Returns false if nothing was written.</summary>
+    public bool Save()
     {
+        if (LoadFailed)
+        {
+            Log.Warn($"Not saving {Paths.Settings}: it failed to load, and saving would replace it with defaults");
+            return false;
+        }
+
         try
         {
             Directory.CreateDirectory(Paths.Root);
             File.WriteAllText(Paths.Settings, JsonSerializer.Serialize(this, Json));
+            return true;
         }
         catch (Exception ex)
         {
             Log.Error($"Could not write {Paths.Settings}", ex);
+            return false;
         }
     }
 }

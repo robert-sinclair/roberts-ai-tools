@@ -5,11 +5,11 @@ namespace rNotice.Agent;
 
 internal static class Program
 {
-    // Another launch (Start Menu, a second autostart) signals this instead of starting twice.
+    // A second launch signals the running copy instead of starting twice. With no argument it
+    // opens the queue (Start Menu, a second autostart); the arguments ask for something else.
     private const string ShowQueueEvent = @"Local\rNotice.Agent.ShowQueue";
-
-    // `rNotice.exe --preview-alert` asks the running copy to preview the next meeting's alert.
     private const string PreviewAlertEvent = @"Local\rNotice.Agent.PreviewAlert";
+    private const string IgnoredSendersEvent = @"Local\rNotice.Agent.IgnoredSenders";
 
     [STAThread]
     private static int Main(string[] args)
@@ -18,7 +18,9 @@ internal static class Program
         using var single = new Mutex(initiallyOwned: true, @"Local\rNotice.Agent.SingleInstance", out var isFirst);
         if (!isFirst)
         {
-            var signal = args.Contains("--preview-alert") ? PreviewAlertEvent : ShowQueueEvent;
+            var signal = args.Contains("--preview-alert") ? PreviewAlertEvent
+                : args.Contains("--ignored-senders") ? IgnoredSendersEvent
+                : ShowQueueEvent;
             if (EventWaitHandle.TryOpenExisting(signal, out var handle)) handle.Set();
             return 0;
         }
@@ -35,17 +37,23 @@ internal static class Program
         };
 
         using var host = new AgentHost(app);
-        using var showQueue = new EventWaitHandle(false, EventResetMode.AutoReset, ShowQueueEvent);
-        ThreadPool.RegisterWaitForSingleObject(showQueue,
-            (_, _) => app.Dispatcher.BeginInvoke(host.OpenQueue), null, Timeout.Infinite, executeOnlyOnce: false);
-        using var previewAlert = new EventWaitHandle(false, EventResetMode.AutoReset, PreviewAlertEvent);
-        ThreadPool.RegisterWaitForSingleObject(previewAlert,
-            (_, _) => app.Dispatcher.BeginInvoke(host.PreviewMeetingAlert), null, Timeout.Infinite, executeOnlyOnce: false);
+        using var showQueue = Listen(app, ShowQueueEvent, host.OpenQueue);
+        using var previewAlert = Listen(app, PreviewAlertEvent, host.PreviewMeetingAlert);
+        using var ignoredSenders = Listen(app, IgnoredSendersEvent, host.OpenIgnoredSenders);
 
         app.Startup += (_, _) => host.Start();
         app.Run();
 
         Log.Info("rNotice exiting");
         return 0;
+    }
+
+    /// <summary>Runs <paramref name="action"/> on the UI thread each time a second launch signals.</summary>
+    private static EventWaitHandle Listen(Application app, string name, Action action)
+    {
+        var handle = new EventWaitHandle(false, EventResetMode.AutoReset, name);
+        ThreadPool.RegisterWaitForSingleObject(handle,
+            (_, _) => app.Dispatcher.BeginInvoke(action), null, Timeout.Infinite, executeOnlyOnce: false);
+        return handle;
     }
 }

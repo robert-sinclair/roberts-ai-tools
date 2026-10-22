@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using rNotice.Core.Items;
+using rNotice.Core.Rules;
 
 namespace rNotice.Agent;
 
@@ -182,6 +183,20 @@ public partial class QueueWindow : Window
         if (item.IsOpen && view.CanSnooze)
             menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => _host.Snooze(item.Id)));
         menu.Items.Add(Entry("Dismiss", "D", () => _host.SetStage(item.Id, Stage.Dismissed)));
+
+        // Mail only: dismiss this and stop future mail from the sender, or the whole domain —
+        // except your own, where that would silence your colleagues.
+        if (item.Source == Source.Mail && Senders.AddressOf(item.From) is { } address)
+        {
+            var ignore = new MenuItem { Header = "Dismiss and ignore sender" };
+            ignore.Items.Add(Entry(address, "", () => _host.IgnoreSender(address)));
+            var domain = Senders.DomainEntry(address);
+            if (domain != _host.MyDomain)
+                ignore.Items.Add(Entry($"Everyone at {domain}", "", () => _host.IgnoreSender(domain)));
+            ignore.Items.Add(new Separator());
+            ignore.Items.Add(Entry("Edit ignored senders…", "", _host.OpenIgnoredSenders));
+            menu.Items.Add(ignore);
+        }
 
         if (view.HasJoin || view.HasSource) menu.Items.Add(new Separator());
         if (view.HasJoin)

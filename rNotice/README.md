@@ -29,6 +29,14 @@ On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the 
 toasting. Only mail that arrives while it's running interrupts you. A message you delete or
 move out of the inbox drops out of Intake.
 
+**Ignoring a sender.** Right-click a mail item → **Dismiss and ignore sender** → the address,
+or everyone at their domain (not offered for your own domain). That dismisses every Intake item
+from them and skips their future mail. **Tray → Ignored senders…** lists them: add, remove,
+Save. Taking someone off re-reads the last few days of mail, so their recent messages come back
+into the queue quietly. Items dismissed by the ignore stay dismissed. The list is
+`rules.ignoreSenders` in `settings.json`; rNotice won't save over that file if it couldn't read
+it.
+
 **What it writes:** one thing, once. If `/efficiency/rNotice.xlsx` doesn't exist, it creates it
 with the `Actions` table and the date columns formatted as text. It never writes a row, never
 touches your calendar, and never acknowledges anything back to the workbook — that's step 4.

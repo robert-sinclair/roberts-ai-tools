@@ -42,6 +42,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
     private Task? _meLookup;
+    private Me? _me;
     private Tray _tray = null!;
     private HotKeyWindow? _hotKey;
     private DispatcherTimer? _timer;
@@ -206,6 +207,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         async Task LookUpMe()
         {
             var me = await _graph.GetMeAsync(CancellationToken.None);
+            _me = me;
             _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
             Log.Info($"Signed in as {me.Address}");
         }
@@ -370,6 +372,88 @@ internal sealed class AgentHost(Application app) : IDisposable
     }
 
     // ── Windows ─────────────────────────────────────────────────────────────────────────────
+
+    // ── Ignored senders ─────────────────────────────────────────────────────────────────────
+
+    public IReadOnlyList<string> IgnoredSenders => _settings.Rules.IgnoreSenders;
+
+    /// <summary>Your own domain, which the menu never offers to ignore wholesale.</summary>
+    public string? MyDomain => _me is { } me && me.Address.Contains('@') ? Senders.DomainEntry(me.Address) : null;
+
+    /// <summary>
+    /// Adds an address or <c>@domain</c> to the ignore list, saves it, and dismisses every mail
+    /// item from that sender still in Intake — they'd have been skipped had the rule existed.
+    /// Planned and done items are yours and stay.
+    /// </summary>
+    public void IgnoreSender(string entry)
+    {
+        if (!SaveIgnored(Senders.With(_settings.Rules.IgnoreSenders, entry))) return;
+
+        var now = DateTimeOffset.UtcNow;
+        var dismissed = 0;
+        foreach (var item in _store.List(Stage.Intake).Where(i => i.Source == Source.Mail))
+        {
+            if (Senders.AddressOf(item.From) is { } address && Senders.Matches(address, [entry]))
+            {
+                _store.Save(item with { Stage = Stage.Dismissed }, now);
+                dismissed++;
+            }
+        }
+
+        Log.Info($"Ignoring {entry}; dismissed {dismissed} item(s) from it");
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Replaces the list from the editor. If anything was taken off, the inbox is re-read from
+    /// the backfill window, so recent mail from that sender — skipped while ignored — comes
+    /// back into the queue, quietly. Items dismissed by an ignore stay dismissed.
+    /// </summary>
+    public void SetIgnoredSenders(IReadOnlyList<string> entries)
+    {
+        var removed = _settings.Rules.IgnoreSenders
+            .Where(old => !entries.Contains(old, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (!SaveIgnored(entries)) return;
+
+        Log.Info($"Ignored senders updated: {entries.Count} entr{(entries.Count == 1 ? "y" : "ies")}" +
+                 (removed.Count > 0 ? $"; no longer ignoring {string.Join(", ", removed)}" : ""));
+
+        if (removed.Count > 0 && _settings.MailEnabled)
+        {
+            _store.SetState(MailDeltaKey, null);
+            RefreshNow();
+        }
+        Changed?.Invoke();
+    }
+
+    private bool SaveIgnored(IReadOnlyList<string> entries)
+    {
+        var updated = _settings with { Rules = _settings.Rules with { IgnoreSenders = entries } };
+        if (!updated.Save())
+        {
+            _tray.Notify("Ignore list not saved", $"settings.json couldn't be read or written. See the log.");
+            return false;
+        }
+
+        _settings = updated;
+        // The rules are fixed per Intake, so the next poll needs a new one with the new list.
+        if (_me is { } me) _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
+        return true;
+    }
+
+    private IgnoredSendersWindow? _ignoredWindow;
+
+    public void OpenIgnoredSenders()
+    {
+        if (_ignoredWindow is { IsLoaded: true })
+        {
+            _ignoredWindow.Activate();
+            return;
+        }
+        _ignoredWindow = new IgnoredSendersWindow(this);
+        _ignoredWindow.Closed += (_, _) => _ignoredWindow = null;
+        _ignoredWindow.Show();
+    }
 
     public void OpenQueue()
     {
