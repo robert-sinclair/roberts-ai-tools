@@ -58,6 +58,16 @@ internal sealed class AgentHost(Application app) : IDisposable
     public event Action? Changed;
 
     public IReadOnlyList<SourceStatus> Statuses => [_calendarPoll.Status, _workbookPoll.Status];
+
+    /// <summary>True while either source is mid-poll.</summary>
+    public bool Refreshing => _calendarPoll.Running || _workbookPoll.Running;
+
+    /// <summary>
+    /// When the next poll starts — the sooner of the two sources. Later than a minute away only
+    /// when a source is backing off after failures, which is exactly when it's worth seeing.
+    /// </summary>
+    public DateTimeOffset NextRefreshUtc =>
+        _calendarPoll.Next < _workbookPoll.Next ? _calendarPoll.Next : _workbookPoll.Next;
     public bool NeedsSignIn => _auth.NeedsSignIn;
     public string? SignedInAs => _auth.Upn;
     public int SnoozeMinutes => _settings.SnoozeMinutes;
@@ -110,8 +120,8 @@ internal sealed class AgentHost(Application app) : IDisposable
     {
         var now = DateTimeOffset.UtcNow;
 
-        if (_calendarPoll.IsDue(now)) _ = PollAsync(_calendarPoll, PollCalendarAsync, _settings.CalendarPollSeconds);
-        if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.WorkbookPollSeconds);
+        if (_calendarPoll.IsDue(now)) _ = PollAsync(_calendarPoll, PollCalendarAsync, _settings.RefreshInterval);
+        if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.RefreshInterval);
 
         if (now >= _nextPurge)
         {
@@ -148,23 +158,24 @@ internal sealed class AgentHost(Application app) : IDisposable
         Changed?.Invoke();
     }
 
-    private async Task PollAsync(PollState state, Func<DateTimeOffset, Task<string>> poll, int intervalSeconds)
+    private async Task PollAsync(PollState state, Func<DateTimeOffset, Task<string>> poll, TimeSpan interval)
     {
         state.Running = true;
+        Changed?.Invoke();   // so the footer can say "refreshing…"
         var now = DateTimeOffset.UtcNow;
         try
         {
             await EnsureSyncAsync();
             var summary = await poll(now);
-            state.Succeeded(now, summary, TimeSpan.FromSeconds(intervalSeconds));
+            state.Succeeded(now, summary, interval);
         }
         catch (SignInRequiredException)
         {
-            state.Failed(now, "Sign-in needed", TimeSpan.FromSeconds(intervalSeconds), backoff: false);
+            state.Failed(now, "Sign-in needed", interval, backoff: false);
         }
         catch (Exception ex)
         {
-            var wait = state.Failed(now, Describe(ex), TimeSpan.FromSeconds(intervalSeconds), backoff: true, MaxBackoff);
+            var wait = state.Failed(now, Describe(ex), interval, backoff: true, MaxBackoff);
             Log.Error($"{state.Name} poll failed; next try in {wait.TotalMinutes:0.#} min", ex);
         }
         finally
@@ -382,6 +393,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         public string Name { get; } = name;
         public bool Running { get; set; }
+        public DateTimeOffset Next => _next;
         public SourceStatus Status { get; private set; } = new(name, null, "Not polled yet", false);
 
         public bool IsDue(DateTimeOffset now) => !Running && now >= _next;

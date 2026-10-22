@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using rNotice.Core.Items;
 
 namespace rNotice.Agent;
@@ -29,9 +30,27 @@ public partial class QueueWindow : Window
         _active = IntakeList;
 
         SourceInitialized += (_, _) => NativeMethods.ExcludeFromCapture(new WindowInteropHelper(this).Handle);
-        IsVisibleChanged += (_, _) => { if (IsVisible) Reload(); };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible) { Reload(); _countdown.Start(); }
+            else _countdown.Stop();
+        };
+        _countdown.Tick += (_, _) => ShowNextRefresh();
         PreviewKeyDown += OnKey;
         Reload();
+    }
+
+    // Ticks only while the window is open; the polls themselves run whether it is or not.
+    private readonly DispatcherTimer _countdown = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    private void ShowNextRefresh()
+    {
+        var left = _host.NextRefreshUtc - DateTimeOffset.UtcNow;
+        NextRefreshText.Text = _host.Refreshing || left <= TimeSpan.Zero
+            ? "Refreshing…"
+            : left.TotalSeconds < 60
+                ? $"Next refresh in {(int)Math.Ceiling(left.TotalSeconds)} s"
+                : $"Next refresh {Display.Time(_host.NextRefreshUtc)}";
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -57,6 +76,7 @@ public partial class QueueWindow : Window
         SourcesText.Text = string.Join("      ", _host.Statuses.Select(s =>
             $"{s.Name}{(s.Name == "Workbook" ? $" {_host.WorkbookPath}" : "")}: {(s.Failing ? "⚠ " : "")}{s.Summary}" +
             (s.LastOkUtc is { } t ? $" · checked {Display.Time(t)}" : "")));
+        ShowNextRefresh();
 
         ShowDetail((_active.SelectedItem as ItemView)?.Item);
     }
@@ -69,6 +89,13 @@ public partial class QueueWindow : Window
     {
         var selected = (list.SelectedItem as ItemView)?.Id;
         var views = items.Select(i => new ItemView(i)).ToList();
+
+        // A refresh every minute rebuilds the list. Put the scroll back where it was, after the
+        // new items have been laid out, or the queue jumps to the top once a minute.
+        var scroller = FindScrollViewer(list);
+        var offset = scroller?.VerticalOffset ?? 0;
+        if (scroller is not null && offset > 0)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => scroller.ScrollToVerticalOffset(offset));
 
         var view = new ListCollectionView(views);
         if (byDay)
@@ -254,6 +281,17 @@ public partial class QueueWindow : Window
             list.ClearValue(BorderBrushProperty);
             list.ClearValue(BorderThicknessProperty);
         }
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject root)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer sv) return sv;
+            if (FindScrollViewer(child) is { } found) return found;
+        }
+        return null;
     }
 
     /// <summary>The list item a mouse event happened on, if any.</summary>

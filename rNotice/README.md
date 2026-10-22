@@ -38,7 +38,16 @@ meetings under next week's.
 **Settings** are in `%LOCALAPPDATA%\rNotice\settings.json`, written with defaults on first run.
 Edit, then restart rNotice from the tray. The useful ones: `rules.meetingBlocklist` (subject
 text, or `/regex/`), `rules.horizonDays`, `quietHours` (`{"start":"22:00","end":"07:00"}`),
-`snoozeMinutes`.
+`snoozeMinutes`, `refreshSeconds` (how often the calendar and workbook are checked; default 60,
+minimum 30).
+
+**Auto refresh.** Both sources are checked every minute. The queue footer counts down to the next
+check, shows *Refreshing…* while one runs, and keeps your scroll position when the lists update.
+F5 checks straight away. After repeated failures a source backs off, up to 30 minutes, and the
+footer shows the time of the next try instead of a countdown.
+
+Settings files written by 0.3.0–0.3.2 still have `calendarPollSeconds` and `workbookPollSeconds`.
+Both are now ignored; you can delete them.
 
 **Logs** are in `%LOCALAPPDATA%\rNotice\logs`, one file a day. Titles go in; snippets never do.
 

@@ -84,8 +84,10 @@
             <TextBlock Opacity="0.75" TextWrapping="Wrap"
                        Text="Right-click an item for options · drag to Done to complete, Intake → Planned to plan · P plan · D dismiss · C complete · S snooze · Enter open · ←/→ column · F5 refresh · Esc hide" />
             <TextBlock x:Name="SignedInText" Grid.Column="1" Opacity="0.75" Margin="16,0,0,0" />
-            <TextBlock x:Name="SourcesText" Grid.Row="1" Grid.ColumnSpan="2" Opacity="0.6" FontSize="12"
+            <TextBlock x:Name="SourcesText" Grid.Row="1" Opacity="0.6" FontSize="12"
                        Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock x:Name="NextRefreshText" Grid.Row="1" Grid.Column="1" Opacity="0.6" FontSize="12"
+                       Margin="16,4,0,0" HorizontalAlignment="Right" ToolTip="F5 to refresh now" />
         </Grid>
 
         <Border x:Name="Detail" DockPanel.Dock="Bottom" BorderThickness="1" Padding="10" Margin="0,10,0,0"

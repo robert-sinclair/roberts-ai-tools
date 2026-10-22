@@ -16,8 +16,14 @@ public sealed record AgentSettings
     public string WorkbookFolder { get; init; } = "efficiency";
     public string WorkbookFile { get; init; } = "rNotice.xlsx";
 
-    public int CalendarPollSeconds { get; init; } = 60;
-    public int WorkbookPollSeconds { get; init; } = 300;
+    /// <summary>
+    /// How often both sources are checked. One interval for both, so "next refresh" means one
+    /// thing. Floor of 30 seconds — never tighten polling without measuring (SPEC.md, <i>Polling</i>).
+    /// Replaces calendarPollSeconds and workbookPollSeconds; old keys in the file are ignored.
+    /// </summary>
+    public int RefreshSeconds { get; init; } = 60;
+
+    public TimeSpan RefreshInterval => TimeSpan.FromSeconds(Math.Max(30, RefreshSeconds));
     public int RetentionDays { get; init; } = 30;
     public int SnoozeMinutes { get; init; } = 15;
     public int TakeoverGraceSeconds { get; init; } = 300;

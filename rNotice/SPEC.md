@@ -544,7 +544,12 @@ behind corporate NAT is not that. So: delta queries on a timer.
 | Calendar | 60s | `calendarView`; the takeover needs minute-level accuracy |
 | Mail | 120s | `messages/delta` |
 | Teams | 120s | per-chat `messages/delta` |
-| Workbook | 300s | ETag pre-check, then table rows |
+| Workbook | 60s | `cTag` pre-check, then table rows only if it changed |
+
+**Calendar and workbook share one interval, `refreshSeconds` (default 60, floor 30), by decision
+(2026-10-22).** The workbook moved from 300s so that one "next refresh" in the queue footer means
+both sources. The cost is small: an unchanged workbook is one metadata GET a minute, and rows are
+read only when the `cTag` changes. Mail and Teams get their own intervals when they're built.
 
 **Firing never depends on a poll.** Once an item is in the store the scheduler owns its timing.
 A network outage delays seeing *new* work; it does not delay an alert already known about. The
@@ -561,7 +566,8 @@ without measuring.
 Outlook endpoints throttle at a documented 10,000 requests per 10 minutes per app per mailbox,
 4 concurrent per mailbox, `429` with `Retry-After`.
 ([throttling limits](https://learn.microsoft.com/en-us/graph/throttling-limits)) The cadence
-above is roughly 100 requests/hour — three orders of magnitude clear. Rules regardless: honour
+above is roughly 300 requests/hour with every source running — still well over two orders of
+magnitude clear. Rules regardless: honour
 `Retry-After` exactly, exponential backoff capped at 30 minutes, never a tight retry loop.
 
 These figures come from Microsoft posts of varying age and Microsoft says they change. Order of
