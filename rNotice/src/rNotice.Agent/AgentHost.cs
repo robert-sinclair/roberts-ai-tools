@@ -225,9 +225,8 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         // For planning, anything not marked free takes the time: busy, out of office,
         // tentative, working elsewhere — all-day ones included, so a day off isn't offered.
-        _meetingBlocks = events.Where(e => !e.IsCancelled && e.ShowAs != ShowAs.Free)
-                               .Select(e => new TimeBlock(e.StartUtc, e.EndUtc))
-                               .ToList();
+        _meetingEvents = events.Where(e => !e.IsCancelled && e.ShowAs != ShowAs.Free).ToList();
+        _meetingBlocks = _meetingEvents.Select(e => new TimeBlock(e.StartUtc, e.EndUtc)).ToList();
         _calendarKnownUtc = now;
 
         var report = _sync!.SyncCalendar(events, now);
@@ -329,10 +328,11 @@ internal sealed class AgentHost(Application app) : IDisposable
     {
         if (_store.Get(id) is not { } item) return;
 
+        var hours = _settings.ToWorkHours();
         var dialog = new PlanDialog(item, _settings.PlanMinutes,
-            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), _settings.ToWorkHours(),
-                BlockedTime(except: id)),
-            _calendarKnownUtc);
+            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except: id)),
+            _calendarKnownUtc, hours,
+            day => DayGrid.Build(day, hours, AgendaFor(day, except: id), DateTimeOffset.UtcNow));
         if (owner is { IsVisible: true })
         {
             dialog.Owner = owner;
@@ -352,6 +352,29 @@ internal sealed class AgentHost(Application app) : IDisposable
     }
 
     private IReadOnlyList<TimeBlock> _meetingBlocks = [];
+    private IReadOnlyList<CalendarEvent> _meetingEvents = [];
+
+    /// <summary>
+    /// One working day's meetings and other plans, with titles, for the Plan dialog's day view.
+    /// Blocklisted meetings are included: they don't alert, but they still take the time.
+    /// </summary>
+    private IReadOnlyList<AgendaEntry> AgendaFor(DateOnly day, Guid except)
+    {
+        var zone = _settings.ToWorkHours().Zone;
+        var from = new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), zone.GetUtcOffset(day.ToDateTime(TimeOnly.MinValue))).ToUniversalTime();
+        var to = from.AddDays(1);
+
+        var meetings = _meetingEvents
+            .Where(e => e.StartUtc < to && e.EndUtc > from)
+            .Select(e => new AgendaEntry(e.StartUtc, e.EndUtc, e.Subject, IsMeeting: true));
+
+        var plans = _store.List(Stage.Planned)
+            .Where(i => i.Id != except && i.Source != Source.Calendar && i.PlannedStartUtc is { } s && s < to && s >= from.AddHours(-12))
+            .Select(i => new AgendaEntry(i.PlannedStartUtc!.Value,
+                i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes), i.Title, IsMeeting: false));
+
+        return meetings.Concat(plans).ToList();
+    }
     private DateTimeOffset? _calendarKnownUtc;
 
     /// <summary>
