@@ -106,11 +106,16 @@ Access, device compliance and Windows Hello rather than sidestepping them.
 Installs **for all users**, into `%ProgramFiles%\rNotice`. From an **elevated** PowerShell prompt:
 
 ```powershell
-cd rNotice\install
-.\Install.ps1
+cd rNotice
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install\Install.ps1 -Launch
 ```
 
-Add `-SelfContained` to bundle the .NET runtime, and `-Launch` to start rNotice straight after.
+`-ExecutionPolicy Bypass` is there because Windows' default policy on desktops (`Restricted`)
+blocks every `.ps1`. It applies to that one process only and leaves the machine's policy alone.
+Don't change the machine policy to get round it. If Group Policy sets one, the bypass won't
+override it — check with `Get-ExecutionPolicy -List`.
+
+Add `-SelfContained` to bundle the .NET runtime. `-Launch` starts rNotice as you, straight after.
 
 **Installing is the only step that needs administrator rights.** rNotice itself runs unelevated,
 as you. It has no service, no driver and no scheduled task.
@@ -147,7 +152,8 @@ Launching it again while it's running opens the queue window instead of starting
 The first run may show a Windows sign-in prompt. After that the broker signs you in silently and
 no prompt appears again.
 
-Exit codes: `0` all checks passed, `1` one or more failed, `2` cancelled.
+The probe (Start Menu → **rNotice Probe**) exits `0` if all checks passed, `1` if any failed,
+`2` if cancelled.
 
 ### Pointing it somewhere else
 
@@ -157,14 +163,14 @@ No rebuild needed:
 | --- | --- |
 | `RNOTICE_CLIENT_ID` | `2923549f-f444-48f7-8084-c8b7799db2e0` |
 | `RNOTICE_TENANT` | `bravurasecurity.com` |
-| `RNOTICE_WORKBOOK_FOLDER` | `efficiency` |
+| `RNOTICE_WORKBOOK_FOLDER` | `efficiency` — probe only. The agent reads `workbookFolder` from `settings.json`. |
 
 The client ID is not a secret. A public client registration has no secret and no certificate, and
 the client ID ships inside the binary by design.
 
 ## Upgrade
 
-**Re-run `Install.ps1`.** It stops anything running, replaces the files in place and updates the
+**Re-run `Install.ps1`**, the same way as above. It stops anything running, replaces the files in place and updates the
 version shown in Add or Remove Programs. There is no separate upgrade path and no need to
 uninstall first.
 
@@ -179,8 +185,10 @@ and the installer picks it up. Nothing else needs editing.
 **Settings → Apps → Installed apps → rNotice → Uninstall.** Or from an elevated prompt:
 
 ```powershell
-& "$env:ProgramFiles\rNotice\Uninstall.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:ProgramFiles\rNotice\Uninstall.ps1"
 ```
+
+Uninstalling from Settings needs no bypass; the entry the installer registers already passes it.
 
 Add `-Purge` to also delete your own `%LOCALAPPDATA%\rNotice`. Without it, your settings and logs
 are left in place and other users keep theirs — removing other people's data from a machine-wide
