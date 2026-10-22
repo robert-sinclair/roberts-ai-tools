@@ -89,6 +89,7 @@ public partial class QueueWindow : Window
     private void Fill(ListBox list, TextBlock header, string name, IEnumerable<Item> items, bool byDay)
     {
         var selected = (list.SelectedItem as ItemView)?.Id;
+        var selectedIndex = list.SelectedIndex;
         var views = items.Select(i => new ItemView(i)).ToList();
 
         // A refresh every minute rebuilds the list. Put the scroll back where it was, after the
@@ -106,9 +107,41 @@ public partial class QueueWindow : Window
         }
 
         list.ItemsSource = view;
-        list.SelectedItem = views.FirstOrDefault(v => v.Id == selected);
         header.Text = $"{name} ({views.Count})";
+
+        if (views.FirstOrDefault(v => v.Id == selected) is { } still)
+        {
+            list.SelectedItem = still;
+        }
+        else if (selected is not null && selectedIndex >= 0 && list.Items.Count > 0)
+        {
+            // The selected item left this list — dismissed, done, planned, or gone from its
+            // source. Select whatever took its place, so D, C or P can go straight on to the
+            // next one without reaching for the mouse.
+            list.SelectedIndex = Math.Min(selectedIndex, list.Items.Count - 1);
+            if (list == _active && IsActive) FocusSelected(list);
+        }
     }
+
+    /// <summary>Moves the selection one down in the list, for actions that leave the item in place.</summary>
+    private void Advance(ListBox list)
+    {
+        if (list.SelectedIndex < 0 || list.SelectedIndex >= list.Items.Count - 1) return;
+        list.SelectedIndex++;
+        if (IsActive) FocusSelected(list);
+    }
+
+    /// <summary>
+    /// Puts keyboard focus on the selected row, after layout — the row's container doesn't exist
+    /// until the rebuilt list has been laid out.
+    /// </summary>
+    private void FocusSelected(ListBox list) =>
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+        {
+            if (list.SelectedItem is null) return;
+            list.ScrollIntoView(list.SelectedItem);
+            if (list.ItemContainerGenerator.ContainerFromItem(list.SelectedItem) is ListBoxItem row) row.Focus();
+        });
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) =>
         ShowDetail(((sender as ListBox)?.SelectedItem as ItemView)?.Item);
@@ -162,7 +195,10 @@ public partial class QueueWindow : Window
             case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
             case Key.D when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
-            case Key.S when selected is not null && selected.IsOpen && selected.Source != Source.Calendar: _host.Snooze(selected.Id); break;
+            case Key.S when selected is not null && selected.IsOpen && selected.Source != Source.Calendar:
+                _host.Snooze(selected.Id);
+                Advance(_active);   // a snoozed item stays in the list, so step past it
+                break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
             default: return;
         }
@@ -199,7 +235,7 @@ public partial class QueueWindow : Window
         if (item.Stage != Stage.Done)
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
         if (item.IsOpen && view.CanSnooze)
-            menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => _host.Snooze(item.Id)));
+            menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => { _host.Snooze(item.Id); Advance(list); }));
         menu.Items.Add(Entry("Dismiss", "D", () => _host.SetStage(item.Id, Stage.Dismissed)));
 
         // Mail only: dismiss this and stop future mail from the sender, or the whole domain —
