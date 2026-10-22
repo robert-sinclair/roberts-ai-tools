@@ -25,6 +25,15 @@ moves, flags or marks anything read, and it holds no scope that could. What reac
 | Anything else | P3, quietly in Intake |
 | Sent by you, meeting invites and responses, `rules.ignoreSenders` | Nothing |
 
+**Read in Outlook is noted, never acted on.** Unread mail has a bold title, read mail a normal
+one, and the item says *(read in Outlook)* or *(unread)*. Reading a message doesn't close its
+item — you do that.
+
+**The detail pane** under the lists shows the selected item: title, when, who, why it got its
+priority, and the start of the message. Drag the bar above it to make it taller; it scrolls when
+there's more than fits, and the text can be selected and copied. rNotice keeps only the first
+couple of hundred characters of a message, so Enter opens the rest in Outlook.
+
 On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the queue without
 toasting. Only mail that arrives while it's running interrupts you. A message you delete or
 move out of the inbox drops out of Intake.

@@ -119,9 +119,14 @@ public partial class QueueWindow : Window
         ShowDetail((_active.SelectedItem as ItemView)?.Item);
     }
 
+    /// <summary>
+    /// The pane under the lists. It stays put — a placeholder when nothing's selected — so the
+    /// lists don't jump as the selection changes, and it scrolls when there's more than fits.
+    /// </summary>
     private void ShowDetail(Item? item)
     {
-        Detail.Visibility = item is null ? Visibility.Collapsed : Visibility.Visible;
+        DetailPlaceholder.Visibility = item is null ? Visibility.Visible : Visibility.Collapsed;
+        DetailBody.Visibility = item is null ? Visibility.Collapsed : Visibility.Visible;
         if (item is null) return;
 
         var view = new ItemView(item);
@@ -129,10 +134,23 @@ public partial class QueueWindow : Window
         DetailMeta.Text = view.Meta;
         DetailReason.Text = view.Reason;
         DetailSnippet.Text = view.Snippet ?? "";
+        DetailSnippet.Visibility = view.HasSnippet ? Visibility.Visible : Visibility.Collapsed;
+
+        // rNotice keeps an excerpt, never the full message. Say where the rest is.
+        DetailOpenHint.Text = view.HasSource
+            ? item.Source == Source.Mail
+                ? "This is the start of the message. Enter or right-click → Open in Outlook for all of it."
+                : $"Enter or right-click → {view.OpenLabel}."
+            : "";
     }
 
     private void OnKey(object sender, KeyEventArgs e)
     {
+        // Typing or copying in the detail pane's text — Ctrl+C there must copy, not mark done.
+        if (e.OriginalSource is TextBox || Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
+            return;
+
         var selected = (_active.SelectedItem as ItemView)?.Item;
 
         switch (e.Key)

@@ -127,10 +127,21 @@ public sealed class SourceSync(ItemStore store, Intake intake)
     /// Intake; if you'd planned or finished it, it stays.
     /// </summary>
     public SyncReport SyncMail(IReadOnlyList<MailMessage> changed, IReadOnlyList<string> removedIds,
-        IReadOnlyDictionary<string, DateTimeOffset> firstSentByConversation, DateTimeOffset nowUtc)
+        IReadOnlyDictionary<string, DateTimeOffset> firstSentByConversation, DateTimeOffset nowUtc,
+        IReadOnlyList<(string Id, bool IsRead)>? readChanges = null)
     {
         int inserted = 0, updated = 0, removed = 0;
         var skipped = new List<(string, string)>();
+
+        // A bare read/unread flip from delta: note it on the item, change nothing else.
+        foreach (var (id, isRead) in readChanges ?? [])
+        {
+            if (_store.GetBySource(Source.Mail, id) is { } item && item.IsRead != isRead)
+            {
+                _store.Save(item with { IsRead = isRead }, nowUtc);
+                updated++;
+            }
+        }
 
         foreach (var id in removedIds)
         {

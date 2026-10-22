@@ -249,6 +249,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     }
 
     private const string MailDeltaKey = "mail.inbox.deltaLink";
+    private const string ReadStateBackfillKey = "mail.readState.backfilled";
 
     /// <summary>
     /// Sent Items first, so a reply that lands right after you sent is matched; then the inbox
@@ -257,13 +258,21 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private async Task<string> PollMailAsync(DateTimeOffset now)
     {
+        // Items stored before 0.4.2 have no read state. Re-read the backfill window once so
+        // they get it; ingest merges, so nothing is duplicated and nothing fires.
+        if (_store.GetState(ReadStateBackfillKey) is null)
+        {
+            _store.SetState(MailDeltaKey, null);
+            _store.SetState(ReadStateBackfillKey, "done");
+        }
+
         var firstSent = await _mail.GetFirstSentByConversationAsync(now.AddDays(-_settings.ReplyLookbackDays), CancellationToken.None);
         var delta = await _mail.GetInboxChangesAsync(_store.GetState(MailDeltaKey), now.AddDays(-_settings.MailBackfillDays), CancellationToken.None);
 
         if (delta.Restarted)
             Log.Info($"Mail: reading the inbox from the last {_settings.MailBackfillDays} days");
 
-        var report = _sync!.SyncMail(delta.Changed, delta.RemovedIds, firstSent, now);
+        var report = _sync!.SyncMail(delta.Changed, delta.RemovedIds, firstSent, now, delta.ReadChanges);
         _store.SetState(MailDeltaKey, delta.DeltaLink);
         LogSync("Mail", report);
 

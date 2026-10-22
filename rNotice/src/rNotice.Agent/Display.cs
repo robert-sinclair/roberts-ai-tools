@@ -119,8 +119,18 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     /// <summary>The group this item sits under in the queue.</summary>
     public string Day => Display.DayLabel(QueueOrder.DayOf(Item, TimeZoneInfo.Local));
     public string Title => Item.Title;
-    public string Meta => $"{Display.SourceLabel(Item.Source)} · {Display.When(Item)}" +
+    public string Meta => $"{Display.SourceLabel(Item.Source)}{ReadNote} · {Display.When(Item)}" +
                           (Item.From is null ? "" : $" · {Item.From}");
+
+    /// <summary>Unread mail is bold in the queue, as in Outlook. Read mail says so.</summary>
+    public bool IsUnread => Item.IsRead == false;
+
+    private string ReadNote => Item.IsRead switch
+    {
+        true => " (read in Outlook)",
+        false => " (unread)",
+        _ => ""
+    };
     public string Reason => $"{Item.Classification.Priority}/{Item.Classification.Interrupt.ToString().ToLowerInvariant()} — {Item.Classification.Reason}";
     public string? Snippet => Item.Snippet;
     public bool HasSnippet => !string.IsNullOrWhiteSpace(Item.Snippet);

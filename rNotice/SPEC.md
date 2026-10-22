@@ -179,10 +179,12 @@ an entry clears the inbox `deltaLink` so the backfill window is re-read: mail th
 while ignored comes back, quietly, and dismissed items stay dismissed. This makes
 `settings.json` app-written at runtime, so a file that fails to load is never overwritten.
 
-> **Open: Intake now mirrors the inbox.** With the model off, everything no rule claims lands
-> in Intake as P3/silent: 53 items after one sync. You'll handle most of them in Outlook and
-> then have to clear them here too. Options: close an item when you read the message in
-> Outlook (delta already reports it), or leave it for step 7's model to sort. Not decided.
+**Read state is shown, not acted on, by decision (2026-10-22).** Intake mirrors the inbox with
+the model off — 53 items after the first sync. Closing an item when its message is read in
+Outlook was offered and turned down: reading isn't handling. Instead each mail item carries
+`IsRead` from Graph (`isRead` on the message, and the bare read/unread flips delta reports),
+shown as a bold title when unread and *(read in Outlook)* when read. Step 7's model is still
+the route to a quieter Intake.
 
 ### Calendar
 

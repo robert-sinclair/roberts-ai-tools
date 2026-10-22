@@ -119,6 +119,7 @@ public sealed class Intake(RulesOptions options, Me me)
             Snippet = TextMatch.Truncate(m.BodyPreview, _options.SnippetLength),
             From = m.FromName is null ? m.FromAddress : $"{m.FromName} <{m.FromAddress}>",
             ReceivedUtc = m.ReceivedUtc,
+            IsRead = m.IsRead,
             FireAtUtc = m.ReceivedUtc,
             Classification = c
         });

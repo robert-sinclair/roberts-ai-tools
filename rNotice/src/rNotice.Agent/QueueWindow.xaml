@@ -1,7 +1,7 @@
 <Window x:Class="rNotice.Agent.QueueWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="rNotice" Width="1100" Height="680" MinWidth="720" MinHeight="420"
+        Title="rNotice" Width="1100" Height="820" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13"
         Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
 
@@ -20,7 +20,7 @@
                                HorizontalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1">
-                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ItemTitle" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding Meta}" Opacity="0.75" FontSize="12" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding Snoozed}" Opacity="0.75" FontSize="12" FontStyle="Italic"
                                Visibility="{Binding IsSnoozed, Converter={StaticResource Visible}}" />
@@ -39,6 +39,10 @@
                 <!-- Last, so it wins: a meeting's badge is its start time, not a priority. -->
                 <DataTrigger Binding="{Binding IsMeeting}" Value="True">
                     <Setter TargetName="Badge" Property="Background" Value="#2B6CB0" />
+                </DataTrigger>
+                <!-- Mail read in Outlook drops to normal weight, as Outlook shows it. Noted, not closed. -->
+                <DataTrigger Binding="{Binding Item.IsRead}" Value="True">
+                    <Setter TargetName="ItemTitle" Property="FontWeight" Value="Normal" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -90,17 +94,37 @@
                        Margin="16,4,0,0" HorizontalAlignment="Right" ToolTip="F5 to refresh now" />
         </Grid>
 
-        <Border x:Name="Detail" DockPanel.Dock="Bottom" BorderThickness="1" Padding="10" Margin="0,10,0,0"
+        <!-- Lists on top, detail below, with a splitter between them you can drag. -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="160" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="260" MinHeight="90" />
+            </Grid.RowDefinitions>
+
+        <GridSplitter Grid.Row="1" Height="10" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Background="Transparent"
+                      Cursor="SizeNS" ToolTip="Drag to resize the detail pane" />
+
+        <Border x:Name="Detail" Grid.Row="2" BorderThickness="1"
                 BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
-            <StackPanel>
-                <TextBlock x:Name="DetailTitle" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
-                <TextBlock x:Name="DetailMeta" Opacity="0.75" TextWrapping="Wrap" Margin="0,2,0,0" />
-                <TextBlock x:Name="DetailReason" FontStyle="Italic" TextWrapping="Wrap" Margin="0,4,0,0" />
-                <TextBlock x:Name="DetailSnippet" TextWrapping="Wrap" Margin="0,6,0,0" MaxHeight="80" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,10">
+                <StackPanel>
+                    <TextBlock x:Name="DetailPlaceholder" Opacity="0.6" Text="Select an item to see it here." />
+                    <StackPanel x:Name="DetailBody">
+                        <TextBlock x:Name="DetailTitle" FontWeight="SemiBold" FontSize="16" TextWrapping="Wrap" />
+                        <TextBlock x:Name="DetailMeta" Opacity="0.75" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock x:Name="DetailReason" FontStyle="Italic" Opacity="0.85" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <!-- Read-only text box, so the excerpt can be selected and copied. -->
+                        <TextBox x:Name="DetailSnippet" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0"
+                                 Background="Transparent" Padding="0" Margin="0,10,0,0" FontSize="13" />
+                        <TextBlock x:Name="DetailOpenHint" Opacity="0.6" FontSize="12" Margin="0,10,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <Grid>
+        <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="12" />
@@ -136,6 +160,7 @@
                     <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
                 </ListBox>
             </DockPanel>
+        </Grid>
         </Grid>
     </DockPanel>
 </Window>

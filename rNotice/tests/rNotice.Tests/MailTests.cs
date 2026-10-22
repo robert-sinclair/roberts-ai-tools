@@ -44,6 +44,28 @@ public class MailClientTests
         Assert.Null(MailClient.Map(Json("""{ "id": "m3", "isRead": true }""")));
 
     [Fact]
+    public void Read_flag_is_mapped() =>
+        Assert.True(MailClient.Map(Json("""
+            { "id": "m4", "isRead": true, "from": { "emailAddress": { "address": "a@x.com" } },
+              "receivedDateTime": "2026-10-22T19:00:00Z" }
+            """))!.IsRead);
+
+    [Fact]
+    public async Task A_bare_read_flip_comes_back_as_a_read_change()
+    {
+        var fake = new FakeHandler().Respond(HttpStatusCode.OK, """
+            { "value": [ { "id": "m1", "isRead": true } ],
+              "@odata.deltaLink": "https://graph.microsoft.com/v1.0/delta?token=2" }
+            """);
+
+        var delta = await new MailClient(fake.Client())
+            .GetInboxChangesAsync("https://graph.microsoft.com/v1.0/delta?token=1", Now, default);
+
+        Assert.Empty(delta.Changed);
+        Assert.Equal([("m1", true)], delta.ReadChanges!);
+    }
+
+    [Fact]
     public async Task First_round_filters_by_received_time_then_follows_links_to_the_deltaLink()
     {
         var fake = new FakeHandler()
@@ -162,6 +184,27 @@ public sealed class MailSyncTests : IDisposable
 
         Assert.Equal(1, report.Removed);
         Assert.Equal("b", Assert.Single(_store.List()).SourceId);
+    }
+
+    [Fact]
+    public void Reading_a_message_notes_it_and_closes_nothing()
+    {
+        _sync.SyncMail([Mail() with { IsRead = false }], [], SentInConv1, Now);
+
+        _sync.SyncMail([], [], SentInConv1, Now, readChanges: [("msg-1", true)]);
+
+        var item = Assert.Single(_store.List());
+        Assert.True(item.IsRead);
+        Assert.Equal(Stage.Intake, item.Stage);
+    }
+
+    [Fact]
+    public void A_repoll_without_the_flag_keeps_what_was_known()
+    {
+        _sync.SyncMail([Mail() with { IsRead = true }], [], SentInConv1, Now);
+        _sync.SyncMail([Mail() with { IsRead = null }], [], SentInConv1, Now);
+
+        Assert.True(Assert.Single(_store.List()).IsRead);
     }
 
     [Fact]

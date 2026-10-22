@@ -11,7 +11,8 @@ public sealed record MailDelta(
     IReadOnlyList<MailMessage> Changed,
     IReadOnlyList<string> RemovedIds,
     string DeltaLink,
-    bool Restarted);
+    bool Restarted,
+    IReadOnlyList<(string Id, bool IsRead)>? ReadChanges = null);
 
 /// <summary>
 /// Reads the inbox through <c>messages/delta</c> and Sent Items for the reply rule. Read-only:
@@ -20,7 +21,7 @@ public sealed record MailDelta(
 /// </summary>
 public sealed class MailClient(GraphClient graph)
 {
-    private const string Select = "subject,from,toRecipients,receivedDateTime,conversationId,bodyPreview,webLink";
+    private const string Select = "subject,from,toRecipients,receivedDateTime,conversationId,bodyPreview,webLink,isRead";
 
     private readonly GraphClient _graph = graph;
 
@@ -55,6 +56,7 @@ public sealed class MailClient(GraphClient graph)
     {
         var changed = new List<MailMessage>();
         var removed = new List<string>();
+        var reads = new List<(string, bool)>();
         string? url = firstUrl;
         string? deltaLink = null;
 
@@ -67,6 +69,8 @@ public sealed class MailClient(GraphClient graph)
                     removed.Add(entry.GetProperty("id").GetString()!);
                 else if (Map(entry) is { } message)
                     changed.Add(message);
+                else if (entry.TryGetProperty("isRead", out var isRead) && isRead.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    reads.Add((entry.GetProperty("id").GetString()!, isRead.GetBoolean()));
             }
 
             url = page.TryGetProperty("@odata.nextLink", out var next) ? next.GetString() : null;
@@ -74,7 +78,7 @@ public sealed class MailClient(GraphClient graph)
         }
 
         return new MailDelta(changed, removed, deltaLink
-            ?? throw new GraphException(0, "noDeltaLink", "Delta round ended without a deltaLink"), restarted);
+            ?? throw new GraphException(0, "noDeltaLink", "Delta round ended without a deltaLink"), restarted, reads);
     }
 
     /// <summary>
@@ -101,7 +105,8 @@ public sealed class MailClient(GraphClient graph)
 
     /// <summary>
     /// A full message, or null for an entry that only says something changed — delta also
-    /// reports read/unread flips, which may not carry the selected fields.
+    /// reports read/unread flips, which may not carry the selected fields. Those are picked up
+    /// separately as read changes.
     /// </summary>
     internal static MailMessage? Map(JsonElement m)
     {
@@ -124,7 +129,9 @@ public sealed class MailClient(GraphClient graph)
             WebLink: Str(m, "webLink"),
             // Invites, responses and cancellations are eventMessage subtypes. The reply spike
             // found every meeting false alarm here.
-            IsMeetingMessage: Str(m, "@odata.type")?.Contains("eventMessage", StringComparison.OrdinalIgnoreCase) == true);
+            IsMeetingMessage: Str(m, "@odata.type")?.Contains("eventMessage", StringComparison.OrdinalIgnoreCase) == true,
+            IsRead: m.TryGetProperty("isRead", out var read) && read.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? read.GetBoolean() : null);
     }
 
     private static string? Str(JsonElement e, string name) =>

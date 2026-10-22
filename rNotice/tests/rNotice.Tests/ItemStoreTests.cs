@@ -27,7 +27,8 @@ public sealed class ItemStoreTests : IDisposable
         SourceRef = "https://outlook.office.com/x",
         JoinUrl = "https://teams.microsoft.com/l/meetup-join/x",
         CalendarEventId = "evt-9",
-        SnoozedUntilUtc = Now.AddMinutes(3)
+        SnoozedUntilUtc = Now.AddMinutes(3),
+        IsRead = true
     };
 
     [Fact]
@@ -114,6 +115,44 @@ public sealed class ItemStoreTests : IDisposable
 
         Assert.Equal(2, _store.List(Stage.Intake, Stage.Planned).Count);
         Assert.Equal(3, _store.List().Count);
+    }
+
+    [Fact]
+    public void A_database_from_before_read_state_is_migrated()
+    {
+        var old = Path.Combine(Path.GetTempPath(), $"rnotice-old-{Guid.NewGuid():N}.db");
+        try
+        {
+            // The items table as 0.4.1 and earlier created it: no is_read column.
+            using (var raw = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={old};Pooling=False"))
+            {
+                raw.Open();
+                using var cmd = raw.CreateCommand();
+                cmd.CommandText = """
+                    CREATE TABLE items (
+                        id TEXT PRIMARY KEY, source INTEGER NOT NULL, source_id TEXT NOT NULL,
+                        stage INTEGER NOT NULL, priority INTEGER NOT NULL, interrupt INTEGER NOT NULL,
+                        classified_by INTEGER NOT NULL, received_utc INTEGER NOT NULL, due_utc INTEGER,
+                        fire_at_utc INTEGER, planned_start_utc INTEGER, acked_at_utc INTEGER,
+                        snoozed_until_utc INTEGER, last_fired_utc INTEGER, calendar_event_id TEXT,
+                        updated_utc INTEGER NOT NULL, title BLOB NOT NULL, reason BLOB NOT NULL,
+                        snippet BLOB, sender BLOB, source_ref BLOB, join_url BLOB,
+                        UNIQUE (source, source_id));
+                    """;
+                cmd.ExecuteNonQuery();
+            }
+
+            using var store = new ItemStore(old, new DpapiFieldProtector());
+            var item = Item() with { IsRead = false };
+            store.Save(item, Now);
+
+            Assert.False(store.Get(item.Id)!.IsRead);
+        }
+        finally
+        {
+            foreach (var f in new[] { old, old + "-wal", old + "-shm" })
+                if (File.Exists(f)) File.Delete(f);
+        }
     }
 
     /// <summary>Stands in for "a different key".</summary>

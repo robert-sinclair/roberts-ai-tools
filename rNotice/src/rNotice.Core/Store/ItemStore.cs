@@ -39,6 +39,24 @@ public sealed class ItemStore : IDisposable
         }.ToString());
         _db.Open();
         CreateSchema();
+        Migrate();
+    }
+
+    /// <summary>
+    /// Columns added after a database already existed. <c>CREATE TABLE IF NOT EXISTS</c> leaves
+    /// an existing table as it was, so each later column is added here if it's missing.
+    /// </summary>
+    private void Migrate()
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var cmd = _db.CreateCommand())
+        {
+            cmd.CommandText = "SELECT name FROM pragma_table_info('items')";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) columns.Add(r.GetString(0));
+        }
+
+        if (!columns.Contains("is_read")) Execute("ALTER TABLE items ADD COLUMN is_read INTEGER");
     }
 
     private void CreateSchema() => Execute("""
@@ -60,6 +78,7 @@ public sealed class ItemStore : IDisposable
             snoozed_until_utc INTEGER,
             last_fired_utc    INTEGER,
             calendar_event_id TEXT,
+            is_read           INTEGER,
             updated_utc       INTEGER NOT NULL,
             title             BLOB NOT NULL,
             reason            BLOB NOT NULL,
@@ -136,11 +155,11 @@ public sealed class ItemStore : IDisposable
         cmd.CommandText = """
             INSERT INTO items (id, source, source_id, stage, priority, interrupt, classified_by,
                 received_utc, due_utc, fire_at_utc, planned_start_utc, acked_at_utc,
-                snoozed_until_utc, last_fired_utc, calendar_event_id, updated_utc,
+                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, updated_utc,
                 title, reason, snippet, sender, source_ref, join_url)
             VALUES ($id, $source, $source_id, $stage, $priority, $interrupt, $classified_by,
                 $received_utc, $due_utc, $fire_at_utc, $planned_start_utc, $acked_at_utc,
-                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $updated_utc,
+                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $updated_utc,
                 $title, $reason, $snippet, $sender, $source_ref, $join_url)
             ON CONFLICT (id) DO UPDATE SET
                 stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
@@ -148,6 +167,7 @@ public sealed class ItemStore : IDisposable
                 fire_at_utc = excluded.fire_at_utc, planned_start_utc = excluded.planned_start_utc,
                 acked_at_utc = excluded.acked_at_utc, snoozed_until_utc = excluded.snoozed_until_utc,
                 last_fired_utc = excluded.last_fired_utc, calendar_event_id = excluded.calendar_event_id,
+                is_read = excluded.is_read,
                 updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
                 snippet = excluded.snippet, sender = excluded.sender,
                 source_ref = excluded.source_ref, join_url = excluded.join_url;
@@ -169,6 +189,7 @@ public sealed class ItemStore : IDisposable
         p.AddWithValue("$snoozed_until_utc", Ms(item.SnoozedUntilUtc));
         p.AddWithValue("$last_fired_utc", Ms(item.LastFiredUtc));
         p.AddWithValue("$calendar_event_id", (object?)item.CalendarEventId ?? DBNull.Value);
+        p.AddWithValue("$is_read", item.IsRead is { } read ? (read ? 1 : 0) : DBNull.Value);
         p.AddWithValue("$updated_utc", nowUtc.ToUnixTimeMilliseconds());
         p.AddWithValue("$title", _protector.Protect(item.Title));
         p.AddWithValue("$reason", _protector.Protect(item.Classification.Reason));
@@ -256,6 +277,7 @@ public sealed class ItemStore : IDisposable
                 SnoozedUntilUtc = Time(r, "snoozed_until_utc"),
                 LastFiredUtc = Time(r, "last_fired_utc"),
                 CalendarEventId = r.IsDBNull(r.GetOrdinal("calendar_event_id")) ? null : r.GetString(r.GetOrdinal("calendar_event_id")),
+                IsRead = r.IsDBNull(r.GetOrdinal("is_read")) ? null : r.GetInt64(r.GetOrdinal("is_read")) != 0,
                 Title = Open(r, "title")!,
                 Snippet = Open(r, "snippet"),
                 From = Open(r, "sender"),

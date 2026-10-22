@@ -37,6 +37,13 @@ public sealed record Item
     /// <summary>Teams join link for a meeting. Read from <c>onlineMeeting.joinUrl</c>, never <c>onlineMeetingUrl</c>.</summary>
     public string? JoinUrl { get; init; }
 
+    /// <summary>
+    /// Mail only: whether you've read the message in Outlook. Null for other sources, or until
+    /// rNotice has seen the flag. Shown, never acted on — by decision, reading a message doesn't
+    /// close its item.
+    /// </summary>
+    public bool? IsRead { get; init; }
+
     public DateTimeOffset? PlannedStartUtc { get; init; }
     public string? CalendarEventId { get; init; }
     public DateTimeOffset? AckedAtUtc { get; init; }
@@ -89,6 +96,7 @@ public sealed record Item
             DueUtc = incoming.DueUtc,
             FireAtUtc = fireAt,
             JoinUrl = incoming.JoinUrl,
+            IsRead = incoming.IsRead ?? IsRead,
             Classification = Classification.IsSticky ? Classification : incoming.Classification,
             LastFiredUtc = fireMoved ? null : LastFiredUtc
         };

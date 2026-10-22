@@ -48,7 +48,9 @@ public sealed record MailMessage(
     string? WebLink = null,
     // Graph types invites, responses and cancellations as eventMessage*. The poller sets this
     // from @odata.type.
-    bool IsMeetingMessage = false);
+    bool IsMeetingMessage = false,
+    // Read in Outlook. Noted on the item, never acted on — reading isn't handling.
+    bool? IsRead = null);
 
 /// <summary>One message from a watched chat's <c>messages/delta</c>.</summary>
 public sealed record ChatMessage(
