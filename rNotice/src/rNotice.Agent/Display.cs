@@ -63,9 +63,49 @@ internal static class Display
 }
 
 /// <summary>What the windows bind to.</summary>
-public sealed class ItemView(Item item)
+public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
     public Item Item { get; } = item;
+
+    /// <summary>
+    /// "Starts in 45 s", "Starting now", "Started 3 min ago". Read live; <see cref="Tick"/>
+    /// tells bindings to re-read it, so a countdown can update without rebuilding the window's
+    /// buttons under the user's mouse.
+    /// </summary>
+    public string Countdown
+    {
+        get
+        {
+            if (Item.DueUtc is not { } start) return "";
+            var left = start - DateTimeOffset.UtcNow;
+            return left.TotalHours >= 24 ? $"Starts {Display.Time(start)}"
+                 : left.TotalMinutes >= 60 ? $"Starts in {(int)left.TotalHours} h {left.Minutes} min"
+                 : left.TotalSeconds >= 120 ? $"Starts in {(int)Math.Ceiling(left.TotalMinutes)} min"
+                 : left.TotalSeconds > 0 ? $"Starts in {(int)Math.Ceiling(left.TotalSeconds)} s"
+                 : left.TotalSeconds > -60 ? "Starting now"
+                 : $"Started {(int)-left.TotalMinutes} min ago";
+        }
+    }
+
+    public void Tick() => PropertyChanged?.Invoke(this, new(nameof(Countdown)));
+
+    /// <summary>A meeting's one line: when, both zones, and who organised it.</summary>
+    public string MeetingLine => Item.DueUtc is { } start
+        ? $"{Display.Time(start)}" + (Item.From is null ? "" : $"  ·  {Item.From}")
+        : Item.From ?? "";
+
+    /// <summary>Says where it opens, rather than "open source".</summary>
+    public string OpenLabel => Item.Source switch
+    {
+        Source.Calendar or Source.Mail => "Open in Outlook",
+        Source.Workbook => "Open in Excel",
+        Source.Teams => "Open in Teams",
+        _ => "Open"
+    };
+
+    public bool CanSnooze => !IsMeeting;
     public Guid Id => Item.Id;
     public string Priority => Item.Classification.Priority.ToString();
     public bool IsMeeting => Item.Source == Source.Calendar;

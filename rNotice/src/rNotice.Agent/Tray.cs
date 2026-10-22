@@ -60,6 +60,7 @@ internal sealed class Tray : IDisposable
             new WinForms.ToolStripMenuItem($"Open queue ({HotKeyWindow.Description})", null, (_, _) => _host.OpenQueue())
                 { Font = new Drawing.Font(WinForms.Control.DefaultFont, Drawing.FontStyle.Bold) },
             new WinForms.ToolStripMenuItem("Refresh now", null, (_, _) => _host.RefreshNow()),
+            new WinForms.ToolStripMenuItem("Preview meeting alert", null, (_, _) => _host.PreviewMeetingAlert()),
             new WinForms.ToolStripSeparator(),
             _startupItem,
             new WinForms.ToolStripMenuItem("Open log folder", null, (_, _) => OpenFolder(Paths.Logs)),

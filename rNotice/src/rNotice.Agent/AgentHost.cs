@@ -350,6 +350,26 @@ internal sealed class AgentHost(Application app) : IDisposable
         return window;
     }
 
+    /// <summary>
+    /// Shows the alert for the next upcoming meeting, as it will look at T−1, without marking
+    /// anything fired. For checking the alert's look while it's still being iterated on.
+    /// </summary>
+    public void PreviewMeetingAlert()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var next = _store.List(Stage.Planned)
+            .Where(i => i.Source == Source.Calendar && i.DueUtc > now)
+            .OrderBy(i => i.DueUtc)
+            .FirstOrDefault();
+
+        if (next is null)
+        {
+            _tray.Notify("No meeting to preview", "There are no upcoming meetings in the queue.");
+            return;
+        }
+        ShowAlert([next]);
+    }
+
     private void ShowAlert(IReadOnlyList<Item> items)
     {
         if (_alert is { IsLoaded: true })

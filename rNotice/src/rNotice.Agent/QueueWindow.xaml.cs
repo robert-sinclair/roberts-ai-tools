@@ -143,7 +143,7 @@ public partial class QueueWindow : Window
             case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
             case Key.D when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
-            case Key.S when selected is not null && selected.IsOpen: _host.Snooze(selected.Id); break;
+            case Key.S when selected is not null && selected.IsOpen && selected.Source != Source.Calendar: _host.Snooze(selected.Id); break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
             default: return;
         }
@@ -178,8 +178,8 @@ public partial class QueueWindow : Window
         if (CanPlan(item))
             menu.Items.Add(Entry(item.Stage == Stage.Intake ? "Plan…" : "Change plan…", "P", () => _host.Plan(item.Id, this)));
         if (item.Stage != Stage.Done)
-            menu.Items.Add(Entry("Complete", "C", () => _host.SetStage(item.Id, Stage.Done)));
-        if (item.IsOpen)
+            menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
+        if (item.IsOpen && view.CanSnooze)
             menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => _host.Snooze(item.Id)));
         menu.Items.Add(Entry("Dismiss", "D", () => _host.SetStage(item.Id, Stage.Dismissed)));
 
@@ -187,12 +187,7 @@ public partial class QueueWindow : Window
         if (view.HasJoin)
             menu.Items.Add(Entry("Join meeting", "", () => AgentHost.OpenLink(item.JoinUrl)));
         if (view.HasSource)
-            menu.Items.Add(Entry(item.Source switch
-            {
-                Source.Calendar or Source.Mail => "Open in Outlook",
-                Source.Workbook => "Open in Excel",
-                _ => "Open source"
-            }, "Enter", () => AgentHost.OpenLink(item.SourceRef)));
+            menu.Items.Add(Entry(view.OpenLabel, "Enter", () => AgentHost.OpenLink(item.SourceRef)));
     }
 
     private static MenuItem Entry(string header, string key, Action action)

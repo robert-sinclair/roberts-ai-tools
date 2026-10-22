@@ -12,13 +12,17 @@ namespace rNotice.Agent;
 /// The topmost alert. Shown without taking focus — your typing stays where it was — and the
 /// taskbar flashes instead. Several items arriving together share one window as a list.
 ///
-/// Until step 4 adds the takeover, meetings arrive here too, headed "Meeting starting".
+/// A meeting gets the large form: most of the monitor's width, the title in big type, a
+/// countdown ticking every second, and Join first. It's the step before step 4's full-screen
+/// takeover, which still waits on the Teams capture check.
 /// </summary>
 public partial class AlertWindow : Window
 {
     private readonly AgentHost _host;
     private readonly Dictionary<Guid, Stage> _shown = [];
-    private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(15) };
+    private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
+    private List<ItemView> _views = [];
+    private int _ticks;
 
     internal AlertWindow(AgentHost host, IReadOnlyList<Item> items)
     {
@@ -32,19 +36,35 @@ public partial class AlertWindow : Window
             NativeMethods.ExcludeFromCapture(hwnd);
             NativeMethods.Flash(hwnd);
         };
-        Loaded += (_, _) => CentreOnMouseMonitor();
-        _clock.Tick += (_, _) => Reload();
+        Loaded += (_, _) => Place();
+        SizeChanged += (_, _) => { if (IsLoaded) Centre(); };
+        _clock.Tick += (_, _) => OnClock();
         _clock.Start();
         Closed += (_, _) => _clock.Stop();
 
         Reload();
     }
 
+    private bool HasMeeting => _views.Any(v => v.IsMeeting);
+
     public void Add(IReadOnlyList<Item> items)
     {
+        var wasMeeting = HasMeeting;
         foreach (var item in items) _shown[item.Id] = item.Stage;
         Reload();
+        if (HasMeeting != wasMeeting) Place();
         NativeMethods.Flash(new WindowInteropHelper(this).Handle);
+    }
+
+    /// <summary>
+    /// Countdowns update in place every second. The item list itself is re-read every 15
+    /// seconds, and rebuilt only when it actually changed, so a button never disappears under
+    /// a click that's in progress.
+    /// </summary>
+    private void OnClock()
+    {
+        foreach (var view in _views) view.Tick();
+        if (++_ticks % 15 == 0) Reload();
     }
 
     /// <summary>
@@ -58,7 +78,8 @@ public partial class AlertWindow : Window
         var now = DateTimeOffset.UtcNow;
         var live = _host.Items()
             .Where(i => _shown.TryGetValue(i.Id, out var stage) && i.Stage == stage && !(i.SnoozedUntilUtc > now))
-            .OrderBy(i => i.Classification.Priority).ThenBy(i => i.DueUtc)
+            .OrderBy(i => i.Source == Source.Calendar ? 0 : 1)
+            .ThenBy(i => i.Classification.Priority).ThenBy(i => i.DueUtc)
             .ToList();
 
         if (live.Count == 0)
@@ -67,27 +88,65 @@ public partial class AlertWindow : Window
             return;
         }
 
-        ItemsList.ItemsSource = live.Select(i => new ItemView(i)).ToList();
-        Heading.Text = live.Any(i => i.Classification.Interrupt == Interrupt.Takeover && i.DueUtc > now.AddMinutes(-5))
-            ? "Meeting starting"
+        if (!live.Select(i => i.Id).SequenceEqual(_views.Select(v => v.Id)) ||
+            live.Any(i => _views.First(v => v.Id == i.Id).Item != i))
+        {
+            _views = live.Select(i => new ItemView(i)).ToList();
+            ItemsList.ItemsSource = _views;
+        }
+
+        var meetings = live.Count(i => i.Source == Source.Calendar);
+        Heading.Text = meetings > 0
+            ? (meetings == 1 ? "Meeting" : $"{meetings} meetings") + (live.Count > meetings ? $" and {live.Count - meetings} more" : "")
             : live.Count == 1 ? "rNotice" : $"rNotice — {live.Count} items";
     }
 
-    private void CentreOnMouseMonitor()
+    /// <summary>
+    /// On the monitor with the mouse. A meeting takes most of its width and sits centred; anything
+    /// else is a compact panel a third of the way down.
+    /// </summary>
+    private void Place()
     {
-        var screen = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
+        var (_, screenWidth, screenHeight) = MouseScreen();
+
+        if (HasMeeting)
+        {
+            // A window sizing itself to its content ignores a new Width. Switch that off, set
+            // the width, and switch it back on so the height still follows the content.
+            SizeToContent = SizeToContent.Manual;
+            Width = Math.Clamp(screenWidth * 0.6, 760, 1300);
+            SizeToContent = SizeToContent.Height;
+
+            Root.Margin = new Thickness(40, 28, 40, 28);
+            Heading.FontSize = 22;
+            BorderThickness = new Thickness(4);
+        }
+        MaxHeight = screenHeight * 0.9;
+        Centre();
+    }
+
+    /// <summary>Runs on every real size change too, so the window stays centred as it grows.</summary>
+    private void Centre()
+    {
+        var (screen, screenWidth, screenHeight) = MouseScreen();
+        Left = screen.X + (screenWidth - ActualWidth) / 2;
+        Top = screen.Y + (screenHeight - ActualHeight) / (HasMeeting ? 2 : 3);
+    }
+
+    /// <summary>Working area of the monitor with the mouse, in this window's units.</summary>
+    private (Point TopLeft, double Width, double Height) MouseScreen()
+    {
+        var area = WinForms.Screen.FromPoint(WinForms.Cursor.Position).WorkingArea;
         var dpi = VisualTreeHelper.GetDpi(this);
-        var width = ActualWidth;
-        var height = ActualHeight;
-        Left = screen.Left / dpi.DpiScaleX + (screen.Width / dpi.DpiScaleX - width) / 2;
-        Top = screen.Top / dpi.DpiScaleY + (screen.Height / dpi.DpiScaleY - height) / 3;
+        return (new Point(area.Left / dpi.DpiScaleX, area.Top / dpi.DpiScaleY),
+                area.Width / dpi.DpiScaleX, area.Height / dpi.DpiScaleY);
     }
 
     private static Guid IdOf(object sender) => (Guid)((FrameworkElement)sender).Tag;
     private Item? ItemOf(object sender) => _host.Items().FirstOrDefault(i => i.Id == IdOf(sender));
 
     private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
-    private void OnDismiss(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Dismissed);
+    private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
     private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
     private void OnOpen(object sender, RoutedEventArgs e) => AgentHost.OpenLink(ItemOf(sender)?.SourceRef);
 
@@ -101,4 +160,14 @@ public partial class AlertWindow : Window
         ((Button)sender).Content = $"Snooze {_host.SnoozeMinutes} min";
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+}
+
+/// <summary>Meetings get the large template; everything else the compact one.</summary>
+public sealed class AlertTemplateSelector : DataTemplateSelector
+{
+    public DataTemplate? Meeting { get; set; }
+    public DataTemplate? Task { get; set; }
+
+    public override DataTemplate? SelectTemplate(object item, DependencyObject container) =>
+        item is ItemView { IsMeeting: true } ? Meeting : Task;
 }
