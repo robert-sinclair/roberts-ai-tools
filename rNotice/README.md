@@ -87,8 +87,12 @@ Both are now ignored; you can delete them.
 **The local store** is `%LOCALAPPDATA%\rNotice\rnotice.db`. Titles, senders, snippets and links
 are encrypted with DPAPI under your Windows account.
 
-**Both windows are excluded from screen capture** (`WDA_EXCLUDEFROMCAPTURE`). Whether Teams
-honours that is not yet checked — don't rely on it in a share until it is.
+**rNotice's windows are excluded from screen capture** (`WDA_EXCLUDEFROMCAPTURE`) by default,
+so screenshots, recordings and shares show nothing where they are. To take a screenshot of
+rNotice, untick **Tray → Hide from screen capture**; tick it again afterwards. It applies to every
+open rNotice window at once and is remembered (`hideFromCapture` in `settings.json`). Windows'
+own screenshot tools honour it; whether Teams does is not yet checked — don't rely on it in a
+share until it is.
 
 ---
 

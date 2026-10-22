@@ -59,6 +59,12 @@ public sealed record AgentSettings
         new TimeOnly(8, 0), new TimeOnly(16, 0), "Canada Central Standard Time",
         [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday]);
 
+    /// <summary>
+    /// Keep rNotice's windows out of screenshots, recordings and screen shares. On by default:
+    /// a meeting alert can name a client. Tray → Hide from screen capture switches it.
+    /// </summary>
+    public bool HideFromCapture { get; init; } = true;
+
     /// <summary>The duration the Plan dialog starts on.</summary>
     public int PlanMinutes { get; init; } = 30;
 

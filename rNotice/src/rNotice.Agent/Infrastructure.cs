@@ -102,6 +102,15 @@ internal static class AutoStart
     }
 }
 
+/// <summary>
+/// Whether rNotice's windows keep out of screenshots and screen shares. On by default; the tray
+/// switches it off when you need to show someone what rNotice looks like.
+/// </summary>
+internal static class CapturePolicy
+{
+    public static bool Hide { get; set; } = true;
+}
+
 internal static class NativeMethods
 {
     private const uint WDA_MONITOR = 0x01;
@@ -130,8 +139,17 @@ internal static class NativeMethods
     /// older builds fall back to a black rectangle. Not a security measure, and whether Teams
     /// honours it is still to be checked (SPEC.md, <i>While you're screen sharing</i>).
     /// </summary>
-    public static void ExcludeFromCapture(IntPtr hwnd)
+    public static void ExcludeFromCapture(IntPtr hwnd) => SetCaptureExclusion(hwnd, CapturePolicy.Hide);
+
+    /// <summary>Applies the setting to one window. Off clears the affinity, so screenshots work.</summary>
+    public static void SetCaptureExclusion(IntPtr hwnd, bool exclude)
     {
+        const uint WDA_NONE = 0x00;
+        if (!exclude)
+        {
+            SetWindowDisplayAffinity(hwnd, WDA_NONE);
+            return;
+        }
         if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE))
             SetWindowDisplayAffinity(hwnd, WDA_MONITOR);
     }

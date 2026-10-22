@@ -889,6 +889,12 @@ Three honest limits:
 If the spike shows Teams capturing it anyway, monitor-picking is the fallback and we're no worse
 off than the original plan.
 
+**Partial evidence, 2026-10-22:** the alert and queue can't be screenshotted with Windows' own
+tools — Robert found he couldn't capture the meeting alert to show it. So exclusion works for
+local capture. Teams is still unchecked. Because that also blocks legitimate screenshots, there
+is now a switch: **Tray → Hide from screen capture** (`hideFromCapture`, default on), applied to
+every open rNotice window at once.
+
 ### Toast (`toast`)
 
 Corner notification, auto-dismissing, tray badge increments. No focus change, no sound by

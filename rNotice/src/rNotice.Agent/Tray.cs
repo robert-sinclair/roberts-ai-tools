@@ -36,6 +36,7 @@ internal sealed class Tray : IDisposable
     private readonly WinForms.ToolStripMenuItem _statusItem;
     private readonly WinForms.ToolStripMenuItem _signInItem;
     private readonly WinForms.ToolStripMenuItem _startupItem;
+    private readonly WinForms.ToolStripMenuItem _captureItem;
     private readonly Dictionary<TrayState, Drawing.Icon> _icons = [];
     private readonly List<IntPtr> _handles = [];
 
@@ -51,6 +52,14 @@ internal sealed class Tray : IDisposable
             Checked = AutoStart.IsEnabled()
         };
 
+        // Ticked by default. Untick to take a screenshot or share the alert in a call.
+        _captureItem = new WinForms.ToolStripMenuItem("Hide from screen capture", null, (_, _) =>
+        {
+            _host.SetHideFromCapture(!_host.HideFromCapture);
+            _captureItem!.Checked = _host.HideFromCapture;
+        })
+        { Checked = _host.HideFromCapture };
+
         var menu = new WinForms.ContextMenuStrip();
         menu.Items.AddRange(
         [
@@ -63,6 +72,7 @@ internal sealed class Tray : IDisposable
             new WinForms.ToolStripMenuItem("Preview meeting alert", null, (_, _) => _host.PreviewMeetingAlert()),
             new WinForms.ToolStripSeparator(),
             new WinForms.ToolStripMenuItem("Ignored senders…", null, (_, _) => _host.OpenIgnoredSenders()),
+            _captureItem,
             _startupItem,
             new WinForms.ToolStripMenuItem("Open log folder", null, (_, _) => OpenFolder(Paths.Logs)),
             new WinForms.ToolStripMenuItem("Open settings file", null, (_, _) => OpenFolder(Paths.Root)),

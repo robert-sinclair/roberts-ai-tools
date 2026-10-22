@@ -29,6 +29,7 @@ public partial class PlanDialog : Window
     {
         _suggest = suggest;
         InitializeComponent();
+        SourceInitialized += (_, _) => NativeMethods.ExcludeFromCapture(new System.Windows.Interop.WindowInteropHelper(this).Handle);
 
         var view = new ItemView(item);
         ItemTitle.Text = view.Title;

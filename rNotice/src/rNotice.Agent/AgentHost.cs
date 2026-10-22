@@ -94,6 +94,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             Log.Info("First run: start with Windows turned on");
         }
 
+        CapturePolicy.Hide = _settings.HideFromCapture;
         _auth = new AgentAuth(ParentWindowHandle);
         _auth.StateChanged += () => Changed?.Invoke();
         _graph = new GraphClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }, _auth.GetTokenAsync);
@@ -404,6 +405,25 @@ internal sealed class AgentHost(Application app) : IDisposable
     }
 
     // ── Windows ─────────────────────────────────────────────────────────────────────────────
+
+    public bool HideFromCapture => CapturePolicy.Hide;
+
+    /// <summary>
+    /// Switches capture exclusion for every open rNotice window at once, and remembers it.
+    /// </summary>
+    public void SetHideFromCapture(bool hide)
+    {
+        CapturePolicy.Hide = hide;
+        foreach (Window window in _app.Windows)
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            if (hwnd != IntPtr.Zero) NativeMethods.SetCaptureExclusion(hwnd, hide);
+        }
+
+        var updated = _settings with { HideFromCapture = hide };
+        if (updated.Save()) _settings = updated;
+        Log.Info(hide ? "Windows hidden from screen capture" : "Windows visible to screen capture");
+    }
 
     // ── Ignored senders ─────────────────────────────────────────────────────────────────────
 

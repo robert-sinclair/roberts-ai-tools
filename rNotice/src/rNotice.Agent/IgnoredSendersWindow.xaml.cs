@@ -18,6 +18,7 @@ public partial class IgnoredSendersWindow : Window
     {
         _host = host;
         InitializeComponent();
+        SourceInitialized += (_, _) => NativeMethods.ExcludeFromCapture(new System.Windows.Interop.WindowInteropHelper(this).Handle);
         _entries = new ObservableCollection<string>(host.IgnoredSenders.OrderBy(e => e.TrimStart('@'), StringComparer.OrdinalIgnoreCase));
         Entries.ItemsSource = _entries;
         Loaded += (_, _) => NewEntry.Focus();
