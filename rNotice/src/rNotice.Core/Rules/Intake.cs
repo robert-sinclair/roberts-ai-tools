@@ -38,6 +38,9 @@ public sealed class Intake(RulesOptions options, Me me)
     ///
     /// Also skipped, which SPEC.md doesn't say: cancelled instances, all-day events (a takeover
     /// at midnight helps nobody) and events already over.
+    ///
+    /// Meetings enter as <see cref="Stage.Planned"/>, not Intake. They are already scheduled;
+    /// there is no decision left to make about them.
     /// </summary>
     public IntakeResult FromCalendar(CalendarEvent e, DateTimeOffset nowUtc)
     {
@@ -56,6 +59,7 @@ public sealed class Intake(RulesOptions options, Me me)
             Id = Guid.NewGuid(),
             Source = Source.Calendar,
             SourceId = e.Id,
+            Stage = Stage.Planned,
             SourceRef = e.WebLink,
             Title = e.Subject,
             From = e.Organizer,

@@ -44,11 +44,17 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             if (result.Skipped) { skipped.Add((e.Id, result.SkipReason!)); continue; }
 
             live.Add(e.Id);
-            switch (_store.Ingest(result.Item!, nowUtc).Outcome)
+            var ingest = _store.Ingest(result.Item!, nowUtc);
+            switch (ingest.Outcome)
             {
                 case IngestOutcome.Inserted: inserted++; break;
                 case IngestOutcome.Updated: updated++; break;
             }
+
+            // Meetings are never in Intake. A merge keeps the stored stage, so this also moves
+            // items stored before meetings started entering as Planned.
+            if (ingest.Item is { Stage: Stage.Intake } stale)
+                _store.Save(stale with { Stage = Stage.Planned }, nowUtc);
         }
 
         foreach (var item in _store.List().Where(i => i.Source == Source.Calendar && !live.Contains(i.SourceId)))

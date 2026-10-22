@@ -82,11 +82,24 @@ wrong and the log will show which.
 | Stage | Means |
 | --- | --- |
 | `Intake` | Seen, classified, not yet decided. The inbox of the app. |
-| `Planned` | You've decided it's real work. Optionally scheduled, optionally promoted to the calendar or the workbook. |
+| `Planned` | Real work with a time. Either you decided it, or it's a meeting and was already scheduled. Optionally promoted to the calendar or the workbook. |
 | `Done` | Finished. |
 | `Dismissed` | Not work. Won't come back. The source is remembered so it isn't re-ingested. |
 
-Intake is the only stage the app puts things in. Everything after is you.
+The app sets the first stage and nothing after it. **Everything enters as Intake except
+meetings, which enter as Planned, by decision (2026-10-22).** A meeting is already scheduled,
+so there is nothing left to decide about it. In Intake, every meeting in the horizon (28 on the
+first real run) crowded out the things that actually needed a decision.
+
+What follows from that:
+
+- **Intake holds only decisions:** workbook rows, and later mail and Teams messages.
+- **Meetings still fire.** The scheduler fires Planned items as well as Intake ones, so the T−1
+  alert (later the takeover) is unchanged.
+- **The tray's "urgent" count is Intake only**, so meetings never turn the icon orange. A
+  meeting gets its own alert at T−1; it doesn't need the badge as well.
+- **Meetings can't go back to Intake.** The sync moves any calendar item it finds in Intake to
+  Planned. Dismiss and Complete still stick.
 
 ### The item
 
@@ -1042,9 +1055,8 @@ one means a poller and a mapping, nothing structural.
      former as urgent. Every meeting is P1, so 28 meetings over 14 days sat above everything,
      and the tray would have shown urgent permanently.
 
-   Still open from the run: Intake fills with every meeting in the horizon. They are already
-   scheduled, so arguably they belong in Planned, or in no column until they fire. That is a
-   change to "Intake is the only stage the app sets", so it is your call.
+   - **Meetings enter as Planned, not Intake** (decided 2026-10-22, see *Stages*). Intake had
+     filled with every meeting in the horizon.
 4. Takeover window, toast, suppression, acknowledge write-back.
 5. Mail source. Read-only, rules-only. The reply-toast rule is the whole value here.
 6. Teams source, named chats only.

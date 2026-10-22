@@ -22,6 +22,10 @@ public class CalendarIntakeTests
         Assert.Equal(e.JoinUrl, item.JoinUrl);
     }
 
+    [Fact]
+    public void Meeting_enters_as_Planned_not_Intake() =>
+        Assert.Equal(Stage.Planned, _intake.FromCalendar(Event(), Now).Item!.Stage);
+
     [Theory]
     [InlineData("Daily standup")]      // substring, any case
     [InlineData("Focus time")]         // regex anchored at start

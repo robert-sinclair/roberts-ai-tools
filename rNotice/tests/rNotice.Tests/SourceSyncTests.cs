@@ -51,6 +51,28 @@ public sealed class SourceSyncTests : IDisposable
     }
 
     [Fact]
+    public void Meeting_stored_in_Intake_before_the_change_moves_to_Planned()
+    {
+        _sync.SyncCalendar([Ev("a")], Now);
+        _store.Save(Assert.Single(_store.List()) with { Stage = Stage.Intake }, Now);
+
+        _sync.SyncCalendar([Ev("a")], Now);
+
+        Assert.Equal(Stage.Planned, Assert.Single(_store.List()).Stage);
+    }
+
+    [Fact]
+    public void Completed_meeting_stays_completed()
+    {
+        _sync.SyncCalendar([Ev("a")], Now);
+        _store.Save(Assert.Single(_store.List()) with { Stage = Stage.Done }, Now);
+
+        _sync.SyncCalendar([Ev("a")], Now);
+
+        Assert.Equal(Stage.Done, Assert.Single(_store.List()).Stage);
+    }
+
+    [Fact]
     public void Dismissed_meeting_stays_dismissed_while_it_is_in_the_window()
     {
         _sync.SyncCalendar([Ev("a")], Now);

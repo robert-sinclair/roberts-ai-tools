@@ -8,7 +8,10 @@ public enum Source
     Teams
 }
 
-/// <summary>Intake is the only stage the app sets. Everything after is the user.</summary>
+/// <summary>
+/// The app sets the first stage: Intake for everything, except meetings, which are already
+/// scheduled and enter as Planned. Everything after that is the user.
+/// </summary>
 public enum Stage
 {
     Intake,

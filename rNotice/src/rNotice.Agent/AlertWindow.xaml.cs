@@ -17,14 +17,14 @@ namespace rNotice.Agent;
 public partial class AlertWindow : Window
 {
     private readonly AgentHost _host;
-    private readonly List<Guid> _ids = [];
+    private readonly Dictionary<Guid, Stage> _shown = [];
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(15) };
 
     internal AlertWindow(AgentHost host, IReadOnlyList<Item> items)
     {
         _host = host;
         InitializeComponent();
-        _ids.AddRange(items.Select(i => i.Id));
+        foreach (var item in items) _shown[item.Id] = item.Stage;
 
         SourceInitialized += (_, _) =>
         {
@@ -42,21 +42,22 @@ public partial class AlertWindow : Window
 
     public void Add(IReadOnlyList<Item> items)
     {
-        foreach (var item in items)
-            if (!_ids.Contains(item.Id)) _ids.Add(item.Id);
+        foreach (var item in items) _shown[item.Id] = item.Stage;
         Reload();
         NativeMethods.Flash(new WindowInteropHelper(this).Handle);
     }
 
     /// <summary>
-    /// Re-reads each item. Anything planned, dismissed, completed or snoozed — here or from the
-    /// queue window — drops off; when nothing is left the window closes.
+    /// Re-reads each item. An item drops off once its stage differs from when it was shown, or
+    /// it's snoozed — whether that happened here or in the queue window. When nothing is left
+    /// the window closes. Compared to the shown stage rather than to Intake because meetings
+    /// arrive already Planned.
     /// </summary>
     public void Reload()
     {
         var now = DateTimeOffset.UtcNow;
         var live = _host.Items()
-            .Where(i => _ids.Contains(i.Id) && i.Stage == Stage.Intake && !(i.SnoozedUntilUtc > now))
+            .Where(i => _shown.TryGetValue(i.Id, out var stage) && i.Stage == stage && !(i.SnoozedUntilUtc > now))
             .OrderBy(i => i.Classification.Priority).ThenBy(i => i.DueUtc)
             .ToList();
 

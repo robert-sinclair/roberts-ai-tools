@@ -59,6 +59,7 @@ public sealed class ItemView(Item item)
     public bool HasSnippet => !string.IsNullOrWhiteSpace(Item.Snippet);
     public bool HasSource => Item.SourceRef is not null;
     public bool HasJoin => Item.JoinUrl is not null;
+    public bool CanPlan => Item.Stage == Stage.Intake;
     public bool IsSnoozed => Item.SnoozedUntilUtc > DateTimeOffset.UtcNow;
     public string Snoozed => IsSnoozed ? $"Snoozed until {Display.Time(Item.SnoozedUntilUtc!.Value)}" : "";
 }

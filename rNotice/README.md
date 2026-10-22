@@ -21,7 +21,7 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | | |
 | --- | --- |
 | Tray icon | Blue: fine. Orange: a P1 or P2 needs you now. Grey `!`: sign-in needed, or a source is failing. |
-| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake, Planned, Done. |
+| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake (workbook rows waiting on a decision), Planned (meetings land here, already scheduled), Done. |
 | Keys | **P** plan · **D** dismiss · **C** complete · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide |
 | Alert window | Topmost, doesn't steal focus, flashes the taskbar. Plan, Dismiss, Snooze, Open source, and Join for Teams meetings. |
 | Meetings | Every meeting not on `meetingBlocklist` alerts 60 seconds before it starts. The full-screen takeover is step 4; until then it uses the alert window. |
@@ -29,9 +29,9 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 
 Times are shown local first, UTC beside them.
 
-**Queue order.** Items that need you now come first, by priority. Upcoming ones follow, soonest
-first. Every meeting is P1, so ordering by priority alone would bury today's work under next
-week's meetings.
+**Queue order.** In each column, items that need you now come first, by priority. Upcoming ones
+follow, soonest first. Every meeting is P1, so ordering by priority alone would bury today's
+meetings under next week's.
 
 **Settings** are in `%LOCALAPPDATA%\rNotice\settings.json`, written with defaults on first run.
 Edit, then restart rNotice from the tray. The useful ones: `rules.meetingBlocklist` (subject
