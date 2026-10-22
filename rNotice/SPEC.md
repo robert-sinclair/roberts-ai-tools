@@ -179,6 +179,13 @@ an entry clears the inbox `deltaLink` so the backfill window is re-read: mail th
 while ignored comes back, quietly, and dismissed items stay dismissed. This makes
 `settings.json` app-written at runtime, so a file that fails to load is never overwritten.
 
+**Reporting spam, by decision (2026-10-22): rNotice hands it to Outlook.** Graph's
+`reportMessage` is beta-only and needs `Mail.ReadWrite`
+([reportMessage](https://learn.microsoft.com/en-us/graph/api/message-reportmessage?view=graph-rest-beta)),
+which would break "rNotice never changes your mail" for one button. *Ignore and report spam*
+ignores the sender or domain, dismisses, and opens the message in Outlook, where Report is one
+click. No new scope.
+
 **Read state is shown, not acted on, by decision (2026-10-22).** Intake mirrors the inbox with
 the model off — 53 items after the first sync. Closing an item when its message is read in
 Outlook was offered and turned down: reading isn't handling. Instead each mail item carries

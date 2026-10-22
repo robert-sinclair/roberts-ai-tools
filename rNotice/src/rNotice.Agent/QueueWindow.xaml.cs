@@ -250,6 +250,27 @@ public partial class QueueWindow : Window
             ignore.Items.Add(new Separator());
             ignore.Items.Add(Entry("Edit ignored senders…", "", _host.OpenIgnoredSenders));
             menu.Items.Add(ignore);
+
+            // Reporting needs Mail.ReadWrite and a beta-only API, so rNotice doesn't do it
+            // itself: it ignores and dismisses, then opens the message in Outlook, where Report
+            // is one click. Nothing in the mailbox changes without you.
+            if (view.HasSource)
+            {
+                var link = item.SourceRef;
+                var spam = new MenuItem { Header = "Ignore and report spam" };
+                spam.Items.Add(Entry($"{address} — then report in Outlook", "", () =>
+                {
+                    _host.IgnoreSender(address);
+                    AgentHost.OpenLink(link);
+                }));
+                if (domain != _host.MyDomain)
+                    spam.Items.Add(Entry($"Everyone at {domain} — then report in Outlook", "", () =>
+                    {
+                        _host.IgnoreSender(domain);
+                        AgentHost.OpenLink(link);
+                    }));
+                menu.Items.Add(spam);
+            }
         }
 
         if (view.HasJoin || view.HasSource) menu.Items.Add(new Separator());

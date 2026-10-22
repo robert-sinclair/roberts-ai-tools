@@ -38,6 +38,11 @@ On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the 
 toasting. Only mail that arrives while it's running interrupts you. A message you delete or
 move out of the inbox drops out of Intake.
 
+**Reporting spam.** Right-click a mail item → **Ignore and report spam** → the address, or
+everyone at their domain. rNotice ignores and dismisses as above, then opens the message in
+Outlook so you click **Report** there. rNotice doesn't report it itself: Graph's report API is
+beta-only and needs `Mail.ReadWrite`, a permission that could change or delete any of your mail.
+
 **Ignoring a sender.** Right-click a mail item → **Dismiss and ignore sender** → the address,
 or everyone at their domain (not offered for your own domain). That dismisses every Intake item
 from them and skips their future mail. **Tray → Ignored senders…** lists them: add, remove,
