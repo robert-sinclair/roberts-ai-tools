@@ -387,6 +387,14 @@ internal sealed class AgentHost(Application app) : IDisposable
             .Select(i => new TimeBlock(i.PlannedStartUtc!.Value,
                 i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes))));
 
+    /// <summary>Opens the Teams call and notes that you joined through rNotice.</summary>
+    public void Join(Guid id)
+    {
+        if (_store.Get(id) is not { JoinUrl: { } url }) return;
+        OpenLink(url);
+        Update(id, i => i with { JoinedUtc = DateTimeOffset.UtcNow });
+    }
+
     public void Snooze(Guid id) =>
         Update(id, i => i.Snooze(DateTimeOffset.UtcNow.AddMinutes(_settings.SnoozeMinutes)));
 

@@ -100,6 +100,14 @@ What follows from that:
   meeting gets its own alert at T−1; it doesn't need the badge as well.
 - **Meetings can't go back to Intake.** The sync moves any calendar item it finds in Intake to
   Planned. Dismiss and Complete still stick.
+- **Attendance (2026-10-23).** Graph can say whether you attended — Teams attendance reports
+  ([docs](https://learn.microsoft.com/en-us/graph/api/meetingattendancereport-list), needs
+  `OnlineMeetingArtifact.Read.All`, generated only after the meeting ends) or your presence
+  ([docs](https://learn.microsoft.com/en-us/graph/api/presence-get), needs `Presence.Read`; says
+  you're in *a* call, not which). Neither is granted. So rNotice records **Join clicked in
+  rNotice** (`JoinedUtc`) and shows a started meeting as *in progress* until then. Join no
+  longer marks a meeting Done — a Done meeting that was then moved never alerted at its new
+  time — and a Done meeting whose start changes goes back to Planned.
 - **No "rebook" action, by decision (2026-10-22).** Moving a meeting happens in Outlook, and
   **Open in Outlook** gets you there from the alert and the queue. Moving it back to Intake was
   considered and dropped: it conflicts with the rule above. A "needs rebooking" flag that kept

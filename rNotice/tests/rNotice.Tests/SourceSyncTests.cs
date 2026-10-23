@@ -77,6 +77,19 @@ public sealed class SourceSyncTests : IDisposable
     }
 
     [Fact]
+    public void Joined_mark_survives_a_refresh_but_not_a_reschedule()
+    {
+        _sync.SyncCalendar([Ev("a", inMinutes: 0)], Now);
+        _store.Save(Assert.Single(_store.List()) with { JoinedUtc = Now }, Now);
+
+        _sync.SyncCalendar([Ev("a", inMinutes: 0)], Now.AddMinutes(1));
+        Assert.Equal(Now, Assert.Single(_store.List()).JoinedUtc);
+
+        _sync.SyncCalendar([Ev("a", inMinutes: 70)], Now.AddMinutes(2));
+        Assert.Null(Assert.Single(_store.List()).JoinedUtc);
+    }
+
+    [Fact]
     public void Completed_meeting_stays_completed()
     {
         _sync.SyncCalendar([Ev("a")], Now);

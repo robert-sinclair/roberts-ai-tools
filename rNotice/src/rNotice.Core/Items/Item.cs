@@ -44,6 +44,13 @@ public sealed record Item
     /// </summary>
     public bool? IsRead { get; init; }
 
+    /// <summary>
+    /// Meetings only: when you clicked Join in rNotice. rNotice can't see whether you joined
+    /// some other way — that needs Teams presence or attendance reports, neither of which is a
+    /// granted permission — so this means "joined through rNotice", nothing more.
+    /// </summary>
+    public DateTimeOffset? JoinedUtc { get; init; }
+
     public DateTimeOffset? PlannedStartUtc { get; init; }
 
     /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>
@@ -100,6 +107,8 @@ public sealed record Item
             FireAtUtc = fireAt,
             JoinUrl = incoming.JoinUrl,
             IsRead = incoming.IsRead ?? IsRead,
+            // Joined the meeting at its old time doesn't mean joined at the new one.
+            JoinedUtc = incoming.DueUtc != DueUtc ? null : JoinedUtc,
             Classification = Classification.IsSticky ? Classification : incoming.Classification,
             LastFiredUtc = fireMoved ? null : LastFiredUtc
         };

@@ -40,6 +40,13 @@
                 <DataTrigger Binding="{Binding IsMeeting}" Value="True">
                     <Setter TargetName="Badge" Property="Background" Value="#2B6CB0" />
                 </DataTrigger>
+                <!-- A meeting under way: amber until you join through rNotice, then green. -->
+                <DataTrigger Binding="{Binding MeetingState}" Value="live">
+                    <Setter TargetName="Badge" Property="Background" Value="#E08B1E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding MeetingState}" Value="joined">
+                    <Setter TargetName="Badge" Property="Background" Value="#2E8B57" />
+                </DataTrigger>
                 <!-- Mail read in Outlook drops to normal weight, as Outlook shows it. Noted, not closed. -->
                 <DataTrigger Binding="{Binding Item.IsRead}" Value="True">
                     <Setter TargetName="ItemTitle" Property="FontWeight" Value="Normal" />

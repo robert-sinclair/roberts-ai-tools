@@ -278,7 +278,7 @@ public partial class QueueWindow : Window
 
         if (view.HasJoin || view.HasSource) menu.Items.Add(new Separator());
         if (view.HasJoin)
-            menu.Items.Add(Entry("Join meeting", "", () => AgentHost.OpenLink(item.JoinUrl)));
+            menu.Items.Add(Entry("Join meeting", "", () => _host.Join(item.Id)));
         if (view.HasSource)
             menu.Items.Add(Entry(view.OpenLabel, "Enter", () => AgentHost.OpenLink(item.SourceRef)));
     }
@@ -292,7 +292,8 @@ public partial class QueueWindow : Window
 
     // ── Drag and drop ───────────────────────────────────────────────────────────────────────
     //
-    // Onto Done: complete. From Intake onto Planned: the Plan dialog. Nothing else is a valid
+    // Onto Done: complete. From Intake onto Planned: the Plan dialog. From Done onto Planned:
+    // back to Planned, as an undo. Nothing else is a valid
     // drop — the cursor says so before you let go.
 
     private Point? _dragStart;
@@ -325,7 +326,7 @@ public partial class QueueWindow : Window
         e.Data.GetData(typeof(ItemView)) is ItemView { Item: var item } && TargetStage(target) switch
         {
             Stage.Done => item.Stage != Stage.Done,
-            Stage.Planned => item.Stage == Stage.Intake,
+            Stage.Planned => item.Stage is Stage.Intake or Stage.Done,
             _ => false
         };
 
@@ -349,9 +350,11 @@ public partial class QueueWindow : Window
         // After the drag finishes, not inside it: a modal dialog opened mid-drop would hold the
         // drag loop open until it closed.
         var toDone = TargetStage(target) == Stage.Done;
+        var fromDone = view.Item.Stage == Stage.Done;
         Dispatcher.BeginInvoke(() =>
         {
             if (toDone) _host.SetStage(view.Id, Stage.Done);
+            else if (fromDone) _host.SetStage(view.Id, Stage.Planned);   // undo a Mark done
             else _host.Plan(view.Id, this);
         });
         e.Handled = true;

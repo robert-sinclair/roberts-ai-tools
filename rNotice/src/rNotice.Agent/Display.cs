@@ -138,12 +138,24 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
         {
             var (sender, trailing) = Senders.Describe(Item.From, Display.MyDomain);
             var kind = Display.SourceLabel(Item.Source);
-            var parts = new List<string> { sender is null ? kind : $"{kind} from: {sender}", Display.When(Item) };
+            var parts = new List<string> { sender is null ? kind : $"{kind} from: {sender}" };
+            if (MeetingState == "joined") parts.Add($"Joined {Display.Time(Item.JoinedUtc!.Value)}");
+            else if (MeetingState == "live") parts.Add("In progress, not joined through rNotice");
+            parts.Add(Display.When(Item));
             if (trailing is not null) parts.Add(trailing);
             if (Item.IsRead is { } read) parts.Add(read ? "read in Outlook" : "unread");
             return string.Join("  -  ", parts);
         }
     }
+
+    /// <summary>
+    /// For a meeting that has started: "joined" if you clicked Join in rNotice, "live" if not.
+    /// Empty before it starts and for anything that isn't a meeting. rNotice can't see a join
+    /// made straight from Teams or Outlook, so "live" means "not joined through rNotice".
+    /// </summary>
+    public string MeetingState =>
+        !IsMeeting || Item.DueUtc is not { } start || start > DateTimeOffset.UtcNow ? ""
+        : Item.JoinedUtc is null ? "live" : "joined";
 
     /// <summary>Unread mail is bold in the queue, as in Outlook. Read mail says so.</summary>
     public bool IsUnread => Item.IsRead == false;
