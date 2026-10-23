@@ -116,7 +116,7 @@ public partial class QueueWindow : Window
         else if (selected is not null && selectedIndex >= 0 && list.Items.Count > 0)
         {
             // The selected item left this list — dismissed, done, planned, or gone from its
-            // source. Select whatever took its place, so D, C or P can go straight on to the
+            // source. Select whatever took its place, so Delete, C or P can go straight on to the
             // next one without reaching for the mouse.
             list.SelectedIndex = Math.Min(selectedIndex, list.Items.Count - 1);
             if (list == _active && IsActive) FocusSelected(list);
@@ -193,7 +193,7 @@ public partial class QueueWindow : Window
             case Key.Left: Move(-1); break;
             case Key.Right: Move(+1); break;
             case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
-            case Key.D when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
+            case Key.Delete when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
             case Key.S when selected is not null && selected.IsOpen && selected.Source != Source.Calendar:
                 _host.Snooze(selected.Id);
@@ -236,7 +236,7 @@ public partial class QueueWindow : Window
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
         if (item.IsOpen && view.CanSnooze)
             menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => { _host.Snooze(item.Id); Advance(list); }));
-        menu.Items.Add(Entry("Dismiss", "D", () => _host.SetStage(item.Id, Stage.Dismissed)));
+        menu.Items.Add(Entry("Dismiss", "Del", () => _host.SetStage(item.Id, Stage.Dismissed)));
 
         // Mail only: dismiss this and stop future mail from the sender, or the whole domain —
         // except your own, where that would silence your colleagues.
