@@ -112,6 +112,40 @@ public sealed class ItemStoreTests : IDisposable
     }
 
     [Fact]
+    public void The_copy_in_memory_matches_a_fresh_read_from_disk()
+    {
+        // Sub-millisecond times are what DateTimeOffset.UtcNow produces; SQLite keeps milliseconds.
+        var item = Full() with { ReceivedUtc = Now.AddTicks(1234), LastFiredUtc = Now.AddTicks(5678) };
+        _store.Save(item, Now);
+
+        using var fresh = new ItemStore(_path, new DpapiFieldProtector());
+        Assert.Equal(fresh.Get(item.Id), _store.Get(item.Id));
+        Assert.Equal(fresh.GetBySource(item.Source, item.SourceId), _store.GetBySource(item.Source, item.SourceId));
+    }
+
+    [Fact]
+    public void A_poll_that_changes_nothing_is_not_written()
+    {
+        Assert.Equal(IngestOutcome.Inserted, _store.Ingest(Item(), Now).Outcome);
+        var again = _store.Ingest(Item(), Now.AddMinutes(1));
+
+        Assert.Equal(IngestOutcome.Unchanged, again.Outcome);
+        Assert.NotNull(again.Item);
+    }
+
+    [Fact]
+    public void Delete_removes_the_item_from_every_lookup()
+    {
+        var item = Item();
+        _store.Save(item, Now);
+        _store.Delete(item.Id);
+
+        Assert.Null(_store.Get(item.Id));
+        Assert.Null(_store.GetBySource(item.Source, item.SourceId));
+        Assert.Empty(_store.List());
+    }
+
+    [Fact]
     public void List_filters_by_stage()
     {
         _store.Save(Item(stage: Stage.Intake, sourceId: "a"), Now);

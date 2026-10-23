@@ -233,7 +233,8 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             }
 
             // A merge keeps the first message's time; the item is about the latest one.
-            if (ingest is { Outcome: IngestOutcome.Updated, Item: { } merged } && merged.ReceivedUtc != item.ReceivedUtc)
+            if (ingest is { Outcome: IngestOutcome.Updated or IngestOutcome.Unchanged, Item: { } merged } &&
+                merged.ReceivedUtc != item.ReceivedUtc)
                 _store.Save(merged with { ReceivedUtc = item.ReceivedUtc, LastFiredUtc = item.LastFiredUtc ?? merged.LastFiredUtc }, nowUtc);
         }
 

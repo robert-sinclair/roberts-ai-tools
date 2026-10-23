@@ -8,6 +8,9 @@ public enum IngestOutcome
     Inserted,
     Updated,
 
+    /// <summary>Known, and the poll changed nothing. Not written.</summary>
+    Unchanged,
+
     /// <summary>Dismissed earlier. The source is remembered so it doesn't come back.</summary>
     Ignored
 }
@@ -22,11 +25,18 @@ public sealed record IngestResult(IngestOutcome Outcome, Item? Item);
 /// queried; none of them say anything about what a message contained.
 ///
 /// One connection, not thread-safe. The agent serialises access.
+///
+/// <b>Reads come from memory.</b> Every item is decrypted once, on first use, and kept; saves
+/// and deletes write through to SQLite and update the copy. DPAPI costs about 0.3 ms a field,
+/// so reading the table each time cost ~170 ms for 100 items — several times per UI refresh.
+/// This is safe only because one process owns the file: nothing else may write it.
 /// </summary>
 public sealed class ItemStore : IDisposable
 {
     private readonly SqliteConnection _db;
     private readonly IFieldProtector _protector;
+    private Dictionary<Guid, Item>? _items;
+    private readonly Dictionary<(Source, string), Guid> _bySource = [];
 
     public ItemStore(string path, IFieldProtector protector)
     {
@@ -153,13 +163,17 @@ public sealed class ItemStore : IDisposable
         if (existing is null)
         {
             Save(incoming, nowUtc);
-            return new IngestResult(IngestOutcome.Inserted, incoming);
+            return new IngestResult(IngestOutcome.Inserted, Get(incoming.Id));
         }
 
         if (existing.Stage == Stage.Dismissed)
             return new IngestResult(IngestOutcome.Ignored, null);
 
-        var merged = existing.MergeFrom(incoming);
+        // Most polls change nothing — the same 24 meetings every minute. Don't rewrite them.
+        var merged = AsStored(existing.MergeFrom(incoming));
+        if (merged == existing)
+            return new IngestResult(IngestOutcome.Unchanged, existing);
+
         Save(merged, nowUtc);
         return new IngestResult(IngestOutcome.Updated, merged);
     }
@@ -223,25 +237,71 @@ public sealed class ItemStore : IDisposable
         p.AddWithValue("$source_ref", Seal(item.SourceRef));
         p.AddWithValue("$join_url", Seal(item.JoinUrl));
         cmd.ExecuteNonQuery();
+
+        Remember(AsStored(item));
     }
 
     /// <summary>Removes an item outright, leaving no tombstone. For items whose source thing is gone.</summary>
-    public void Delete(Guid id) => Execute("DELETE FROM items WHERE id = $id", ("$id", id.ToString()));
+    public void Delete(Guid id)
+    {
+        Execute("DELETE FROM items WHERE id = $id", ("$id", id.ToString()));
+        if (Items.Remove(id, out var gone)) _bySource.Remove((gone.Source, gone.SourceId));
+    }
 
-    public Item? Get(Guid id) =>
-        Query("SELECT * FROM items WHERE id = $id", ("$id", id.ToString())).SingleOrDefault();
+    public Item? Get(Guid id) => Items.GetValueOrDefault(id);
 
-    public Item? GetBySource(Source source, string sourceId) =>
-        Query("SELECT * FROM items WHERE source = $s AND source_id = $sid",
-              ("$s", (int)source), ("$sid", sourceId)).SingleOrDefault();
+    public Item? GetBySource(Source source, string sourceId)
+    {
+        var items = Items;   // loads the index on first use
+        return _bySource.TryGetValue((source, sourceId), out var id) ? items[id] : null;
+    }
 
     /// <summary>Items in the given stages, or every item if none are given.</summary>
-    public IReadOnlyList<Item> List(params Stage[] stages)
+    public IReadOnlyList<Item> List(params Stage[] stages) =>
+        stages.Length == 0
+            ? Items.Values.ToList()
+            : Items.Values.Where(i => stages.Contains(i.Stage)).ToList();
+
+    /// <summary>The decrypted copy, read from SQLite the first time it's needed.</summary>
+    private Dictionary<Guid, Item> Items
     {
-        if (stages.Length == 0) return Query("SELECT * FROM items");
-        var list = string.Join(",", stages.Select(s => (int)s));
-        return Query($"SELECT * FROM items WHERE stage IN ({list})");
+        get
+        {
+            if (_items is not null) return _items;
+            _items = [];
+            _bySource.Clear();
+            foreach (var item in Query("SELECT * FROM items")) Remember(item);
+            return _items;
+        }
     }
+
+    private void Remember(Item item)
+    {
+        if (Items.TryGetValue(item.Id, out var old)) _bySource.Remove((old.Source, old.SourceId));
+        _items![item.Id] = item;
+        _bySource[(item.Source, item.SourceId)] = item.Id;
+    }
+
+    /// <summary>
+    /// The item as a read from SQLite would return it: times to the millisecond, in UTC. Keeps
+    /// the in-memory copy identical to what comes back after a restart.
+    /// </summary>
+    private static Item AsStored(Item i) => i with
+    {
+        ReceivedUtc = Round(i.ReceivedUtc),
+        DueUtc = Round(i.DueUtc),
+        FireAtUtc = Round(i.FireAtUtc),
+        PlannedStartUtc = Round(i.PlannedStartUtc),
+        AckedAtUtc = Round(i.AckedAtUtc),
+        SnoozedUntilUtc = Round(i.SnoozedUntilUtc),
+        LastFiredUtc = Round(i.LastFiredUtc),
+        JoinedUtc = Round(i.JoinedUtc),
+        CalendarStartUtc = Round(i.CalendarStartUtc),
+        CalendarEndUtc = Round(i.CalendarEndUtc)
+    };
+
+    private static DateTimeOffset Round(DateTimeOffset t) => DateTimeOffset.FromUnixTimeMilliseconds(t.ToUnixTimeMilliseconds());
+    private static DateTimeOffset? Round(DateTimeOffset? t) => t is { } v ? Round(v) : null;
 
     /// <summary>
     /// Deletes Done and Dismissed items not touched for <paramref name="retentionDays"/>. The
@@ -261,6 +321,7 @@ public sealed class ItemStore : IDisposable
             ("$done", (int)Stage.Done), ("$dismissed", (int)Stage.Dismissed), ("$cutoff", cutoff));
 
         tx.Commit();
+        if (deleted > 0) _items = null;   // re-read on next use
         return deleted;
     }
 
