@@ -1,6 +1,7 @@
 using System.Globalization;
 using rNotice.Core.Items;
 using rNotice.Core.Rules;
+using rNotice.Core.Scheduling;
 
 namespace rNotice.Agent;
 
@@ -131,6 +132,22 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
 
     /// <summary>rNotice left a note on it — why a plan came back to Intake, for instance.</summary>
     public bool HasNote => !string.IsNullOrWhiteSpace(Item.Note);
+
+    // A clash note ends with the meeting's name, which is shown as a link to the meeting.
+    private int NoteSplit
+    {
+        get
+        {
+            if (Item.NoteLink is null || Item.Note is not { } note) return -1;
+            var i = note.IndexOf(PlanConflicts.ClashedWith, StringComparison.Ordinal);
+            return i < 0 ? -1 : i + PlanConflicts.ClashedWith.Length;
+        }
+    }
+
+    public bool HasNoteLink => NoteSplit > 0;
+    public bool HasPlainNote => HasNote && !HasNoteLink;
+    public string NoteLead => HasNoteLink ? Item.Note![..NoteSplit] : Item.Note ?? "";
+    public string NoteLinkText => HasNoteLink ? Item.Note![NoteSplit..] : "";
 
     /// <summary>The Salesforce case number in the subject or excerpt, if there is one.</summary>
     public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Snippet);

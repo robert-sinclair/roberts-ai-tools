@@ -34,13 +34,40 @@ public static class PlanConflicts
         return found;
     }
 
-    /// <summary>"Moved back to Intake: Fri 23 Oct 11:30–12:00 now clashes with "ASU / UoO …"."</summary>
-    public static string Note(Item task, AgendaEntry meeting, TimeZoneInfo zone, int defaultMinutes)
+    /// <summary>The words before the meeting's name, which the queue shows as a link.</summary>
+    public const string ClashedWith = " clashed with ";
+
+    /// <summary>
+    /// "Moved back: 11:30 clashed with ASU / UoO …" — short, because it sits in the Intake list.
+    /// The day is added only when the slot wasn't today. The meeting's name ends the note so the
+    /// queue can make it a link to the meeting.
+    /// </summary>
+    public static string Note(Item task, AgendaEntry meeting, TimeZoneInfo zone, DateTimeOffset nowUtc)
     {
         var start = TimeZoneInfo.ConvertTime(task.PlannedStartUtc!.Value, zone);
-        var end = start.AddMinutes(task.PlannedMinutes ?? defaultMinutes);
-        return string.Create(CultureInfo.InvariantCulture,
-            $"Moved back to Intake: its {start:ddd d MMM HH:mm}–{end:HH:mm} slot now clashes with \"{meeting.Title}\".");
+        var today = TimeZoneInfo.ConvertTime(nowUtc, zone).Date;
+        var when = start.Date == today
+            ? start.ToString("HH:mm", CultureInfo.InvariantCulture)
+            : start.ToString("ddd HH:mm", CultureInfo.InvariantCulture);
+        return $"Moved back: {when}{ClashedWith}{meeting.Title}";
+    }
+
+    // 0.6.0 wrote: Moved back to Intake: its Fri 23 Oct 11:30–12:00 slot now clashes with "Title".
+    private static readonly System.Text.RegularExpressions.Regex Long = new(
+        """^Moved back to Intake: its (?<day>\w{3}) \d{1,2} \w{3} (?<time>\d{2}:\d{2})–\d{2}:\d{2} slot now clashes with "(?<title>.+)"\.$""",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Rewrites a note in the long form 0.6.0 used into the short one, and gives back the meeting
+    /// title so the caller can find the meeting to link. False if it isn't one of those notes.
+    /// </summary>
+    public static bool TryShorten(string? note, out string shortNote, out string title)
+    {
+        shortNote = title = "";
+        if (note is null || Long.Match(note) is not { Success: true } m) return false;
+        title = m.Groups["title"].Value;
+        shortNote = $"Moved back: {m.Groups["day"].Value} {m.Groups["time"].Value}{ClashedWith}{title}";
+        return true;
     }
 }
 

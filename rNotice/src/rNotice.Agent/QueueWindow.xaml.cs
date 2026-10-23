@@ -225,7 +225,7 @@ public partial class QueueWindow : Window
         // The case number is the link, in the title and in the excerpt — no separate line.
         SetRich(DetailTitle, view.Title, view.CaseNumber, caseUrl);
         DetailMeta.Text = view.Meta;
-        DetailNote.Text = item.Note ?? "";
+        SetNote(view);
         DetailNote.Visibility = view.HasNote ? Visibility.Visible : Visibility.Collapsed;
         DetailReason.Text = view.Reason;
         SetRich(DetailSnippet, view.Snippet ?? "", view.CaseNumber, caseUrl);
@@ -282,6 +282,46 @@ public partial class QueueWindow : Window
             FontSize = box.FontSize,
             FontWeight = box.FontWeight
         };
+    }
+
+    /// <summary>The note in the detail pane, with the clashing meeting's name as a link.</summary>
+    private void SetNote(ItemView view)
+    {
+        var paragraph = new Paragraph(new Run(view.NoteLead)) { Margin = new Thickness(0) };
+        if (view.HasNoteLink)
+        {
+            var link = new Hyperlink(new Run(view.NoteLinkText)) { ToolTip = "Show this meeting", Cursor = Cursors.Hand };
+            var eventId = view.Item.NoteLink!;
+            link.Click += (_, _) => GoToMeeting(eventId);
+            paragraph.Inlines.Add(link);
+        }
+        DetailNote.Document = new FlowDocument(paragraph)
+        {
+            PagePadding = new Thickness(0), FontFamily = DetailNote.FontFamily, FontSize = DetailNote.FontSize, FontStyle = FontStyles.Italic
+        };
+    }
+
+    /// <summary>A clash note's link, in the Intake list.</summary>
+    private void OnNoteLink(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkContentElement)?.DataContext is ItemView { Item.NoteLink: { } eventId }) GoToMeeting(eventId);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Shows the meeting a note points at: the calendar moves to its day and outlines it, and
+    /// it fills the detail pane. A meeting rNotice doesn't track (blocklisted, dismissed) can't
+    /// be selected, so the calendar just moves to it.
+    /// </summary>
+    private void GoToMeeting(string eventId)
+    {
+        if (_host.EventStart(eventId) is not { } start) return;   // gone from the calendar
+        _day = DateOnly.FromDateTime(Local(start));
+        BuildCalendar();
+        // Any meeting rNotice has a record of, done or dismissed included: the note is about it
+        // whatever its state. Only a blocklisted meeting, which has no item, can't be shown.
+        Select(_host.MeetingItem(eventId), Area.Calendar);
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => CalScroll.ScrollToVerticalOffset(Math.Max(0, Y(start) - HourPx)));
     }
 
     private void OnCaseLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)

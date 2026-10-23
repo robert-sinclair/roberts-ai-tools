@@ -35,18 +35,42 @@ public class PlanConflictsTests
         Assert.Empty(PlanConflicts.Find([meetingItem, untimed], [Meeting(0, 600)], Now, 30));
     }
 
+    private static readonly TimeZoneInfo Cst = TimeZoneInfo.FindSystemTimeZoneById("Canada Central Standard Time");
+
     [Fact]
-    public void Back_to_Intake_clears_the_plan_and_says_why()
+    public void Back_to_Intake_clears_the_plan_and_says_why_briefly_with_a_link()
     {
         var task = Task(90);
-        var cst = TimeZoneInfo.FindSystemTimeZoneById("Canada Central Standard Time");
-        var note = PlanConflicts.Note(task, Meeting(90, 120), cst, 30);
-        var moved = task.BackToIntake(note, Now);
+        var note = PlanConflicts.Note(task, Meeting(90, 120), Cst, Now);
+        var moved = task.BackToIntake(note, Now, noteLink: "evt-asu");
 
         Assert.Equal(Stage.Intake, moved.Stage);
         Assert.Null(moved.PlannedStartUtc);
-        Assert.Equal("Moved back to Intake: its Wed 21 Oct 09:30–10:00 slot now clashes with \"ASU / UoO DB index and stats rebuild\".", moved.Note);
-        Assert.Null(moved.Plan(Now.AddDays(1), 30).Note);   // planning again clears the note
+        Assert.Equal("Moved back: 09:30 clashed with ASU / UoO DB index and stats rebuild", moved.Note);
+        Assert.Equal("evt-asu", moved.NoteLink);
+
+        var replanned = moved.Plan(Now.AddDays(1), 30);
+        Assert.Null(replanned.Note);       // planning again clears the note
+        Assert.Null(replanned.NoteLink);
+    }
+
+    [Fact]
+    public void A_slot_on_another_day_names_the_day() =>
+        Assert.Equal("Moved back: Thu 09:30 clashed with Standup",
+            PlanConflicts.Note(Task(90 + 24 * 60), Meeting(90, 120, "Standup"), Cst, Now));
+
+    [Fact]
+    public void The_long_note_from_0_6_0_is_shortened()
+    {
+        // Exactly what 0.6.0 put on Case Assignment 00038001.
+        var ok = PlanConflicts.TryShorten(
+            "Moved back to Intake: its Fri 23 Oct 11:30–12:00 slot now clashes with \"ASU / UoO DB index and stats rebuild\".",
+            out var shortNote, out var title);
+
+        Assert.True(ok);
+        Assert.Equal("Moved back: Fri 11:30 clashed with ASU / UoO DB index and stats rebuild", shortNote);
+        Assert.Equal("ASU / UoO DB index and stats rebuild", title);
+        Assert.False(PlanConflicts.TryShorten("Something else", out _, out _));
     }
 }
 

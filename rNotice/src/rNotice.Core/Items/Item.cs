@@ -63,6 +63,12 @@ public sealed record Item
     /// </summary>
     public string? Note { get; init; }
 
+    /// <summary>
+    /// The calendar event the note is about — the meeting a plan clashed with — so the note can
+    /// link to it. Null when the note points at nothing.
+    /// </summary>
+    public string? NoteLink { get; init; }
+
     public DateTimeOffset? PlannedStartUtc { get; init; }
 
     /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>
@@ -84,15 +90,16 @@ public sealed record Item
     /// calendar until promotion (step 8).
     /// </summary>
     public Item Plan(DateTimeOffset? startUtc, int? minutes = null) => startUtc is { } start
-        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null, Note = null }
-        : this with { Stage = Stage.Planned, Note = null };
+        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null, Note = null, NoteLink = null }
+        : this with { Stage = Stage.Planned, Note = null, NoteLink = null };
 
     /// <summary>
     /// Takes a planned task back to Intake with a note saying why: its slot is gone. The planned
     /// time is cleared and it won't fire for the old slot; you plan it again.
     /// </summary>
-    public Item BackToIntake(string note, DateTimeOffset nowUtc) => this with
+    public Item BackToIntake(string note, DateTimeOffset nowUtc, string? noteLink = null) => this with
     {
+        NoteLink = noteLink,
         Stage = Stage.Intake,
         PlannedStartUtc = null,
         PlannedMinutes = null,

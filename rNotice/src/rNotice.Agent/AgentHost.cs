@@ -404,16 +404,30 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private void MoveConflictsToIntake(DateTimeOffset now)
     {
-        var meetings = _meetingEvents.Select(e => new AgendaEntry(e.StartUtc, e.EndUtc, e.Subject, IsMeeting: true));
+        var meetings = _meetingEvents.Select(e => new AgendaEntry(e.StartUtc, e.EndUtc, e.Subject, IsMeeting: true, EventId: e.Id));
         var zone = _settings.ToWorkHours().Zone;
         foreach (var (task, meeting) in PlanConflicts.Find(_store.List(Stage.Planned), meetings, now, _settings.PlanMinutes))
         {
-            var note = PlanConflicts.Note(task, meeting, zone, _settings.PlanMinutes);
-            _store.Save(task.BackToIntake(note, now), now);
+            var note = PlanConflicts.Note(task, meeting, zone, now);
+            _store.Save(task.BackToIntake(note, now, meeting.EventId), now);
             Log.Info($"'{task.Title}' moved back to Intake: clashes with '{meeting.Title}'");
-            _tray.Notify("Moved back to Intake", $"{task.Title} — its slot now clashes with {meeting.Title}.");
+            _tray.Notify("Moved back to Intake", $"{task.Title} — clashed with {meeting.Title}.");
+        }
+
+        // Notes 0.6.0 wrote in the long form: shorten them, and link the meeting if it's still on.
+        foreach (var item in _store.List(Stage.Intake).Where(i => i.NoteLink is null))
+        {
+            if (!PlanConflicts.TryShorten(item.Note, out var shortNote, out var title)) continue;
+            var meeting = _meetingEvents.FirstOrDefault(e => e.Subject == title);
+            _store.Save(item with { Note = shortNote, NoteLink = meeting?.Id }, now);
         }
     }
+
+    /// <summary>A meeting's item, by calendar event id — for a note's link.</summary>
+    public Item? MeetingItem(string eventId) => _store.GetBySource(Source.Calendar, eventId);
+
+    /// <summary>When a calendar event starts, if it's in the calendar window rNotice has read.</summary>
+    public DateTimeOffset? EventStart(string eventId) => _meetingEvents.FirstOrDefault(e => e.Id == eventId)?.StartUtc;
 
     // ── Planned calendar view ───────────────────────────────────────────────────────────────
 
@@ -435,9 +449,11 @@ internal sealed class AgentHost(Application app) : IDisposable
         var entries = new List<CalendarEntry>();
         foreach (var e in _meetingEvents.Where(e => e.StartUtc < to && e.EndUtc > from))
         {
-            var item = _store.GetBySource(Source.Calendar, e.Id) is { IsOpen: true } open ? open : null;
+            // Done and dismissed meetings stay clickable — grey, but they still open in the
+            // detail pane. Only blocklisted ones have no item behind them.
+            var item = _store.GetBySource(Source.Calendar, e.Id);
             entries.Add(new CalendarEntry(item, e.Subject, e.StartUtc, e.EndUtc,
-                item is null ? CalendarKind.Busy : CalendarKind.Meeting, e.IsAllDay));
+                item is { IsOpen: true } ? CalendarKind.Meeting : CalendarKind.Busy, e.IsAllDay));
         }
 
         foreach (var task in _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar &&

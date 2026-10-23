@@ -1,7 +1,7 @@
 namespace rNotice.Core.Scheduling;
 
 /// <summary>Something occupying time on a day: a meeting, or work you've already planned.</summary>
-public sealed record AgendaEntry(DateTimeOffset StartUtc, DateTimeOffset EndUtc, string Title, bool IsMeeting);
+public sealed record AgendaEntry(DateTimeOffset StartUtc, DateTimeOffset EndUtc, string Title, bool IsMeeting, string? EventId = null);
 
 public enum CellState
 {
