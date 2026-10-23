@@ -157,8 +157,10 @@ internal sealed class AgentHost(Application app) : IDisposable
         var windowed = result.Takeovers.Concat(result.Alerts).ToList();
         if (windowed.Count > 0)
         {
-            Log.Info($"Alert: {string.Join("; ", windowed.Select(i => i.Title))}");
-            ShowAlert(windowed);
+            // Every takeover is logged by name, so a day's count can be read back from the log.
+            foreach (var t in result.Takeovers) Log.Info($"Takeover: {t.Title}");
+            if (result.Alerts.Count > 0) Log.Info($"Alert: {string.Join("; ", result.Alerts.Select(i => i.Title))}");
+            ShowAlert(windowed, takeover: result.Takeovers.Count > 0);
         }
 
         foreach (var toast in result.Toasts)
@@ -571,21 +573,60 @@ internal sealed class AgentHost(Application app) : IDisposable
             _tray.Notify("No meeting to preview", "There are no upcoming meetings in the queue.");
             return;
         }
-        ShowAlert([next]);
+        ShowAlert([next], takeover: true);
     }
 
-    private void ShowAlert(IReadOnlyList<Item> items)
+    /// <summary>
+    /// Shows the alert. For a takeover, the dim goes up first on every monitor and the alert
+    /// sits on top of it; the dim comes down when the alert closes or when you double-click it.
+    /// </summary>
+    private void ShowAlert(IReadOnlyList<Item> items, bool takeover)
     {
+        if (takeover) ShowDim();
+
         if (_alert is { IsLoaded: true })
         {
-            _alert.Add(items);
+            _alert.Add(items, takeover);
+            if (takeover) RaiseAboveDim(_alert);
             return;
         }
 
-        _alert = new AlertWindow(this, items);
+        _alert = new AlertWindow(this, items, takeover ? ArmingDelay : TimeSpan.Zero);
         Changed += _alert.Reload;
-        _alert.Closed += (_, _) => { Changed -= _alert.Reload; _alert = null; };
+        _alert.Closed += (_, _) => { Changed -= _alert.Reload; _alert = null; ClearDim(); };
         _alert.Show();
+    }
+
+    private TimeSpan ArmingDelay => TimeSpan.FromMilliseconds(Math.Clamp(_settings.ArmingDelayMs, 0, 5000));
+    private readonly List<TakeoverOverlay> _dim = [];
+
+    private void ShowDim()
+    {
+        if (_dim.Count > 0) return;
+
+        // The hint goes on the monitor with the mouse, which is where the alert appears.
+        var here = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position);
+        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        {
+            var overlay = new TakeoverOverlay(screen, _settings.TakeoverDim, showHint: screen.Equals(here), ArmingDelay, ClearDim);
+            overlay.Show();
+            _dim.Add(overlay);
+        }
+    }
+
+    /// <summary>Takes the dim down. The alert, if it's up, stays.</summary>
+    public void ClearDim()
+    {
+        if (_dim.Count == 0) return;
+        foreach (var overlay in _dim) overlay.Close();
+        _dim.Clear();
+    }
+
+    /// <summary>Re-asserting Topmost puts a window at the top of the topmost band, above the dim.</summary>
+    private static void RaiseAboveDim(Window window)
+    {
+        window.Topmost = false;
+        window.Topmost = true;
     }
 
     /// <summary>The broker parents its sign-in dialog to a real window, or it can open behind everything.</summary>

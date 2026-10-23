@@ -1138,14 +1138,22 @@ one means a poller and a mapping, nothing structural.
 
    - **Meetings enter as Planned, not Intake** (decided 2026-10-22, see *Stages*). Intake had
      filled with every meeting in the horizon.
-4. Takeover window, toast, suppression, acknowledge write-back.
+4. Takeover window, toast, suppression. ~~Acknowledge write-back~~ — **moved to steps 9–10
+   (2026-10-23)**, where the MCP `acknowledge_action` tool needs it; nothing uses the workbook
+   yet. Toasts and suppression shipped with step 3.
+   **Takeover built 2026-10-23 (0.5.0)** to Robert's design, which replaces *Takeover window*
+   below where they differ: the large meeting alert stays as it is, and **every monitor dims a
+   few shades** behind it. **Double-click the dim to clear it**; the alert stays up for Join,
+   Open in Outlook or Mark done. The dim and the alert both ignore input for `armingDelayMs`
+   (750) after they appear, so a click already in flight can't act on something unseen.
 5. Mail source. Read-only, rules-only. The reply-toast rule is the whole value here.
    **Built 2026-10-22 (0.4.0), ahead of step 4** — see *Mailbox*. It shares `refreshSeconds`
    with calendar and workbook, so one countdown covers all three.
 6. Teams source, named chats only.
 7. Model classification, behind a flag, off by default.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
-9. `rNotice.Mcp` + pipe protocol.
+9. `rNotice.Mcp` + pipe protocol. **Includes the workbook acknowledge write-back** (from step
+   4), proven by the 2026-10-21 spike, for `acknowledge_action`.
 10. Skill, README, install script.
 
 Step 3 is a genuinely useful app on its own. Each of 5, 6 and 7 adds a source or a capability

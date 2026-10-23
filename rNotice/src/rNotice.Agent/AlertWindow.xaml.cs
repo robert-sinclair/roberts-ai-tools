@@ -24,11 +24,12 @@ public partial class AlertWindow : Window
     private List<ItemView> _views = [];
     private int _ticks;
 
-    internal AlertWindow(AgentHost host, IReadOnlyList<Item> items)
+    internal AlertWindow(AgentHost host, IReadOnlyList<Item> items, TimeSpan arming)
     {
         _host = host;
         InitializeComponent();
         foreach (var item in items) _shown[item.Id] = item.Stage;
+        Arm(arming);
 
         SourceInitialized += (_, _) =>
         {
@@ -47,10 +48,24 @@ public partial class AlertWindow : Window
 
     private bool HasMeeting => _views.Any(v => v.IsMeeting);
 
-    public void Add(IReadOnlyList<Item> items)
+    /// <summary>
+    /// Ignores clicks for a moment after a takeover appears. A click already travelling toward
+    /// whatever you were doing shouldn't land on Mark done in a window you never saw.
+    /// </summary>
+    private void Arm(TimeSpan delay)
+    {
+        if (delay <= TimeSpan.Zero) return;
+        IsHitTestVisible = false;
+        var timer = new DispatcherTimer { Interval = delay };
+        timer.Tick += (_, _) => { IsHitTestVisible = true; timer.Stop(); };
+        timer.Start();
+    }
+
+    public void Add(IReadOnlyList<Item> items, bool takeover)
     {
         var wasMeeting = HasMeeting;
         foreach (var item in items) _shown[item.Id] = item.Stage;
+        if (takeover) Arm(TimeSpan.FromMilliseconds(750));
         Reload();
         if (HasMeeting != wasMeeting) Place();
         NativeMethods.Flash(new WindowInteropHelper(this).Handle);

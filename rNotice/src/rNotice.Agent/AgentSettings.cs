@@ -46,6 +46,15 @@ public sealed record AgentSettings
     public int SnoozeMinutes { get; init; } = 15;
     public int TakeoverGraceSeconds { get; init; } = 300;
 
+    /// <summary>How dark the takeover dims every monitor: 0.1 (barely) to 0.9 (nearly black).</summary>
+    public double TakeoverDim { get; init; } = 0.45;
+
+    /// <summary>
+    /// How long the takeover ignores clicks after it appears, so a click already on its way
+    /// can't act on something you never saw.
+    /// </summary>
+    public int ArmingDelayMs { get; init; } = 750;
+
     /// <summary>Local time. Null for none. Meeting alerts ignore it.</summary>
     public QuietHoursSetting? QuietHours { get; init; }
 

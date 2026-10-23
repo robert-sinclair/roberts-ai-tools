@@ -65,7 +65,7 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | Planning | P, Plan… in the menu, a drag into Planned and the alert's Plan button all open one dialog. **Left:** pick how long (15 min to 2 h, default 30) and it lists the next open slots in your work hours — on the quarter hour, clear of meetings and other plans, finishing by the end of the day, one per free gap. **Right:** the day, quarter hour by quarter hour: meetings and other plans filled in and named, the past greyed out, your current plan dashed if you're re-planning. ◀ ▶ move between working days. Click a suggestion to see it there, or pick your own: **click a free quarter hour, drag for longer, Shift+click to extend** — a selection stops at anything booked. Enter plans what's selected (the first suggestion, when it opens). A time sets a reminder from rNotice; nothing goes on your calendar yet. |
 | Work hours | `workHours` in `settings.json`: 08:00–16:00, Monday to Friday, in *Canada Central Standard Time* (UTC−6 all year). Planning never suggests a slot outside them. |
 | Alert window | Topmost, doesn't steal focus, flashes the taskbar. For a workbook item: Plan…, Mark done, Snooze, Open in Excel. |
-| Meetings | Every meeting not on `meetingBlocklist` alerts 60 seconds before it starts, in the large form: 60% of the monitor's width, centred, the title in big type and a countdown ticking every second. Buttons: **Join**, **Open in Outlook**, **Mark done**. No snooze — at T−1 it doesn't help. The full-screen takeover is step 4. **Tray → Preview meeting alert** shows the next meeting's alert now, without using it up. |
+| Meetings | Every meeting not on `meetingBlocklist` takes over 60 seconds before it starts: **every monitor dims** (`takeoverDim`, default 0.45) and the large meeting window sits on top — 60% of the monitor's width, the title in big type, a countdown ticking every second, **Join**, **Open in Outlook**, **Mark done**. **Double-click the dark area to clear the dim**; the meeting window stays. Both ignore clicks for 0.75 s after appearing (`armingDelayMs`), so a click already on its way can't act on them. The dim takes the mouse, not the keyboard: Windows won't let a background app take focus, so typing still goes where it was. Closing the meeting window takes the dim down too. **Tray → Preview meeting alert** shows the next meeting's takeover now, without using it up. |
 | Autostart | First run of the installed copy adds you to your own startup apps. Untick **Start with Windows** in the tray menu to stop it. |
 
 Times are shown local first, UTC beside them.
@@ -289,8 +289,8 @@ run `dotnet add package Microsoft.Identity.Client` and the same for
 
 ## What this build is not
 
-No Teams, no model classification, no full-screen takeover, no acknowledgement
-write-back, no promotion, no MCP server, no Claude skill. Steps 4 onward in `SPEC.md`.
+No Teams, no model classification, no acknowledgement
+write-back (moved to steps 9–10), no promotion, no MCP server, no Claude skill. Steps 4 onward in `SPEC.md`.
 
 The probe ran on 2026-10-21: all five permissions usable.
 
