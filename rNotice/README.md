@@ -11,8 +11,16 @@ Full design in [`SPEC.md`](SPEC.md). This README covers installing and running w
 ## Build 0.4 — the agent: calendar, workbook and mail
 
 `rNotice.exe` lives in the notification area and watches three sources: your Outlook calendar,
-the `Actions` table in `/efficiency/rNotice.xlsx`, and your Outlook inbox. Rules decide
-priority; there is no model call. It doesn't read Teams yet.
+the `Actions` table in `/efficiency/rNotice.xlsx`, your Outlook inbox, and your Teams chats
+(0.8.0). Rules decide priority; there is no model call.
+
+**Teams is read-only** (`Chat.Read`; there is no send scope). Tray → **Watched Teams chats…**
+lists your group and meeting chats, most recent first: tick the ones to watch. In those, a
+message that @mentions you becomes an alert; other messages are left alone until the classifier
+(step 7) can judge them. **Every one-on-one chat is watched** (untick it in the same window): each
+chat is one quiet item in Intake, updated as messages arrive. Reply in Teams and that item moves
+to Done; their next message brings it back. A chat rNotice reads for the first time goes back
+24 hours, quietly.
 
 **Mail is read-only.** rNotice reads your inbox and Sent Items. It never sends, replies,
 moves, flags or marks anything read, and it holds no scope that could. What reaches the queue:
@@ -107,7 +115,8 @@ Edit, then restart rNotice from the tray. The useful ones: `rules.meetingBlockli
 text, or `/regex/`), `rules.horizonDays`, `quietHours` (`{"start":"22:00","end":"07:00"}`),
 `snoozeMinutes`, `refreshSeconds` (how often the calendar and workbook are checked; default 60,
 minimum 30), `promoteByDefault` (whether planning ticks "Put it on my Outlook calendar"; default
-true), `planAlertLeadMinutes` (how early rNotice alerts for a task on your calendar; default 5).
+true), `planAlertLeadMinutes` (how early rNotice alerts for a task on your calendar; default 5),
+`teamsEnabled` (default true), `teamsBackfillHours` (default 24).
 
 **Auto refresh.** Both sources are checked every minute. The queue footer counts down to the next
 check, shows *Refreshing…* while one runs, and keeps your scroll position when the lists update.
@@ -311,7 +320,7 @@ run `dotnet add package Microsoft.Identity.Client` and the same for
 
 ## What this build is not
 
-No Teams, no model classification, no acknowledgement
+No Teams channels, no model classification, no acknowledgement
 write-back (moved to steps 9–10), no promotion, no MCP server, no Claude skill. Steps 4 onward in `SPEC.md`.
 
 The probe ran on 2026-10-21: all five permissions usable.

@@ -128,20 +128,39 @@ public sealed class Intake(RulesOptions options, Me me)
     // ── Teams ───────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Skip: system messages, your own, unwatched chats. Then: you're @mentioned → P2/alert;
-    /// otherwise the fallback, one-on-one chats included. Most "can you send me X" requests
-    /// arrive as a 1:1 message, so a rule that settled those as P3/silent would keep exactly
-    /// the request-for-information case away from the model.
+    /// Skip: system messages, your own, unwatched chats. Watched means picked, or any
+    /// one-on-one chat while <see cref="RulesOptions.WatchOneOnOneChats"/> is on.
+    ///
+    /// Then: you're @mentioned → P2/alert. A 1:1 message without one gets the fallback.
+    /// A group or meeting message without one is skipped until the classifier (step 7) can
+    /// judge it — decided 2026-10-23, since a busy group chat would put a dozen quiet items a
+    /// day into Intake.
+    ///
+    /// A one-on-one chat is <b>one item per chat</b>, keyed by chat id: each new message
+    /// updates it, so a back-and-forth is one thing to handle, not ten. A mention in a group
+    /// chat is one item per message, keyed by chat and message, since message ids are only
+    /// unique within a chat.
     /// </summary>
+    /// <summary>Your own message in a one-on-one chat: the chat's item has been answered.</summary>
+    public bool IsMyOneOnOneReply(ChatMessage m) =>
+        !m.IsSystemMessage && m.ChatType == ChatType.OneOnOne && m.FromUserId == _me.UserId;
+
     public IntakeResult FromTeams(ChatMessage m)
     {
         if (m.IsSystemMessage) return IntakeResult.Skip("System message");
         if (m.FromUserId == _me.UserId) return IntakeResult.Skip("Sent by you");
-        if (!_options.WatchedChatIds.Contains(m.ChatId)) return IntakeResult.Skip("Chat not watched");
 
-        var c = m.MentionedUserIds.Contains(_me.UserId)
-            ? new Classification(Priority.P2, Interrupt.Alert, ClassifiedBy.Rule, "You were @mentioned")
-            : Fallback("No rule matched");
+        var oneOnOne = m.ChatType == ChatType.OneOnOne;
+        var watched = (oneOnOne && _options.WatchOneOnOneChats) || _options.WatchedChatIds.Contains(m.ChatId);
+        if (!watched) return IntakeResult.Skip("Chat not watched");
+
+        Classification c;
+        if (m.MentionedUserIds.Contains(_me.UserId))
+            c = new Classification(Priority.P2, Interrupt.Alert, ClassifiedBy.Rule, "You were @mentioned");
+        else if (oneOnOne)
+            c = Fallback("One-on-one chat; no rule matched");
+        else
+            return IntakeResult.Skip("Group chat, no mention; waits for the classifier");
 
         var snippet = TextMatch.Truncate(m.TextPreview, _options.SnippetLength);
 
@@ -149,12 +168,12 @@ public sealed class Intake(RulesOptions options, Me me)
         {
             Id = Guid.NewGuid(),
             Source = Source.Teams,
-            SourceId = m.Id,
+            SourceId = oneOnOne ? m.ChatId : $"{m.ChatId}|{m.Id}",
             SourceRef = m.WebUrl,
             // Chat messages have no subject. The first line stands in for one.
             Title = TextMatch.Truncate(snippet?.Split('\n')[0], 80) ?? "(Teams message)",
             Snippet = snippet,
-            From = m.FromName,
+            From = oneOnOne || m.ChatName is null ? m.FromName : $"{m.FromName} in {m.ChatName}",
             ReceivedUtc = m.CreatedUtc,
             FireAtUtc = m.CreatedUtc,
             Classification = c

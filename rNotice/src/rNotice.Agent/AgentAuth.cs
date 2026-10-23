@@ -21,7 +21,9 @@ internal sealed class AgentAuth
         "https://graph.microsoft.com/User.Read",
         "https://graph.microsoft.com/Calendars.ReadWrite",
         "https://graph.microsoft.com/Files.ReadWrite",
-        "https://graph.microsoft.com/Mail.Read"
+        "https://graph.microsoft.com/Mail.Read",
+        // Read-only: there is no ChatMessage.Send, so the app cannot post in Teams.
+        "https://graph.microsoft.com/Chat.Read"
     ];
 
     private const string ClientId = "2923549f-f444-48f7-8084-c8b7799db2e0";

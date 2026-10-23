@@ -34,6 +34,15 @@ public sealed record AgentSettings
     /// <summary>Read the inbox. Off means no mail calls at all.</summary>
     public bool MailEnabled { get; init; } = true;
 
+    /// <summary>Read Teams chats. Off means no Teams calls at all.</summary>
+    public bool TeamsEnabled { get; init; } = true;
+
+    /// <summary>
+    /// For a chat rNotice hasn't read before — first run, or one you've just picked — how far
+    /// back it reads. Older messages never enter the queue; these come in quietly.
+    /// </summary>
+    public int TeamsBackfillHours { get; init; } = 24;
+
     /// <summary>
     /// On the first sync, or after Graph drops the delta token, how far back the inbox is read.
     /// Older mail never enters the queue.

@@ -1,0 +1,43 @@
+<Window x:Class="rNotice.Agent.WatchedChatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="rNotice — Watched Teams chats" Width="560" Height="600" MinWidth="420" MinHeight="400"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13"
+        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+
+    <DockPanel Margin="18,14">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,10"
+                   Text="In a ticked group or meeting chat, a message that @mentions you becomes an alert. Other messages there are left alone for now." />
+
+        <CheckBox x:Name="OneOnOne" DockPanel.Dock="Top" Margin="0,0,0,12"
+                  Content="Watch every one-on-one chat — each chat is one quiet item in Intake, updated as messages arrive" />
+
+        <TextBox x:Name="Filter" DockPanel.Dock="Top" Margin="0,0,0,8" VerticalContentAlignment="Center"
+                 TextChanged="OnFilterChanged" ToolTip="Filter by chat name" />
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" LastChildFill="False">
+            <TextBlock x:Name="Status" DockPanel.Dock="Left" Opacity="0.65" FontSize="12" TextWrapping="Wrap"
+                       VerticalAlignment="Center" MaxWidth="300" Text="Loading your chats…" />
+            <Button DockPanel.Dock="Right" Content="Cancel" IsCancel="True" Padding="14,4" Margin="8,0,0,0" />
+            <Button x:Name="SaveButton" DockPanel.Dock="Right" Content="Save" Padding="18,4" Click="OnSave"
+                    FontWeight="SemiBold" IsEnabled="False" />
+        </DockPanel>
+
+        <ListBox x:Name="Chats" HorizontalContentAlignment="Stretch">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <DockPanel Margin="0,2">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding When}" Opacity="0.6" FontSize="12"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                        <CheckBox IsChecked="{Binding Watched, Mode=TwoWay}" VerticalAlignment="Center">
+                            <TextBlock TextTrimming="CharacterEllipsis">
+                                <Run Text="{Binding Name, Mode=OneWay}" />
+                                <Run Text="{Binding Kind, Mode=OneWay}" Foreground="Gray" />
+                            </TextBlock>
+                        </CheckBox>
+                    </DockPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

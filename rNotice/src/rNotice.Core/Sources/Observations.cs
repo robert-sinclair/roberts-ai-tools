@@ -54,7 +54,7 @@ public sealed record MailMessage(
     // Read in Outlook. Noted on the item, never acted on — reading isn't handling.
     bool? IsRead = null);
 
-/// <summary>One message from a watched chat's <c>messages/delta</c>.</summary>
+/// <summary>One message from a watched chat, read since the chat's watermark.</summary>
 public sealed record ChatMessage(
     string Id,
     string ChatId,
@@ -65,7 +65,9 @@ public sealed record ChatMessage(
     bool IsSystemMessage = false,
     string? FromName = null,
     string? TextPreview = null,
-    string? WebUrl = null);
+    string? WebUrl = null,
+    // The chat's topic, or its other members for a chat with none.
+    string? ChatName = null);
 
 /// <summary>
 /// One row of the <c>Actions</c> table, every cell as Graph returned it. Cells are objects

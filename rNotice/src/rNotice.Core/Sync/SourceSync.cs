@@ -178,6 +178,68 @@ public sealed class SourceSync(ItemStore store, Intake intake)
         return new SyncReport(inserted, updated, removed, 0, skipped);
     }
 
+    /// <summary>
+    /// New and changed messages from the watched chats. Oldest first, so a one-on-one chat's
+    /// item ends on its latest message.
+    ///
+    /// A one-on-one item follows the conversation: a newer message updates it, and reopens it
+    /// to Intake if you'd marked it done or dismissed it — it's something new to answer. An older
+    /// message coming back (edited, or a reaction added) never overwrites a newer one.
+    ///
+    /// Your own reply, newer than the message the item shows, moves an Intake item to Done:
+    /// you've answered it. A planned one stays planned — you planned it for a reason.
+    /// </summary>
+    public SyncReport SyncTeams(IReadOnlyList<ChatMessage> messages, DateTimeOffset nowUtc)
+    {
+        int inserted = 0, updated = 0;
+        var skipped = new List<(string, string)>();
+
+        foreach (var message in messages.OrderBy(m => m.CreatedUtc))
+        {
+            if (_intake.IsMyOneOnOneReply(message))
+            {
+                if (_store.GetBySource(Source.Teams, message.ChatId) is { Stage: Stage.Intake } answered &&
+                    message.CreatedUtc > answered.ReceivedUtc)
+                {
+                    _store.Save(answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null }, nowUtc);
+                    updated++;
+                }
+                continue;
+            }
+
+            var result = _intake.FromTeams(message);
+            if (result.Skipped) { skipped.Add((message.Id, result.SkipReason!)); continue; }
+
+            var item = result.Item!;
+            if (nowUtc - item.ReceivedUtc > MailAlertWindow)
+                item = item with { LastFiredUtc = nowUtc };   // backlog: queue, don't interrupt
+
+            if (_store.GetBySource(Source.Teams, item.SourceId) is { } existing)
+            {
+                if (item.ReceivedUtc < existing.ReceivedUtc)
+                {
+                    skipped.Add((message.Id, "Older than the message the item already shows"));
+                    continue;
+                }
+                if (item.ReceivedUtc > existing.ReceivedUtc && existing.Stage is Stage.Done or Stage.Dismissed)
+                    _store.Save(existing with { Stage = Stage.Intake, Note = null, NoteLink = null }, nowUtc);
+            }
+
+            var ingest = _store.Ingest(item, nowUtc);
+            switch (ingest.Outcome)
+            {
+                case IngestOutcome.Inserted: inserted++; break;
+                case IngestOutcome.Updated: updated++; break;
+            }
+
+            // A merge keeps the first message's time; the item is about the latest one.
+            if (ingest is { Outcome: IngestOutcome.Updated, Item: { } merged } && merged.ReceivedUtc != item.ReceivedUtc)
+                _store.Save(merged with { ReceivedUtc = item.ReceivedUtc, LastFiredUtc = item.LastFiredUtc ?? merged.LastFiredUtc }, nowUtc);
+        }
+
+        return new SyncReport(inserted, updated, 0, 0, skipped);
+    }
+
     private static string? Text(object? cell)
     {
         var s = Convert.ToString(cell, System.Globalization.CultureInfo.InvariantCulture)?.Trim();

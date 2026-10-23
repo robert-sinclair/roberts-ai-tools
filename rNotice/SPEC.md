@@ -247,6 +247,41 @@ item already owns the alert.
 
 ### Teams — named chats only
 
+**As built (0.8.0, step 6, 2026-10-23).** Where this differs from the design below, this wins.
+
+- **This spec was wrong about delta.** There is no per-chat `messages/delta` with delegated
+  permissions. The only chat delta, `/users/{id}/chats/getAllMessages/delta`, is
+  application-only ([chatMessage: delta](https://learn.microsoft.com/en-us/graph/api/chatmessage-delta)).
+  So each watched chat is read with a **watermark**: `GET /me/chats/{id}/messages` with
+  `$orderby=lastModifiedDateTime desc&$filter=lastModifiedDateTime gt {watermark}`
+  ([list messages in a chat](https://learn.microsoft.com/en-us/graph/api/chat-list-messages)).
+  The watermark is the newest `lastModifiedDateTime` seen, stored per chat after the messages
+  are saved, so a failed poll re-reads rather than loses anything.
+- **One listing per poll.** `GET /me/chats?$expand=members,lastMessagePreview` gives every chat
+  with its last message time; only watched chats with something newer than their watermark are
+  read. A quiet minute is one or two calls.
+- **Which chats.** Tray → **Watched Teams chats…** picks group and meeting chats (ids saved in
+  `rules.watchedChatIds`). **Every one-on-one chat is watched** without picking
+  (`rules.watchOneOnOneChats`, default true): a 1:1 message is nearly always meant for you.
+- **What becomes an item** — decided 2026-10-23, until the classifier (step 7) exists:
+  - An @mention of you in a watched chat → `P2`/`alert`, one item per message.
+  - A one-on-one message without a mention → the fallback `P3`/`silent`, but **one item per
+    chat**, updated with the latest message. A back-and-forth is one thing to handle.
+  - A group or meeting message without a mention → skipped. A busy group chat runs at about a
+    dozen messages a day; that would bury Intake.
+- **Your reply closes a 1:1.** If your own message is the latest in a one-on-one chat, its
+  Intake item moves to Done with the note "You replied in Teams". Their next message reopens it.
+  A planned one stays planned.
+- **First read** of a chat goes back `teamsBackfillHours` (24), quietly — nothing older than 15
+  minutes alerts, the same rule as mail.
+- Polls on `refreshSeconds` with the other sources, not the 120s below.
+
+Checked on real chats on 2026-10-23: 100 chats listed (27 group, 25 one-on-one, 48 meeting),
+17 with messages in the last day; the filter honoured; mentions of you found by user id; every
+message carries a `webUrl` for Open in Teams. The day's messages gave 7 one-on-one items.
+
+Original design:
+
 You said *specific* chats, and that's the right scope for more than tidiness: it keeps us on
 `GET /chats/{id}/messages/delta` per watched chat, instead of the tenant-wide export APIs.
 
@@ -558,7 +593,7 @@ reviews the request.
 | `Files.ReadWrite` | Workbook table rows (OneDrive for Business) | User |
 | `Calendars.ReadWrite` | Calendar read + promoted events | User |
 | `Mail.Read` | Mail bodies for classification | User |
-| `Chat.Read` | Watched Teams chat messages | Verify |
+| `Chat.Read` | Watched Teams chat messages | Consented (probe, 2026-10-21) |
 | `MailboxSettings.Read` | Your working hours, for free-slot search | Verify |
 | ~~`ChannelMessage.Read.All`~~ | ~~Channel mentions~~ — **dropped from v1** | ~~Admin, org-wide~~ |
 
@@ -608,13 +643,13 @@ behind corporate NAT is not that. So: delta queries on a timer.
 | --- | --- | --- |
 | Calendar | 60s | `calendarView`; the takeover needs minute-level accuracy |
 | Mail | 60s | Sent Items for the reply rule, then inbox `messages/delta` |
-| Teams | 120s | per-chat `messages/delta` |
+| Teams | 60s (`refreshSeconds`) | chat list, then each watched chat's messages since its watermark — see *Teams* |
 | Workbook | 60s | `cTag` pre-check, then table rows only if it changed |
 
 **Calendar and workbook share one interval, `refreshSeconds` (default 60, floor 30), by decision
 (2026-10-22).** The workbook moved from 300s so that one "next refresh" in the queue footer means
 both sources. The cost is small: an unchanged workbook is one metadata GET a minute, and rows are
-read only when the `cTag` changes. Mail and Teams get their own intervals when they're built.
+read only when the `cTag` changes. Mail and Teams joined the same interval when they were built.
 
 **Firing never depends on a poll.** Once an item is in the store the scheduler owns its timing.
 A network outage delays seeing *new* work; it does not delay an alert already known about. The
@@ -1203,6 +1238,9 @@ one means a poller and a mapping, nothing structural.
    **Built 2026-10-22 (0.4.0), ahead of step 4** — see *Mailbox*. It shares `refreshSeconds`
    with calendar and workbook, so one countdown covers all three.
 6. Teams source, named chats only.
+   **Built 2026-10-23 (0.8.0)** — see *Teams*. Picked group chats for @mentions, every
+   one-on-one chat as one item per chat. No per-chat delta exists for delegated access, so it
+   reads by watermark.
 7. Model classification, behind a flag, off by default.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
    **Calendar promotion built 2026-10-23 (0.7.0)** — see *Promoting to the calendar*. Free
@@ -1234,7 +1272,8 @@ Teams chat ids (3, supplied at install), and one real design question (6).
 2. ~~Channel @mentions — in or out?~~ **Answered: out of v1.** No `ChannelMessage.Read.All`,
    no admin-consent scope in the app registration. Channel mentions, if they matter, arrive via
    Teams' missed-activity emails in the mailbox we already read.
-3. **Which Teams chats?** Named chat ids, supplied at install. ~~Which mail folders?~~
+3. ~~Which Teams chats?~~ **Answered: picked in the app** (tray → Watched Teams chats…), plus
+   every one-on-one chat. ~~Which mail folders?~~
    **Answered: Inbox only.**
 4. ~~Where does the workbook live?~~ **Answered: OneDrive for Business,
    `Documents/efficiency`.** `Files.ReadWrite` covers it; no admin consent needed.

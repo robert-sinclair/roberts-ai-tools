@@ -168,12 +168,10 @@ public class TeamsIntakeTests
         Assert.Equal((Priority.P2, Interrupt.Alert, ClassifiedBy.Rule), (c.Priority, c.Interrupt, c.By));
     }
 
-    [Theory]
-    [InlineData(ChatType.OneOnOne)]
-    [InlineData(ChatType.Group)]
-    public void Message_without_mention_goes_to_the_model(ChatType type)
+    [Fact]
+    public void One_on_one_without_mention_goes_to_the_model()
     {
-        var c = _intake.FromTeams(Chat(type: type)).Item!.Classification;
+        var c = _intake.FromTeams(Chat(type: ChatType.OneOnOne)).Item!.Classification;
         Assert.Equal((Priority.P3, Interrupt.Silent, ClassifiedBy.Default), (c.Priority, c.Interrupt, c.By));
     }
 
@@ -187,7 +185,7 @@ public class TeamsIntakeTests
 
     [Fact]
     public void Title_is_the_first_line_of_the_message() =>
-        Assert.Equal("Line one", _intake.FromTeams(Chat(text: "Line one\nLine two")).Item!.Title);
+        Assert.Equal("Line one", _intake.FromTeams(Chat(mentions: ["user-me"], text: "Line one\nLine two")).Item!.Title);
 }
 
 public class WorkbookIntakeTests

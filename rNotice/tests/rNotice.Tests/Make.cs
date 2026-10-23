@@ -39,8 +39,10 @@ internal static class Make
         string from = "user-alice",
         string[]? mentions = null,
         bool system = false,
-        string? text = "Has anyone got the cert expiry list?") =>
-        new("cm-1", chatId, type, from, mentions ?? [], Now, system, "Alice", text);
+        string? text = "Has anyone got the cert expiry list?",
+        string id = "cm-1",
+        DateTimeOffset? at = null) =>
+        new(id, chatId, type, from, mentions ?? [], at ?? Now, system, "Alice", text, ChatName: "SaaS Team");
 
     public static WorkbookRow Row(
         string? id = "row-1",

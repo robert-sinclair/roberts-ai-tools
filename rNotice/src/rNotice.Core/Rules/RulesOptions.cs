@@ -21,7 +21,11 @@ public sealed record RulesOptions
     /// <summary>Same matching as <see cref="IgnoreSenders"/>.</summary>
     public IReadOnlyList<string> VipSenders { get; init; } = [];
 
+    /// <summary>Group and meeting chats to watch for @mentions, by id. Picked in the agent.</summary>
     public IReadOnlyList<string> WatchedChatIds { get; init; } = [];
+
+    /// <summary>Every one-on-one chat is watched, without picking. A 1:1 message is nearly always for you.</summary>
+    public bool WatchOneOnOneChats { get; init; } = true;
 
     /// <summary>Workbook rows due further out than this are ignored.</summary>
     public int HorizonDays { get; init; } = 14;

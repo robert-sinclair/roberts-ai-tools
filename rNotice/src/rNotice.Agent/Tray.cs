@@ -72,6 +72,7 @@ internal sealed class Tray : IDisposable
             new WinForms.ToolStripMenuItem("Preview meeting alert", null, (_, _) => _host.PreviewMeetingAlert()),
             new WinForms.ToolStripSeparator(),
             new WinForms.ToolStripMenuItem("Ignored senders…", null, (_, _) => _host.OpenIgnoredSenders()),
+            new WinForms.ToolStripMenuItem("Watched Teams chats…", null, (_, _) => _host.OpenWatchedChats()),
             _captureItem,
             _startupItem,
             new WinForms.ToolStripMenuItem("Open log folder", null, (_, _) => OpenFolder(Paths.Logs)),

@@ -179,7 +179,7 @@ public sealed class ItemStore : IDisposable
                 $title, $reason, $snippet, $sender, $source_ref, $join_url)
             ON CONFLICT (id) DO UPDATE SET
                 stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
-                classified_by = excluded.classified_by, due_utc = excluded.due_utc,
+                classified_by = excluded.classified_by, received_utc = excluded.received_utc, due_utc = excluded.due_utc,
                 fire_at_utc = excluded.fire_at_utc, planned_start_utc = excluded.planned_start_utc,
                 acked_at_utc = excluded.acked_at_utc, snoozed_until_utc = excluded.snoozed_until_utc,
                 last_fired_utc = excluded.last_fired_utc, calendar_event_id = excluded.calendar_event_id,

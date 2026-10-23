@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -38,6 +39,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     private CalendarClient _calendar = null!;
     private WorkbookClient _workbook = null!;
     private MailClient _mail = null!;
+    private TeamsClient _teams = null!;
     private ItemStore _store = null!;
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
@@ -56,24 +58,33 @@ internal sealed class AgentHost(Application app) : IDisposable
     private readonly PollState _calendarPoll = new("Calendar");
     private readonly PollState _workbookPoll = new("Workbook");
     private readonly PollState _mailPoll = new("Mail");
+    private readonly PollState _teamsPoll = new("Teams");
     private readonly HashSet<string> _loggedSkips = [];
 
     public event Action? Changed;
 
-    public IReadOnlyList<SourceStatus> Statuses =>
-        _settings.MailEnabled ? [_calendarPoll.Status, _workbookPoll.Status, _mailPoll.Status] : [_calendarPoll.Status, _workbookPoll.Status];
+    public IReadOnlyList<SourceStatus> Statuses => Polls.Select(p => p.Status).ToList();
 
-    /// <summary>True while either source is mid-poll.</summary>
-    public bool Refreshing => _calendarPoll.Running || _workbookPoll.Running || _mailPoll.Running;
+    /// <summary>True while any source is mid-poll.</summary>
+    public bool Refreshing => Polls.Any(p => p.Running);
+
+    /// <summary>The sources in use: calendar and workbook always, mail and Teams unless turned off.</summary>
+    private IEnumerable<PollState> Polls
+    {
+        get
+        {
+            yield return _calendarPoll;
+            yield return _workbookPoll;
+            if (_settings.MailEnabled) yield return _mailPoll;
+            if (_settings.TeamsEnabled) yield return _teamsPoll;
+        }
+    }
 
     /// <summary>
     /// When the next poll starts — the sooner of the two sources. Later than a minute away only
     /// when a source is backing off after failures, which is exactly when it's worth seeing.
     /// </summary>
-    public DateTimeOffset NextRefreshUtc =>
-        new[] { _calendarPoll, _workbookPoll, _mailPoll }
-            .Where(p => p != _mailPoll || _settings.MailEnabled)
-            .Min(p => p.Next);
+    public DateTimeOffset NextRefreshUtc => Polls.Min(p => p.Next);
     public bool NeedsSignIn => _auth.NeedsSignIn;
     public string? SignedInAs => _auth.Upn;
     public int SnoozeMinutes => _settings.SnoozeMinutes;
@@ -100,6 +111,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _graph = new GraphClient(new HttpClient { Timeout = TimeSpan.FromSeconds(60) }, _auth.GetTokenAsync);
         _calendar = new CalendarClient(_graph);
         _mail = new MailClient(_graph);
+        _teams = new TeamsClient(_graph);
         _workbook = new WorkbookClient(_graph, _settings.WorkbookFolder, _settings.WorkbookFile);
         _store = new ItemStore(Paths.Database, new DpapiFieldProtector());
         _scheduler = new Scheduler(_settings.ToSchedulerOptions());
@@ -131,6 +143,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         if (_calendarPoll.IsDue(now)) _ = PollAsync(_calendarPoll, PollCalendarAsync, _settings.RefreshInterval);
         if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.RefreshInterval);
         if (_settings.MailEnabled && _mailPoll.IsDue(now)) _ = PollAsync(_mailPoll, PollMailAsync, _settings.RefreshInterval);
+        if (_settings.TeamsEnabled && _teamsPoll.IsDue(now)) _ = PollAsync(_teamsPoll, PollTeamsAsync, _settings.RefreshInterval);
 
         if (now >= _nextPurge)
         {
@@ -276,6 +289,95 @@ internal sealed class AgentHost(Application app) : IDisposable
     }
 
     private const string MailDeltaKey = "mail.inbox.deltaLink";
+    private static string ChatWatermarkKey(string chatId) => $"teams.watermark.{chatId}";
+
+    private IReadOnlyList<ChatInfo> _chats = [];
+
+    /// <summary>
+    /// Lists your chats, then reads each watched one that has a message newer than its
+    /// watermark — so a quiet minute costs one or two calls, not one per chat. Watermarks are
+    /// saved only after the messages are stored, so a failure re-reads rather than loses them.
+    /// </summary>
+    private async Task<string> PollTeamsAsync(DateTimeOffset now)
+    {
+        var me = _me!;
+        _chats = await _teams.ListChatsAsync(me.UserId, CancellationToken.None);
+
+        var rules = _settings.Rules;
+        var watched = _chats.Where(c => (c.Type == ChatType.OneOnOne && rules.WatchOneOnOneChats) || rules.WatchedChatIds.Contains(c.Id)).ToList();
+
+        var messages = new List<ChatMessage>();
+        var marks = new List<(string Key, DateTimeOffset Mark)>();
+        foreach (var chat in watched)
+        {
+            var key = ChatWatermarkKey(chat.Id);
+            var since = _store.GetState(key) is { } saved && DateTimeOffset.TryParse(saved, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var parsed)
+                ? parsed
+                : now.AddHours(-_settings.TeamsBackfillHours);
+            if (chat.LastMessageUtc is { } last && last <= since) continue;
+
+            var (found, mark) = await _teams.GetMessagesSinceAsync(chat, since, CancellationToken.None);
+            messages.AddRange(found);
+            marks.Add((key, mark));
+        }
+
+        if (messages.Count > 0)
+        {
+            var report = _sync!.SyncTeams(messages, now);
+            LogSync("Teams", report);
+        }
+        foreach (var (key, mark) in marks)
+            _store.SetState(key, mark.ToString("o", CultureInfo.InvariantCulture));
+
+        var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Teams);
+        return $"{watched.Count} chats watched, {open} in Intake";
+    }
+
+    // ── Watched chats ───────────────────────────────────────────────────────────────────────
+
+    public bool WatchOneOnOneChats => _settings.Rules.WatchOneOnOneChats;
+    public IReadOnlyList<string> WatchedChatIds => _settings.Rules.WatchedChatIds;
+
+    /// <summary>Your chats, read fresh for the picker.</summary>
+    public async Task<IReadOnlyList<ChatInfo>> ListChatsAsync()
+    {
+        await EnsureSyncAsync();
+        return _chats = await _teams.ListChatsAsync(_me!.UserId, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Saves the picker. A newly watched chat is read back <c>teamsBackfillHours</c>, quietly.
+    /// A chat taken off keeps its items; it just stops adding new ones.
+    /// </summary>
+    public void SetWatchedChats(IReadOnlyList<string> chatIds, bool oneOnOne)
+    {
+        var updated = _settings with { Rules = _settings.Rules with { WatchedChatIds = chatIds, WatchOneOnOneChats = oneOnOne } };
+        if (!updated.Save())
+        {
+            _tray.Notify("Watched chats not saved", "settings.json couldn't be read or written. See the log.");
+            return;
+        }
+        _settings = updated;
+        if (_me is { } me) _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
+        Log.Info($"Watched Teams chats: {chatIds.Count} picked; one-on-one chats {(oneOnOne ? "watched" : "not watched")}");
+        _teamsPoll.Now();
+        Tick();
+    }
+
+    private WatchedChatsWindow? _chatsWindow;
+
+    public void OpenWatchedChats()
+    {
+        if (_chatsWindow is { IsLoaded: true })
+        {
+            _chatsWindow.Activate();
+            return;
+        }
+        _chatsWindow = new WatchedChatsWindow(this);
+        _chatsWindow.Closed += (_, _) => _chatsWindow = null;
+        _chatsWindow.Show();
+    }
     private const string ReadStateBackfillKey = "mail.readState.backfilled";
 
     /// <summary>
@@ -709,6 +811,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _calendarPoll.Now();
         _workbookPoll.Now();
         _mailPoll.Now();
+        _teamsPoll.Now();
         Tick();
     }
 
