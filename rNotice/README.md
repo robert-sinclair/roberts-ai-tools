@@ -38,8 +38,13 @@ On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the 
 toasting. Only mail that arrives while it's running interrupts you. A message you delete or
 move out of the inbox drops out of Intake.
 
+**Plans that a meeting lands on go back to Intake.** If a meeting is booked or moved onto a time
+you'd planned a task for, the task returns to Intake with a note — *Moved back to Intake: its Fri 23 Oct
+11:30–12:00 slot now clashes with "ASU / UoO DB index and stats rebuild".* — and a notification. Plan it
+again and the note goes.
+
 **Salesforce cases.** Mail about a case — *Case Assignment: 00038001*, *Needs attention: Case
-00037339* — gets a **Case 00038001 in Salesforce ↗** link under the item and in the detail pane,
+00037339* — gets a **Case 00038001 in Salesforce ↗** link under the item, the case number itself is a link in the detail pane's title and excerpt,
 and *Open case … in Salesforce* on the right-click menu. It opens the internal Lightning record
 (`salesforceUrl` in `settings.json`), not the customer portal. No Salesforce sign-in: the record
 ID comes from the Salesforce link inside the message — from the excerpt when it's there,
@@ -66,9 +71,9 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | | |
 | --- | --- |
 | Tray icon | Blue: fine. Orange: a P1 or P2 needs you now. Grey `!`: sign-in needed, or a source is failing. |
-| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. Three columns: Intake (workbook rows waiting on a decision), Planned (meetings land here, already scheduled), Done. Intake and Planned are grouped by day — Today, Tomorrow, then dates. A meeting's badge shows its start time; everything else shows its priority. Who you're signed in as and when each source was last checked are in the footer. |
+| Queue | Double-click the tray icon, or **Ctrl+Alt+Shift+N**. **Left:** Intake on the top third, grouped by day (with **Done** as a second tab), and the selected item below — drag the bar between them. **Right:** **Planned, as a calendar day**: meetings and your planned tasks as blocks at their times, overlapping ones side by side, work hours unshaded, a red line at the current time. ◀ Today ▶ or ←/→ change day; ↑/↓ step through the day's blocks. All-day events and plans with no time sit above the grid. Blue: a meeting. Amber: a meeting under way, not joined through rNotice. Green: joined. Orange: a task you planned. Grey: busy time rNotice doesn't track. |
 | Keys | **P** plan · **Delete** dismiss · **C** mark done · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide. After P, Delete, C or S the next item is selected, so you can work down a column without the mouse. |
-| Mouse | Right-click an item for the same actions, plus Join for meetings. Drag onto **Done** to complete. Drag from **Intake** onto **Planned** to plan; from **Done** onto **Planned** to move it back. |
+| Mouse | Right-click an item — in Intake, Done or on the calendar — for its actions. **Drag an item onto a time in the calendar to plan it there** (the default length; if that lands on a meeting, the Plan dialog opens instead). Drag onto the **Done** tab to finish it. |
 | Meetings under way | Once a meeting has started its badge turns **amber** (*In progress, not joined through rNotice*); click **Join** in rNotice and it turns **green** (*Joined 10:31*). rNotice can't see a join made straight from Teams or Outlook — that would need Teams presence or attendance-report permissions, which aren't granted. Joining no longer marks a meeting done; it goes from the queue when it ends. |
 | Planning | P, Plan… in the menu, a drag into Planned and the alert's Plan button all open one dialog. **Left:** pick how long (15 min to 2 h, default 30) and it lists the next open slots in your work hours — on the quarter hour, clear of meetings and other plans, finishing by the end of the day, one per free gap. **Right:** the day, quarter hour by quarter hour: meetings and other plans filled in and named, the past greyed out, your current plan dashed if you're re-planning. ◀ ▶ move between working days. Click a suggestion to see it there, or pick your own: **click a free quarter hour, drag for longer, Shift+click to extend** — a selection stops at anything booked. Enter plans what's selected (the first suggestion, when it opens). A time sets a reminder from rNotice; nothing goes on your calendar yet. |
 | Work hours | `workHours` in `settings.json`: 08:00–16:00, Monday to Friday, in *Canada Central Standard Time* (UTC−6 all year). Planning never suggests a slot outside them. |

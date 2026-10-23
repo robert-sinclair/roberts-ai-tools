@@ -32,7 +32,8 @@ public sealed class ItemStoreTests : IDisposable
         PlannedStartUtc = Now.AddHours(2),
         PlannedMinutes = 45,
         JoinedUtc = Now.AddMinutes(-1),
-        CaseUrl = "https://bravurasecurity.lightning.force.com/lightning/r/Case/500N300001MapmwIAB/view"
+        CaseUrl = "https://bravurasecurity.lightning.force.com/lightning/r/Case/500N300001MapmwIAB/view",
+        Note = "Moved back: test"
     };
 
     [Fact]

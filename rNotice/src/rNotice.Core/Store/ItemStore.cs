@@ -60,6 +60,7 @@ public sealed class ItemStore : IDisposable
         if (!columns.Contains("planned_minutes")) Execute("ALTER TABLE items ADD COLUMN planned_minutes INTEGER");
         if (!columns.Contains("joined_utc")) Execute("ALTER TABLE items ADD COLUMN joined_utc INTEGER");
         if (!columns.Contains("case_url")) Execute("ALTER TABLE items ADD COLUMN case_url BLOB");
+        if (!columns.Contains("note")) Execute("ALTER TABLE items ADD COLUMN note BLOB");
     }
 
     private void CreateSchema() => Execute("""
@@ -85,6 +86,7 @@ public sealed class ItemStore : IDisposable
             planned_minutes   INTEGER,
             joined_utc        INTEGER,
             case_url          BLOB,
+            note              BLOB,
             updated_utc       INTEGER NOT NULL,
             title             BLOB NOT NULL,
             reason            BLOB NOT NULL,
@@ -161,11 +163,11 @@ public sealed class ItemStore : IDisposable
         cmd.CommandText = """
             INSERT INTO items (id, source, source_id, stage, priority, interrupt, classified_by,
                 received_utc, due_utc, fire_at_utc, planned_start_utc, acked_at_utc,
-                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, updated_utc,
+                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, note, updated_utc,
                 title, reason, snippet, sender, source_ref, join_url)
             VALUES ($id, $source, $source_id, $stage, $priority, $interrupt, $classified_by,
                 $received_utc, $due_utc, $fire_at_utc, $planned_start_utc, $acked_at_utc,
-                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $updated_utc,
+                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $note, $updated_utc,
                 $title, $reason, $snippet, $sender, $source_ref, $join_url)
             ON CONFLICT (id) DO UPDATE SET
                 stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
@@ -173,7 +175,7 @@ public sealed class ItemStore : IDisposable
                 fire_at_utc = excluded.fire_at_utc, planned_start_utc = excluded.planned_start_utc,
                 acked_at_utc = excluded.acked_at_utc, snoozed_until_utc = excluded.snoozed_until_utc,
                 last_fired_utc = excluded.last_fired_utc, calendar_event_id = excluded.calendar_event_id,
-                is_read = excluded.is_read, planned_minutes = excluded.planned_minutes, joined_utc = excluded.joined_utc, case_url = excluded.case_url,
+                is_read = excluded.is_read, planned_minutes = excluded.planned_minutes, joined_utc = excluded.joined_utc, case_url = excluded.case_url, note = excluded.note,
                 updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
                 snippet = excluded.snippet, sender = excluded.sender,
                 source_ref = excluded.source_ref, join_url = excluded.join_url;
@@ -199,6 +201,7 @@ public sealed class ItemStore : IDisposable
         p.AddWithValue("$planned_minutes", (object?)item.PlannedMinutes ?? DBNull.Value);
         p.AddWithValue("$joined_utc", Ms(item.JoinedUtc));
         p.AddWithValue("$case_url", Seal(item.CaseUrl));
+        p.AddWithValue("$note", Seal(item.Note));
         p.AddWithValue("$updated_utc", nowUtc.ToUnixTimeMilliseconds());
         p.AddWithValue("$title", _protector.Protect(item.Title));
         p.AddWithValue("$reason", _protector.Protect(item.Classification.Reason));
@@ -290,6 +293,7 @@ public sealed class ItemStore : IDisposable
                 PlannedMinutes = r.IsDBNull(r.GetOrdinal("planned_minutes")) ? null : r.GetInt32(r.GetOrdinal("planned_minutes")),
                 JoinedUtc = Time(r, "joined_utc"),
                 CaseUrl = Open(r, "case_url"),
+                Note = Open(r, "note"),
                 Title = Open(r, "title")!,
                 Snippet = Open(r, "snippet"),
                 From = Open(r, "sender"),

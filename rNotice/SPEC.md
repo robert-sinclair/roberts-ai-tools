@@ -806,6 +806,14 @@ can least afford to get it wrong.
 
 ### Queue window
 
+**As built (0.6.0, 2026-10-23), to Robert's layout:** left, Intake on the top third (Done as a
+second tab) and the selected item on the bottom two-thirds; right, the full height, **Planned as
+a calendar day** — meetings and planned tasks as blocks, side by side where they overlap, work
+hours unshaded, a now line. Drag onto a time to plan there; drag onto the Done tab to finish.
+**A planned task whose slot a meeting now occupies goes back to Intake with a note** saying which
+meeting and when (`PlanConflicts`, checked after every calendar refresh). The paragraph below is
+the original three-column design, kept for the record.
+
 The main surface, and where intake → plan → complete actually happens. Three columns by stage,
 sorted by priority then time. Keyboard-driven: plan, dismiss, promote, snooze without reaching
 for the mouse. Opens from the tray or a global hotkey.

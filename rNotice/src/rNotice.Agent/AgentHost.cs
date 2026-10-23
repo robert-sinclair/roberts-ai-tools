@@ -233,6 +233,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         var report = _sync!.SyncCalendar(events, now);
         LogSync("Calendar", report);
+        MoveConflictsToIntake(now);
         // The footer gets the count; what changed goes to the log.
         return $"{events.Count - report.Skipped.Count} meetings";
     }
@@ -396,6 +397,80 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// One working day's meetings and other plans, with titles, for the Plan dialog's day view.
     /// Blocklisted meetings are included: they don't alert, but they still take the time.
     /// </summary>
+    /// <summary>
+    /// A meeting now sits on a task's planned slot — booked or moved there since you planned.
+    /// The task goes back to Intake with a note saying which meeting and when, and a
+    /// notification, so it isn't silently double-booked.
+    /// </summary>
+    private void MoveConflictsToIntake(DateTimeOffset now)
+    {
+        var meetings = _meetingEvents.Select(e => new AgendaEntry(e.StartUtc, e.EndUtc, e.Subject, IsMeeting: true));
+        var zone = _settings.ToWorkHours().Zone;
+        foreach (var (task, meeting) in PlanConflicts.Find(_store.List(Stage.Planned), meetings, now, _settings.PlanMinutes))
+        {
+            var note = PlanConflicts.Note(task, meeting, zone, _settings.PlanMinutes);
+            _store.Save(task.BackToIntake(note, now), now);
+            Log.Info($"'{task.Title}' moved back to Intake: clashes with '{meeting.Title}'");
+            _tray.Notify("Moved back to Intake", $"{task.Title} — its slot now clashes with {meeting.Title}.");
+        }
+    }
+
+    // ── Planned calendar view ───────────────────────────────────────────────────────────────
+
+    public WorkHours WorkHours => _settings.ToWorkHours();
+
+    /// <summary>
+    /// Everything on one day for the Planned calendar: your meetings (with their items, so
+    /// they can be selected and acted on), meetings rNotice doesn't track — blocklisted, done or
+    /// dismissed — as plain busy time, and your planned tasks. All-day events are flagged for the
+    /// strip at the top.
+    /// </summary>
+    public IReadOnlyList<CalendarEntry> CalendarDay(DateOnly day)
+    {
+        var zone = _settings.ToWorkHours().Zone;
+        var midnight = day.ToDateTime(TimeOnly.MinValue);
+        var from = new DateTimeOffset(midnight, zone.GetUtcOffset(midnight)).ToUniversalTime();
+        var to = from.AddDays(1);
+
+        var entries = new List<CalendarEntry>();
+        foreach (var e in _meetingEvents.Where(e => e.StartUtc < to && e.EndUtc > from))
+        {
+            var item = _store.GetBySource(Source.Calendar, e.Id) is { IsOpen: true } open ? open : null;
+            entries.Add(new CalendarEntry(item, e.Subject, e.StartUtc, e.EndUtc,
+                item is null ? CalendarKind.Busy : CalendarKind.Meeting, e.IsAllDay));
+        }
+
+        foreach (var task in _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar &&
+                     i.PlannedStartUtc is { } s && s < to && s.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes) > from))
+        {
+            var start = task.PlannedStartUtc!.Value;
+            entries.Add(new CalendarEntry(task, task.Title, start, start.AddMinutes(task.PlannedMinutes ?? _settings.PlanMinutes),
+                CalendarKind.Task, false));
+        }
+        return entries;
+    }
+
+    /// <summary>Planned, but with no time: listed above the calendar whatever the day.</summary>
+    public IReadOnlyList<Item> PlannedWithoutTime() =>
+        _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar && i.PlannedStartUtc is null).ToList();
+
+    /// <summary>
+    /// Plans an item at a time it was dropped on in the calendar, for the default length. If that
+    /// would land on a meeting or another plan, the Plan dialog opens instead so you can choose.
+    /// </summary>
+    public void PlanAt(Guid id, DateTimeOffset startUtc, Window owner)
+    {
+        if (_store.Get(id) is not { } item) return;
+        var end = startUtc.AddMinutes(_settings.PlanMinutes);
+        if (BlockedTime(except: id).Any(b => b.Overlaps(startUtc, end)) || end <= DateTimeOffset.UtcNow)
+        {
+            Plan(id, owner);
+            return;
+        }
+        Update(id, i => i.Plan(startUtc, _settings.PlanMinutes));
+        Log.Info($"'{item.Title}' planned for {Display.Time(startUtc)}, {_settings.PlanMinutes} min (dropped on the calendar)");
+    }
+
     private IReadOnlyList<AgendaEntry> AgendaFor(DateOnly day, Guid except)
     {
         var zone = _settings.ToWorkHours().Zone;

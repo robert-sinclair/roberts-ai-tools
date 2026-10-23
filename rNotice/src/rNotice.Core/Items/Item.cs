@@ -57,6 +57,12 @@ public sealed record Item
     /// </summary>
     public string? CaseUrl { get; init; }
 
+    /// <summary>
+    /// A short note from rNotice about something it did to the item — why a planned task came
+    /// back to Intake, say. Shown with the item; cleared when you plan it again.
+    /// </summary>
+    public string? Note { get; init; }
+
     public DateTimeOffset? PlannedStartUtc { get; init; }
 
     /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>
@@ -78,8 +84,22 @@ public sealed record Item
     /// calendar until promotion (step 8).
     /// </summary>
     public Item Plan(DateTimeOffset? startUtc, int? minutes = null) => startUtc is { } start
-        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null }
-        : this with { Stage = Stage.Planned };
+        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null, Note = null }
+        : this with { Stage = Stage.Planned, Note = null };
+
+    /// <summary>
+    /// Takes a planned task back to Intake with a note saying why: its slot is gone. The planned
+    /// time is cleared and it won't fire for the old slot; you plan it again.
+    /// </summary>
+    public Item BackToIntake(string note, DateTimeOffset nowUtc) => this with
+    {
+        Stage = Stage.Intake,
+        PlannedStartUtc = null,
+        PlannedMinutes = null,
+        FireAtUtc = null,
+        LastFiredUtc = nowUtc,
+        Note = note
+    };
 
     /// <summary>A user override. Sticky: later polls won't replace it.</summary>
     public Item Reclassify(Priority priority, Interrupt interrupt, string reason) =>

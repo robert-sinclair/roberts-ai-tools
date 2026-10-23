@@ -69,6 +69,21 @@ internal static class Display
     public static string? MyDomain { get; set; }
 }
 
+public enum CalendarKind
+{
+    /// <summary>A meeting rNotice tracks: select it, act on it.</summary>
+    Meeting,
+
+    /// <summary>A task you planned with rNotice.</summary>
+    Task,
+
+    /// <summary>A meeting rNotice doesn't track — blocklisted, done or dismissed. Busy time, nothing more.</summary>
+    Busy
+}
+
+/// <summary>One block on the Planned calendar.</summary>
+public sealed record CalendarEntry(Item? Item, string Title, DateTimeOffset StartUtc, DateTimeOffset EndUtc, CalendarKind Kind, bool AllDay);
+
 /// <summary>What the windows bind to.</summary>
 public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyChanged
 {
@@ -113,6 +128,9 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     };
 
     public bool CanSnooze => !IsMeeting;
+
+    /// <summary>rNotice left a note on it — why a plan came back to Intake, for instance.</summary>
+    public bool HasNote => !string.IsNullOrWhiteSpace(Item.Note);
 
     /// <summary>The Salesforce case number in the subject or excerpt, if there is one.</summary>
     public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Snippet);
