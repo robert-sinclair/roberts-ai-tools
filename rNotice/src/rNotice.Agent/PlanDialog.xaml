@@ -24,7 +24,8 @@
             <Button x:Name="PlanSelected" DockPanel.Dock="Right" IsDefault="True" Margin="8,0,0,0"
                     HorizontalContentAlignment="Center" FontWeight="SemiBold" Padding="16,5" Click="OnPlanSelected" />
             <Button x:Name="NoTime" DockPanel.Dock="Left" Margin="0" Click="OnNoTime" />
-            <TextBlock />
+            <CheckBox x:Name="OnCalendar" Content="Put it on my Outlook calendar" VerticalAlignment="Center" Margin="16,0,0,0"
+                      ToolTip="A tentative event, tagged rNotice, no attendees. Moves when you re-plan; removed when it's done." />
         </DockPanel>
 
         <Grid>
@@ -48,7 +49,7 @@
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"
                            Text="A suggestion shows on the day view. Or pick your own time there: click a quarter hour, drag for longer, Shift+click to extend." />
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                           Text="With a time, rNotice reminds you then and won't offer that slot again. Nothing goes on your calendar yet." />
+                           Text="With a time, rNotice reminds you and won't offer that slot again. On your Outlook calendar, rNotice alerts 5 minutes before and Outlook reminds you at the start." />
             </StackPanel>
 
             <!-- Right: the chosen day, quarter hour by quarter hour. -->

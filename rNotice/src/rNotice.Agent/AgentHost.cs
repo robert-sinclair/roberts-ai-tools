@@ -219,7 +219,14 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     private async Task<string> PollCalendarAsync(DateTimeOffset now)
     {
-        var events = await _calendar.GetViewAsync(now.AddHours(-1), now.AddDays(_settings.Rules.HorizonDays), CancellationToken.None);
+        var readStartedUtc = DateTimeOffset.UtcNow;
+        var all = await _calendar.GetViewAsync(now.AddHours(-1), now.AddDays(_settings.Rules.HorizonDays), CancellationToken.None);
+
+        // rNotice's own events are its planned tasks, not meetings. Counted as meetings they'd
+        // come into the queue a second time, and every promoted task would clash with itself.
+        var category = _settings.Rules.PromotedCategory;
+        bool Ours(CalendarEvent e) => e.Categories.Contains(category, StringComparer.OrdinalIgnoreCase);
+        var events = all.Where(e => !Ours(e)).ToList();
 
         _busy = events.Where(e => !e.IsCancelled && !e.IsAllDay)
                       .Select(e => new BusyBlock(e.StartUtc, e.EndUtc, e.ShowAs))
@@ -229,11 +236,20 @@ internal sealed class AgentHost(Application app) : IDisposable
         // tentative, working elsewhere — all-day ones included, so a day off isn't offered.
         _meetingEvents = events.Where(e => !e.IsCancelled && e.ShowAs != ShowAs.Free).ToList();
         _meetingBlocks = _meetingEvents.Select(e => new TimeBlock(e.StartUtc, e.EndUtc)).ToList();
+
+        // A write made while this read was in flight is newer than what the read saw.
+        var promoted = all.Where(Ours).ToDictionary(e => e.Id, e => new PromotedEvent(e.Id, e.StartUtc, e.EndUtc));
+        foreach (var (id, write) in _eventWrites)
+            if (write.AtUtc >= readStartedUtc) promoted[id] = write.Event;
+            else _eventWrites.Remove(id);
+        _promotedEvents = promoted;
+        _calendarWindow = (now.AddHours(-1), now.AddDays(_settings.Rules.HorizonDays));
         _calendarKnownUtc = now;
 
         var report = _sync!.SyncCalendar(events, now);
         LogSync("Calendar", report);
         MoveConflictsToIntake(now);
+        _ = PromoteAsync();
         // The footer gets the count; what changed goes to the log.
         return $"{events.Count - report.Skipped.Count} meetings";
     }
@@ -368,7 +384,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         if (_store.Get(id) is not { } item) return;
 
         var hours = _settings.ToWorkHours();
-        var dialog = new PlanDialog(item, _settings.PlanMinutes,
+        var dialog = new PlanDialog(item, _settings.PlanMinutes, item.PlannedStartUtc is null ? _settings.PromoteByDefault : item.PromoteToCalendar,
             minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except: id)),
             _calendarKnownUtc, hours,
             day => DayGrid.Build(day, hours, AgendaFor(day, except: id), DateTimeOffset.UtcNow));
@@ -385,7 +401,8 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         if (dialog.ShowDialog() != true) return;
 
-        Update(id, i => i.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes));
+        Update(id, i => i.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
+            dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0));
         if (dialog.StartUtc is { } start)
             Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
     }
@@ -483,7 +500,8 @@ internal sealed class AgentHost(Application app) : IDisposable
             Plan(id, owner);
             return;
         }
-        Update(id, i => i.Plan(startUtc, _settings.PlanMinutes));
+        Update(id, i => i.Plan(startUtc, _settings.PlanMinutes, _settings.PromoteByDefault,
+            _settings.PromoteByDefault ? _settings.PlanAlertLeadMinutes : 0));
         Log.Info($"'{item.Title}' planned for {Display.Time(startUtc)}, {_settings.PlanMinutes} min (dropped on the calendar)");
     }
 
@@ -535,6 +553,140 @@ internal sealed class AgentHost(Application app) : IDisposable
         Log.Info($"{updated.Source} item '{updated.Title}' → {updated.Stage}" +
                  (updated.SnoozedUntilUtc != item.SnoozedUntilUtc ? $", snoozed {_settings.SnoozeMinutes} min" : ""));
         Changed?.Invoke();
+        _ = PromoteAsync();
+    }
+
+    // ── Calendar promotion (step 8) ─────────────────────────────────────────────────────────
+
+    private Dictionary<string, PromotedEvent> _promotedEvents = [];
+    private (DateTimeOffset From, DateTimeOffset To) _calendarWindow;
+    private bool _promoting, _promoteAgain;
+    private readonly Dictionary<string, (PromotedEvent Event, DateTimeOffset AtUtc)> _eventWrites = [];
+
+    private void Wrote(PromotedEvent e)
+    {
+        _promotedEvents[e.Id] = e;
+        _eventWrites[e.Id] = (e, DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>Puts a plan on your Outlook calendar, or takes it off.</summary>
+    public void SetPromotion(Guid id, bool onCalendar) =>
+        Update(id, i => onCalendar
+            ? i with { PromoteToCalendar = true, FireAtUtc = i.PlannedStartUtc?.AddMinutes(-_settings.PlanAlertLeadMinutes) ?? i.FireAtUtc }
+            : i with { PromoteToCalendar = false, FireAtUtc = i.PlannedStartUtc ?? i.FireAtUtc });
+
+    /// <summary>
+    /// Brings each plan's Outlook event in line: creates, moves or removes rNotice's own events,
+    /// follows a move you made in Outlook, and notes a deletion. One run at a time; a change
+    /// made during a run triggers one more. Failures are logged and retried on the next change
+    /// or calendar refresh.
+    /// </summary>
+    private async Task PromoteAsync()
+    {
+        if (_promoting) { _promoteAgain = true; return; }
+        _promoting = true;
+        try
+        {
+            do
+            {
+                _promoteAgain = false;
+                await PromoteOnceAsync();
+            } while (_promoteAgain);
+        }
+        finally
+        {
+            _promoting = false;
+        }
+    }
+
+    private async Task PromoteOnceAsync()
+    {
+        // Until the calendar has been read, a missing event means nothing — don't call it lost.
+        var known = _calendarKnownUtc is not null;
+        (DateTimeOffset From, DateTimeOffset To) window = known ? _calendarWindow : (DateTimeOffset.MaxValue, DateTimeOffset.MaxValue);
+        var steps = Promotion.Plan(_store.List(), _promotedEvents, window.From, window.To, _settings.PlanMinutes)
+            .Where(s => known || s.Kind is not (PromotionKind.FollowOutlook or PromotionKind.Lost))
+            .ToList();
+        if (steps.Count == 0) return;
+
+        var category = _settings.Rules.PromotedCategory;
+        foreach (var step in steps)
+        {
+            var item = step.Item;
+            try
+            {
+                switch (step.Kind)
+                {
+                    case PromotionKind.Create:
+                    {
+                        var body = (item.Snippet is { Length: > 0 } s ? s + "\n\n" : "") +
+                                   $"Planned with rNotice. Item {item.Id}.";
+                        var id = await _calendar.CreateEventAsync(item.Title, body, step.StartUtc!.Value, step.EndUtc!.Value,
+                            category, reminderMinutesBeforeStart: 0, CancellationToken.None);
+                        Wrote(new PromotedEvent(id, step.StartUtc.Value, step.EndUtc.Value));
+                        Save(item.Id, i => i with { CalendarEventId = id, CalendarStartUtc = step.StartUtc, CalendarEndUtc = step.EndUtc });
+                        Log.Info($"Calendar: added '{item.Title}' at {Display.Time(step.StartUtc.Value)}");
+                        break;
+                    }
+                    case PromotionKind.Move:
+                        await _calendar.MoveEventAsync(item.CalendarEventId!, step.StartUtc!.Value, step.EndUtc!.Value, CancellationToken.None);
+                        Wrote(new PromotedEvent(item.CalendarEventId!, step.StartUtc.Value, step.EndUtc.Value));
+                        Save(item.Id, i => i with { CalendarStartUtc = step.StartUtc, CalendarEndUtc = step.EndUtc });
+                        Log.Info($"Calendar: moved '{item.Title}' to {Display.Time(step.StartUtc.Value)}");
+                        break;
+
+                    case PromotionKind.Remove:
+                        try
+                        {
+                            await _calendar.DeleteOwnEventAsync(item.CalendarEventId!, category, CancellationToken.None);
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            // Not rNotice's (any more): leave the event alone, just forget it.
+                            Log.Warn(ex.Message);
+                        }
+                        _promotedEvents.Remove(item.CalendarEventId!);
+                        _eventWrites.Remove(item.CalendarEventId!);
+                        Save(item.Id, i => i with { CalendarEventId = null, CalendarStartUtc = null, CalendarEndUtc = null });
+                        Log.Info($"Calendar: removed '{item.Title}'");
+                        break;
+
+                    case PromotionKind.FollowOutlook:
+                    {
+                        var start = step.StartUtc!.Value;
+                        var minutes = (int)Math.Round((step.EndUtc!.Value - start).TotalMinutes);
+                        Save(item.Id, i => i with
+                        {
+                            PlannedStartUtc = start, PlannedMinutes = minutes,
+                            FireAtUtc = start.AddMinutes(-_settings.PlanAlertLeadMinutes), LastFiredUtc = null,
+                            CalendarStartUtc = start, CalendarEndUtc = step.EndUtc,
+                            Note = $"Moved in Outlook to {Display.Time(start)}", NoteLink = null
+                        });
+                        Log.Info($"Calendar: '{item.Title}' was moved in Outlook; plan follows to {Display.Time(start)}");
+                        break;
+                    }
+                    case PromotionKind.Lost:
+                        Save(item.Id, i => i with
+                        {
+                            PromoteToCalendar = false, CalendarEventId = null, CalendarStartUtc = null, CalendarEndUtc = null,
+                            Note = "Removed from your Outlook calendar; still planned here", NoteLink = null
+                        });
+                        Log.Info($"Calendar: '{item.Title}' was deleted in Outlook; still planned, no longer on the calendar");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Calendar: couldn't {step.Kind.ToString().ToLowerInvariant()} '{item.Title}'", ex);
+            }
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Re-reads before saving: the awaits above give you time to change the item.</summary>
+    private void Save(Guid id, Func<Item, Item> change)
+    {
+        if (_store.Get(id) is { } current) _store.Save(change(current), DateTimeOffset.UtcNow);
     }
 
     /// <summary>

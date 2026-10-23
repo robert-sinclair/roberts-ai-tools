@@ -64,9 +64,17 @@ into the queue quietly. Items dismissed by the ignore stay dismissed. The list i
 `rules.ignoreSenders` in `settings.json`; rNotice won't save over that file if it couldn't read
 it.
 
-**What it writes:** one thing, once. If `/efficiency/rNotice.xlsx` doesn't exist, it creates it
-with the `Actions` table and the date columns formatted as text. It never writes a row, never
-touches your calendar, and never acknowledges anything back to the workbook — that's step 4.
+**What it writes:** two things.
+
+- **Planned tasks on your Outlook calendar**, when you ask (0.7.0). Each is a tentative event
+  tagged `rNotice`, with no attendees. Re-plan the task and the event moves; mark it done,
+  dismiss it or send it back to Intake and the event is deleted. Move the event in Outlook and
+  the plan follows, with a note. Delete it in Outlook and the task stays planned, off the
+  calendar. rNotice only deletes events that still carry its `rNotice` category, so it can't
+  touch a meeting or anything you made. It never touches meetings at all.
+- **The workbook, once.** If `/efficiency/rNotice.xlsx` doesn't exist, it creates it with the
+  `Actions` table and the date columns formatted as text. It never writes a row and never
+  acknowledges anything back to the workbook.
 
 | | |
 | --- | --- |
@@ -75,7 +83,7 @@ touches your calendar, and never acknowledges anything back to the workbook — 
 | Keys | **P** plan · **Delete** dismiss · **C** mark done · **S** snooze · **Enter** open in Outlook/Excel · **←/→** column · **F5** refresh · **Esc** hide. After P, Delete, C or S the next item is selected, so you can work down a column without the mouse. |
 | Mouse | Right-click an item — in Intake, Done or on the calendar — for its actions. **Drag an item onto a time in the calendar to plan it there** (the default length; if that lands on a meeting, the Plan dialog opens instead). Drag onto the **Done** tab to finish it. |
 | Meetings under way | Once a meeting has started its badge turns **amber** (*In progress, not joined through rNotice*); click **Join** in rNotice and it turns **green** (*Joined 10:31*). rNotice can't see a join made straight from Teams or Outlook — that would need Teams presence or attendance-report permissions, which aren't granted. Joining no longer marks a meeting done; it goes from the queue when it ends. |
-| Planning | P, Plan… in the menu, a drag into Planned and the alert's Plan button all open one dialog. **Left:** pick how long (15 min to 2 h, default 30) and it lists the next open slots in your work hours — on the quarter hour, clear of meetings and other plans, finishing by the end of the day, one per free gap. **Right:** the day, quarter hour by quarter hour: meetings and other plans filled in and named, the past greyed out, your current plan dashed if you're re-planning. ◀ ▶ move between working days. Click a suggestion to see it there, or pick your own: **click a free quarter hour, drag for longer, Shift+click to extend** — a selection stops at anything booked. Enter plans what's selected (the first suggestion, when it opens). A time sets a reminder from rNotice; nothing goes on your calendar yet. |
+| Planning | P, Plan… in the menu, a drag into Planned and the alert's Plan button all open one dialog. **Left:** pick how long (15 min to 2 h, default 30) and it lists the next open slots in your work hours — on the quarter hour, clear of meetings and other plans, finishing by the end of the day, one per free gap. **Right:** the day, quarter hour by quarter hour: meetings and other plans filled in and named, the past greyed out, your current plan dashed if you're re-planning. ◀ ▶ move between working days. Click a suggestion to see it there, or pick your own: **click a free quarter hour, drag for longer, Shift+click to extend** — a selection stops at anything booked. Enter plans what's selected (the first suggestion, when it opens). A time sets a reminder from rNotice. **Put it on my Outlook calendar** (ticked by default; a drag uses the same default) adds a tentative event: rNotice alerts 5 minutes before the start and Outlook reminds you at the start. Right-click a planned task to **Add to** or **Remove from Outlook calendar…** — removing asks first and leaves the task planned. |
 | Work hours | `workHours` in `settings.json`: 08:00–16:00, Monday to Friday, in *Canada Central Standard Time* (UTC−6 all year). Planning never suggests a slot outside them. |
 | Alert window | Topmost, doesn't steal focus, flashes the taskbar. For a workbook item: Plan…, Mark done, Snooze, Open in Excel. |
 | Meetings | Every meeting not on `meetingBlocklist` takes over 60 seconds before it starts: **every monitor dims** (`takeoverDim`, default 0.45) and the large meeting window sits on top — 60% of the monitor's width, the title in big type, a countdown ticking every second, **Join**, **Open in Outlook**, **Mark done**. **Double-click the dark area to clear the dim**; the meeting window stays. Both ignore clicks for 0.75 s after appearing (`armingDelayMs`), so a click already on its way can't act on them. The dim takes the mouse, not the keyboard: Windows won't let a background app take focus, so typing still goes where it was. Closing the meeting window takes the dim down too. **Tray → Preview meeting alert** shows the next meeting's takeover now, without using it up. |
@@ -98,7 +106,8 @@ meetings under next week's.
 Edit, then restart rNotice from the tray. The useful ones: `rules.meetingBlocklist` (subject
 text, or `/regex/`), `rules.horizonDays`, `quietHours` (`{"start":"22:00","end":"07:00"}`),
 `snoozeMinutes`, `refreshSeconds` (how often the calendar and workbook are checked; default 60,
-minimum 30).
+minimum 30), `promoteByDefault` (whether planning ticks "Put it on my Outlook calendar"; default
+true), `planAlertLeadMinutes` (how early rNotice alerts for a task on your calendar; default 5).
 
 **Auto refresh.** Both sources are checked every minute. The queue footer counts down to the next
 check, shows *Refreshing…* while one runs, and keeps your scroll position when the lists update.

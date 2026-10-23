@@ -13,6 +13,9 @@ internal sealed class FakeHandler : HttpMessageHandler
     private readonly Queue<HttpResponseMessage> _responses = new();
     public List<HttpRequestMessage> Requests { get; } = [];
 
+    /// <summary>Each request's body, read when it arrived — the client disposes requests after sending.</summary>
+    public List<string?> Bodies { get; } = [];
+
     public FakeHandler Respond(HttpStatusCode status, string json, Action<HttpResponseMessage>? tweak = null)
     {
         var r = new HttpResponseMessage(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
@@ -24,6 +27,7 @@ internal sealed class FakeHandler : HttpMessageHandler
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         Requests.Add(request);
+        Bodies.Add(request.Content?.ReadAsStringAsync(ct).GetAwaiter().GetResult());
         return Task.FromResult(_responses.Dequeue());
     }
 
@@ -136,6 +140,49 @@ public class CalendarClientTests
     public void Non_UTC_zone_is_converted_not_trusted() =>
         Assert.Equal(new DateTimeOffset(2026, 10, 21, 22, 0, 0, TimeSpan.Zero),
             CalendarClient.Time(Json("""{ "dateTime": "2026-10-21T16:00:00", "timeZone": "Mountain Standard Time" }""")));
+}
+
+public class CalendarWriteTests
+{
+    [Fact]
+    public async Task Created_event_is_tentative_tagged_reminded_and_has_no_attendees()
+    {
+        var fake = new FakeHandler().Respond(HttpStatusCode.Created, """{ "id": "new-evt" }""");
+        var id = await new CalendarClient(fake.Client()).CreateEventAsync("Case 00038001", "body",
+            new DateTimeOffset(2026, 10, 23, 19, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 23, 19, 30, 0, TimeSpan.Zero),
+            "rNotice", 0, default);
+
+        Assert.Equal("new-evt", id);
+        var sent = JsonDocument.Parse(fake.Bodies[0]!).RootElement;
+        Assert.Equal("tentative", sent.GetProperty("showAs").GetString());
+        Assert.Equal("rNotice", sent.GetProperty("categories")[0].GetString());
+        Assert.Equal(0, sent.GetProperty("attendees").GetArrayLength());
+        Assert.Equal(("2026-10-23T19:00:00", "UTC"),
+            (sent.GetProperty("start").GetProperty("dateTime").GetString(), sent.GetProperty("start").GetProperty("timeZone").GetString()));
+    }
+
+    [Fact]
+    public async Task Delete_refuses_an_event_without_the_rNotice_tag()
+    {
+        var fake = new FakeHandler().Respond(HttpStatusCode.OK, """{ "id": "m1", "categories": ["Blue category"] }""");
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new CalendarClient(fake.Client()).DeleteOwnEventAsync("m1", "rNotice", default));
+        Assert.Single(fake.Requests);   // the GET only; no DELETE was sent
+    }
+
+    [Fact]
+    public async Task Delete_removes_a_tagged_event_and_tolerates_one_already_gone()
+    {
+        var fake = new FakeHandler()
+            .Respond(HttpStatusCode.OK, """{ "id": "e1", "categories": ["rNotice"] }""")
+            .Respond(HttpStatusCode.NoContent, "")
+            .Respond(HttpStatusCode.NotFound, """{ "error": { "code": "ErrorItemNotFound", "message": "gone" } }""");
+        var client = new CalendarClient(fake.Client());
+
+        Assert.True(await client.DeleteOwnEventAsync("e1", "rNotice", default));
+        Assert.Equal(HttpMethod.Delete, fake.Requests[1].Method);
+        Assert.False(await client.DeleteOwnEventAsync("e2", "rNotice", default));
+    }
 }
 
 public class WorkbookClientTests

@@ -74,6 +74,20 @@ public sealed record Item
     /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>
     public int? PlannedMinutes { get; init; }
     public string? CalendarEventId { get; init; }
+
+    /// <summary>
+    /// You chose to have this plan on your Outlook calendar. The event is created, moved and
+    /// removed to match; <see cref="CalendarEventId"/> is set once it exists.
+    /// </summary>
+    public bool PromoteToCalendar { get; init; }
+
+    /// <summary>
+    /// The start and end the Outlook event had when rNotice last wrote or read it. Comparing
+    /// these with the plan and with the event says which side changed: a re-plan here, or a
+    /// drag in Outlook.
+    /// </summary>
+    public DateTimeOffset? CalendarStartUtc { get; init; }
+    public DateTimeOffset? CalendarEndUtc { get; init; }
     public DateTimeOffset? AckedAtUtc { get; init; }
     public DateTimeOffset? SnoozedUntilUtc { get; init; }
     public DateTimeOffset? LastFiredUtc { get; init; }
@@ -89,9 +103,18 @@ public sealed record Item
     /// timing — a workbook row still alerts at its lead time. Local only; nothing reaches the
     /// calendar until promotion (step 8).
     /// </summary>
-    public Item Plan(DateTimeOffset? startUtc, int? minutes = null) => startUtc is { } start
-        ? this with { Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes, FireAtUtc = start, LastFiredUtc = null, SnoozedUntilUtc = null, Note = null, NoteLink = null }
-        : this with { Stage = Stage.Planned, Note = null, NoteLink = null };
+    /// <param name="alertLeadMinutes">
+    /// How long before the start rNotice alerts. A plan on the Outlook calendar alerts a few
+    /// minutes early, so Outlook's own reminder at the start is a backstop, not a duplicate.
+    /// </param>
+    public Item Plan(DateTimeOffset? startUtc, int? minutes = null, bool? promote = null, int alertLeadMinutes = 0) => startUtc is { } start
+        ? this with
+        {
+            Stage = Stage.Planned, PlannedStartUtc = start, PlannedMinutes = minutes,
+            FireAtUtc = start.AddMinutes(-alertLeadMinutes), LastFiredUtc = null, SnoozedUntilUtc = null,
+            Note = null, NoteLink = null, PromoteToCalendar = promote ?? PromoteToCalendar
+        }
+        : this with { Stage = Stage.Planned, PlannedStartUtc = null, PlannedMinutes = null, Note = null, NoteLink = null, PromoteToCalendar = false };
 
     /// <summary>
     /// Takes a planned task back to Intake with a note saying why: its slot is gone. The planned
@@ -127,7 +150,8 @@ public sealed record Item
         if (incoming.Source != Source || incoming.SourceId != SourceId)
             throw new ArgumentException("Can only merge a poll of the same source item.", nameof(incoming));
 
-        var fireAt = PlannedStartUtc ?? incoming.FireAtUtc;
+        // A planned time is yours, alert lead and all: keep the fire time the plan set.
+        var fireAt = PlannedStartUtc is not null ? FireAtUtc : incoming.FireAtUtc;
         var fireMoved = fireAt != FireAtUtc;
 
         return this with

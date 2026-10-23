@@ -32,6 +32,65 @@ public sealed class CalendarClient(GraphClient graph)
         return events;
     }
 
+    // ── Writes: only ever events rNotice creates, tagged with its category ─────────────────
+
+    private static object When(DateTimeOffset utc) =>
+        new { dateTime = utc.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), timeZone = "UTC" };
+
+    /// <summary>
+    /// A time block for one planned task: yours alone (no attendees, ever), tentative so it never
+    /// silences rNotice's own alerts, tagged so rNotice can recognise its own, with Outlook's
+    /// reminder at the start as the backstop to rNotice's earlier alert.
+    /// (<see href="https://learn.microsoft.com/en-us/graph/api/user-post-events">create event</see>)
+    /// </summary>
+    public async Task<string> CreateEventAsync(string subject, string body, DateTimeOffset startUtc, DateTimeOffset endUtc,
+        string category, int reminderMinutesBeforeStart, CancellationToken ct)
+    {
+        var created = await _graph.SendJsonAsync(HttpMethod.Post, "/me/events", new
+        {
+            subject,
+            body = new { contentType = "text", content = body },
+            start = When(startUtc),
+            end = When(endUtc),
+            categories = new[] { category },
+            showAs = "tentative",
+            isReminderOn = true,
+            reminderMinutesBeforeStart,
+            attendees = Array.Empty<object>()
+        }, ct).ConfigureAwait(false);
+        return created.GetProperty("id").GetString()!;
+    }
+
+    public Task MoveEventAsync(string eventId, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken ct) =>
+        _graph.SendJsonAsync(HttpMethod.Patch, $"/me/events/{Uri.EscapeDataString(eventId)}",
+            new { start = When(startUtc), end = When(endUtc) }, ct);
+
+    /// <summary>
+    /// Deletes an event rNotice created. Re-reads it first and refuses unless it still carries
+    /// rNotice's category, so a stored id can never take out a meeting or anything you made.
+    /// Returns false if it was already gone; throws if it isn't rNotice's.
+    /// </summary>
+    public async Task<bool> DeleteOwnEventAsync(string eventId, string category, CancellationToken ct)
+    {
+        JsonElement ev;
+        try
+        {
+            ev = await _graph.GetAsync($"/me/events/{Uri.EscapeDataString(eventId)}?$select=categories", ct).ConfigureAwait(false);
+        }
+        catch (GraphException ex) when (ex.IsNotFound)
+        {
+            return false;
+        }
+
+        var ours = ev.TryGetProperty("categories", out var cats) && cats.ValueKind == JsonValueKind.Array &&
+                   cats.EnumerateArray().Any(c => string.Equals(c.GetString(), category, StringComparison.OrdinalIgnoreCase));
+        if (!ours)
+            throw new InvalidOperationException($"Refusing to delete event {eventId}: it doesn't carry the '{category}' category.");
+
+        await _graph.SendAsync(HttpMethod.Delete, $"/me/events/{Uri.EscapeDataString(eventId)}", null, ct).ConfigureAwait(false);
+        return true;
+    }
+
     internal static CalendarEvent Map(JsonElement e) => new(
         Id: e.GetProperty("id").GetString()!,
         Subject: Str(e, "subject") ?? "(no subject)",

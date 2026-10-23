@@ -80,6 +80,15 @@ public sealed record AgentSettings
     /// </summary>
     public string SalesforceUrl { get; init; } = "https://bravurasecurity.lightning.force.com";
 
+    /// <summary>Whether the Plan dialog's "Put it on my Outlook calendar" starts ticked.</summary>
+    public bool PromoteByDefault { get; init; } = true;
+
+    /// <summary>
+    /// For a plan on your Outlook calendar, how many minutes before the start rNotice alerts.
+    /// Outlook's own reminder fires at the start, so the two never land together.
+    /// </summary>
+    public int PlanAlertLeadMinutes { get; init; } = 5;
+
     /// <summary>The duration the Plan dialog starts on.</summary>
     public int PlanMinutes { get; init; } = 30;
 

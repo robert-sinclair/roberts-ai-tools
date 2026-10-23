@@ -50,7 +50,10 @@ public partial class PlanDialog : Window
     public DateTimeOffset? StartUtc { get; private set; }
     public int Minutes => _selMinutes > 0 ? _selMinutes : Durations[Math.Max(0, Duration.SelectedIndex)];
 
-    internal PlanDialog(Item item, int defaultMinutes, Func<int, IReadOnlyList<DateTimeOffset>> suggest,
+    /// <summary>Whether the plan goes on your Outlook calendar. Ignored for "no time".</summary>
+    public bool Promote => OnCalendar.IsChecked == true;
+
+    internal PlanDialog(Item item, int defaultMinutes, bool promote, Func<int, IReadOnlyList<DateTimeOffset>> suggest,
         DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day)
     {
         _item = item;
@@ -58,6 +61,7 @@ public partial class PlanDialog : Window
         _day = day;
         _hours = hours;
         InitializeComponent();
+        OnCalendar.IsChecked = promote;
         SourceInitialized += (_, _) => NativeMethods.ExcludeFromCapture(new System.Windows.Interop.WindowInteropHelper(this).Handle);
 
         var view = new ItemView(item);

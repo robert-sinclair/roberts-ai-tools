@@ -192,6 +192,7 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
             if (MeetingState == "joined") parts.Add($"Joined {Display.Time(Item.JoinedUtc!.Value)}");
             else if (MeetingState == "live") parts.Add("In progress, not joined through rNotice");
             parts.Add(Display.When(Item));
+            if (Item.CalendarEventId is not null && Item.Source != Source.Calendar) parts.Add("on your Outlook calendar");
             if (trailing is not null) parts.Add(trailing);
             if (Item.IsRead is { } read) parts.Add(read ? "read in Outlook" : "unread");
             return string.Join("  -  ", parts);

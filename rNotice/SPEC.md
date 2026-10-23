@@ -26,9 +26,9 @@ what's urgent, what's waiting on me, plan this, close that.
 | Stack | C# / .NET on Windows |
 | Privilege | Runs with user rights only. No service, no elevation at runtime. |
 | Install | **Machine-wide** to `%ProgramFiles%\rNotice`, registered in Add or Remove Programs. Needs admin once, to install. |
-| Calendar writes | Opt-in. A row reaches your calendar when you promote it, never automatically. |
+| Calendar writes | Opt-in per task. A plan reaches your calendar only when you plan it with "Put it on my Outlook calendar" ticked (the default) or add it later. Nothing you didn't plan, and never a meeting. |
 | Workbook writes | Acknowledgement columns, and `CalendarEventId` on promotion. No row creation. |
-| Drift | Row and event disagree → flag it, change nothing |
+| Drift | Row and event disagree → flag it, change nothing. **Exception, as built in step 8:** an rNotice event you move or delete in Outlook is followed, with a note on the task. |
 
 ### Explicitly out of scope for v1
 
@@ -704,6 +704,39 @@ What else the spike showed:
 
 ### Promoting to the calendar
 
+**As built (0.7.0, step 8).** Where this differs from the design below, this wins.
+
+- **Where you choose it.** The Plan dialog has **Put it on my Outlook calendar**, ticked by
+  default (`promoteByDefault`). Dragging a task onto the day view uses the same default.
+  Right-click a planned task for **Add to Outlook calendar** or **Remove from Outlook
+  calendar…**; removing confirms, names the event, and leaves the task planned.
+- **The event.** Subject is the task title. Body is the snippet plus a footer with the item id.
+  Tentative, category `rNotice`, no attendees, reminder on.
+- **It follows the plan.** Re-plan and the event moves. Mark done, dismiss, move back to
+  Intake, or plan with no time, and the event is deleted. A task sent back to Intake by a
+  meeting clash loses its event the same way.
+- **It follows Outlook.** Move the event in Outlook and the plan moves to match, with a note:
+  "Moved in Outlook to Fri 14:00". Delete it in Outlook and the task stays planned, stops being
+  promoted, and says so. **This replaces "flag it, change nothing" for these two cases**: the
+  event is yours and you moved it on purpose, so a flag would only ask you to repeat yourself.
+  A deletion only counts once the calendar has actually been read, and only inside the window
+  read (now − 1 h to the horizon), so an outage or a far-off plan can't look like a deletion.
+- **Stagger.** rNotice alerts `planAlertLeadMinutes` (5) before the start; Outlook's reminder
+  fires at the start. Reversed from the design below, which gave Outlook the shorter lead: a
+  task's start is the moment that matters, and rNotice is the one that's running.
+- **Deletes stay safe.** Before deleting, rNotice re-reads the event and refuses unless it still
+  carries the `rNotice` category. A 404 counts as already gone.
+- **rNotice's own events aren't meetings.** They're kept out of meeting sync, busy time and
+  clash detection; otherwise every promoted task would clash with itself.
+- **Not built:** the MCP tool, promote from the alert window or tray, workbook promotion (open
+  question 6), the orphan sweep, and the "scheduled after it was due" flag.
+
+Checked live on 2026-10-23: created a test event for 15 Dec, read it back through
+`calendarView` with its category, `showAs` tentative, reminder 0, no attendees; moved it;
+deleted it; a second delete got 404 and returned "already gone".
+
+Original design:
+
 Nothing reaches your calendar automatically. Promotion is available from the alert window, the
 queue window, the tray, and the `promote_to_calendar` MCP tool.
 
@@ -1172,6 +1205,8 @@ one means a poller and a mapping, nothing structural.
 6. Teams source, named chats only.
 7. Model classification, behind a flag, off by default.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
+   **Calendar promotion built 2026-10-23 (0.7.0)** — see *Promoting to the calendar*. Free
+   slots shipped earlier (0.4.4). Workbook promotion is out (open question 6, still open).
 9. `rNotice.Mcp` + pipe protocol. **Includes the workbook acknowledge write-back** (from step
    4), proven by the 2026-10-21 spike, for `acknowledge_action`.
 10. Skill, README, install script.
@@ -1209,6 +1244,7 @@ Teams chat ids (3, supplied at install), and one real design question (6).
    design question left.* It is the one place the app creates a row. The alternative is that
    mail and Teams items live only in rNotice's own store and the workbook stays purely yours.
    Not blocking: it's a build-step-8 decision, and the app is complete without it.
+   **Left out of step 8 (2026-10-23)**: calendar promotion shipped without it.
 7. ~~Classifier model?~~ **Answered: `claude-opus-5-5`.** Configurable, so it can change after
    real behaviour is visible.
 8. ~~Can Bravura content go to the Anthropic API?~~ **Answered: yes, policy approval covers all

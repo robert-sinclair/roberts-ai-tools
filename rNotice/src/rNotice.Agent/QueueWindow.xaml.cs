@@ -531,7 +531,7 @@ public partial class QueueWindow : Window
             TextWrapping = height > 34 ? TextWrapping.Wrap : TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis
         });
         if (height > 34)
-            content.Children.Add(new TextBlock { Text = e.Kind == CalendarKind.Task ? $"{when} · planned" : when, FontSize = 11, Opacity = 0.75 });
+            content.Children.Add(new TextBlock { Text = e.Kind == CalendarKind.Task ? $"{when} · planned{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}" : when, FontSize = 11, Opacity = 0.75 });
 
         var block = new Border
         {
@@ -659,6 +659,19 @@ public partial class QueueWindow : Window
 
         if (CanPlan(item))
             menu.Items.Add(Entry(item.Stage == Stage.Intake ? "Plan…" : "Change plan…", "P", () => _host.Plan(item.Id, this)));
+        if (item.Source != Source.Calendar && item.Stage == Stage.Planned && item.PlannedStartUtc is { } planned)
+        {
+            if (!item.PromoteToCalendar)
+                menu.Items.Add(Entry("Add to Outlook calendar", "", () => _host.SetPromotion(item.Id, true)));
+            else
+                menu.Items.Add(Entry("Remove from Outlook calendar…", "", () =>
+                {
+                    var ask = $"Delete the Outlook event \"{item.Title}\" at {Display.Time(planned)}?\n\n" +
+                              "The task stays planned here at the same time.";
+                    if (MessageBox.Show(this, ask, "rNotice", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK)
+                        _host.SetPromotion(item.Id, false);
+                }));
+        }
         if (item.Stage != Stage.Done)
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
         else
