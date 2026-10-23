@@ -51,6 +51,12 @@ public sealed record Item
     /// </summary>
     public DateTimeOffset? JoinedUtc { get; init; }
 
+    /// <summary>
+    /// A Salesforce case's internal Lightning address, when the item is about a case and a
+    /// Salesforce link was found in the message. Null: not looked for yet. Empty: looked, none.
+    /// </summary>
+    public string? CaseUrl { get; init; }
+
     public DateTimeOffset? PlannedStartUtc { get; init; }
 
     /// <summary>How long you planned it for. With the start, it's time the slot finder won't offer again.</summary>

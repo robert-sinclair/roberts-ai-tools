@@ -166,6 +166,12 @@ public partial class QueueWindow : Window
         DetailTitle.Text = view.Title;
         DetailMeta.Text = view.Meta;
         DetailReason.Text = view.Reason;
+        DetailCase.Visibility = view.HasCaseLink ? Visibility.Visible : Visibility.Collapsed;
+        if (view.HasCaseLink)
+        {
+            DetailCaseLink.NavigateUri = new Uri(item.CaseUrl!);
+            DetailCaseText.Text = view.CaseLinkText;
+        }
         DetailSnippet.Text = view.Snippet ?? "";
         DetailSnippet.Visibility = view.HasSnippet ? Visibility.Visible : Visibility.Collapsed;
 
@@ -276,7 +282,9 @@ public partial class QueueWindow : Window
             }
         }
 
-        if (view.HasJoin || view.HasSource) menu.Items.Add(new Separator());
+        if (view.HasJoin || view.HasSource || view.HasCaseLink) menu.Items.Add(new Separator());
+        if (view.HasCaseLink)
+            menu.Items.Add(Entry($"Open case {view.CaseNumber} in Salesforce", "", () => AgentHost.OpenLink(item.CaseUrl)));
         if (view.HasJoin)
             menu.Items.Add(Entry("Join meeting", "", () => _host.Join(item.Id)));
         if (view.HasSource)
@@ -383,6 +391,13 @@ public partial class QueueWindow : Window
             if (FindScrollViewer(child) is { } found) return found;
         }
         return null;
+    }
+
+    /// <summary>A case link, in the list or the detail pane. Opens through the https-only gate.</summary>
+    private void OnCaseLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        AgentHost.OpenLink(e.Uri.AbsoluteUri);
+        e.Handled = true;
     }
 
     /// <summary>The list item a mouse event happened on, if any.</summary>

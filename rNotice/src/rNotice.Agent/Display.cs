@@ -113,6 +113,14 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     };
 
     public bool CanSnooze => !IsMeeting;
+
+    /// <summary>The Salesforce case number in the subject or excerpt, if there is one.</summary>
+    public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Snippet);
+
+    /// <summary>A case number with a Lightning link found for it.</summary>
+    public bool HasCaseLink => !string.IsNullOrEmpty(Item.CaseUrl) && CaseNumber is not null;
+
+    public string CaseLinkText => $"Case {CaseNumber} in Salesforce ↗";
     public Guid Id => Item.Id;
     public string Priority => Item.Classification.Priority.ToString();
     public bool IsMeeting => Item.Source == Source.Calendar;

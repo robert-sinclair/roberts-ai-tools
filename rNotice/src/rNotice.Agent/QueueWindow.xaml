@@ -24,6 +24,13 @@
                     <TextBlock Text="{Binding Meta}" Opacity="0.75" FontSize="12" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding Snoozed}" Opacity="0.75" FontSize="12" FontStyle="Italic"
                                Visibility="{Binding IsSnoozed, Converter={StaticResource Visible}}" />
+                    <!-- The case number as a link to the internal Salesforce record. -->
+                    <TextBlock FontSize="12" Margin="0,1,0,0"
+                               Visibility="{Binding HasCaseLink, Converter={StaticResource Visible}}">
+                        <Hyperlink NavigateUri="{Binding Item.CaseUrl}" RequestNavigate="OnCaseLink">
+                            <Run Text="{Binding CaseLinkText, Mode=OneWay}" />
+                        </Hyperlink>
+                    </TextBlock>
                 </StackPanel>
             </Grid>
             <DataTemplate.Triggers>
@@ -129,6 +136,11 @@
                         <!-- Read-only text boxes that look like plain text, so the title, the line
                              and the reason can be selected and copied like the excerpt below. -->
                         <TextBox x:Name="DetailTitle" Style="{StaticResource SelectableText}" FontWeight="SemiBold" FontSize="16" />
+                        <TextBlock x:Name="DetailCase" Margin="0,2,0,0" Visibility="Collapsed">
+                            <Hyperlink x:Name="DetailCaseLink" RequestNavigate="OnCaseLink">
+                                <Run x:Name="DetailCaseText" />
+                            </Hyperlink>
+                        </TextBlock>
                         <TextBox x:Name="DetailMeta" Style="{StaticResource SelectableText}" Opacity="0.75" Margin="0,4,0,0" />
                         <TextBox x:Name="DetailReason" Style="{StaticResource SelectableText}" FontStyle="Italic" Opacity="0.85" Margin="0,4,0,0" />
                         <!-- Read-only text box, so the excerpt can be selected and copied. -->

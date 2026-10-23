@@ -291,8 +291,44 @@ internal sealed class AgentHost(Application app) : IDisposable
             Log.Info("Mail skipped: " + string.Join(", ", report.Skipped
                 .GroupBy(s => s.Reason).Select(g => $"{g.Count()} {g.Key.ToLowerInvariant()}")));
 
+        await LinkCasesAsync(now);
+
         var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Mail);
         return $"{open} in Intake";
+    }
+
+    /// <summary>
+    /// For open mail about a Salesforce case, finds the case's record ID in a Salesforce link —
+    /// in the excerpt if it's there, otherwise by reading that one message's body — and stores
+    /// the internal Lightning link. The body isn't kept. Each item is looked at once (an empty
+    /// link means "looked, none"), at most ten a poll so a backlog doesn't stall the refresh.
+    /// </summary>
+    private async Task LinkCasesAsync(DateTimeOffset now)
+    {
+        var pending = _store.List(Stage.Intake, Stage.Planned)
+            .Where(i => i.Source == Source.Mail && i.CaseUrl is null &&
+                        (CaseLinks.FindCaseNumber(i.Title) ?? CaseLinks.FindCaseNumber(i.Snippet)) is not null)
+            .Take(10)
+            .ToList();
+        if (pending.Count == 0) return;
+
+        var found = 0;
+        foreach (var item in pending)
+        {
+            var id = CaseLinks.FindRecordId(item.Snippet);
+            if (id is null)
+            {
+                try { id = CaseLinks.FindRecordId(await _mail.GetBodyAsync(item.SourceId, CancellationToken.None)); }
+                catch (GraphException ex) when (ex.IsNotFound) { /* gone from the mailbox */ }
+            }
+
+            // Re-read: the await gave you time to plan or dismiss it, and that must not be undone.
+            if (_store.Get(item.Id) is not { } current) continue;
+            var url = id is null ? "" : CaseLinks.LightningUrl(_settings.SalesforceUrl, id);
+            _store.Save(current with { CaseUrl = url }, now);
+            if (id is not null) found++;
+        }
+        Log.Info($"Salesforce: linked {found} of {pending.Count} case email(s)");
     }
 
     /// <summary>Each distinct skip is logged once, not every poll.</summary>

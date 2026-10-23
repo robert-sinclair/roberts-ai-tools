@@ -38,6 +38,14 @@ On first run it reads the last 3 days (`mailBackfillDays`) and puts them in the 
 toasting. Only mail that arrives while it's running interrupts you. A message you delete or
 move out of the inbox drops out of Intake.
 
+**Salesforce cases.** Mail about a case — *Case Assignment: 00038001*, *Needs attention: Case
+00037339* — gets a **Case 00038001 in Salesforce ↗** link under the item and in the detail pane,
+and *Open case … in Salesforce* on the right-click menu. It opens the internal Lightning record
+(`salesforceUrl` in `settings.json`), not the customer portal. No Salesforce sign-in: the record
+ID comes from the Salesforce link inside the message — from the excerpt when it's there,
+otherwise by reading that one message's full text once, keeping only the ID. A case email with
+no Salesforce link in it gets no link.
+
 **Reporting spam.** Right-click a mail item → **Ignore and report spam** → the address, or
 everyone at their domain. rNotice ignores and dismisses as above, then opens the message in
 Outlook so you click **Report** there. rNotice doesn't report it itself: Graph's report API is

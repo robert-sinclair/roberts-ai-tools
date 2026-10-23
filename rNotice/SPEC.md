@@ -190,6 +190,18 @@ an entry clears the inbox `deltaLink` so the backfill window is re-read: mail th
 while ignored comes back, quietly, and dismissed items stay dismissed. This makes
 `settings.json` app-written at runtime, so a file that fails to load is never overwritten.
 
+**Salesforce case links (0.5.1, 2026-10-23).** Mail whose subject or excerpt names a case
+(`Case … 00038001`) gets the case's internal Lightning link, built from the Case record ID
+(key prefix `500`) found in a Salesforce link in the message: `my.salesforce.com/500…` or
+`…/lightning/r/Case/500…/view`. Salesforce's 15-character IDs are converted to 18 with its
+checksum, so the link matches Lightning's. No Salesforce API, no sign-in. When the ID isn't in
+the excerpt, rNotice reads that **one message's body once** (`Mail.Read`, already granted),
+keeps the ID and drops the body — so "rNotice never stores a full body" still holds. Checked on
+real mail: *Case Assignment* carries `<a href="…my.salesforce.com/500N300001Mapmw">00038001</a>`
+past the excerpt; *Needs attention* has the portal link in the excerpt. A case email with no
+Salesforce link gets nothing; resolving a bare case number needs the Salesforce API or
+Claude's Salesforce connector (steps 9–10).
+
 **Reporting spam, by decision (2026-10-22): rNotice hands it to Outlook.** Graph's
 `reportMessage` is beta-only and needs `Mail.ReadWrite`
 ([reportMessage](https://learn.microsoft.com/en-us/graph/api/message-reportmessage?view=graph-rest-beta)),

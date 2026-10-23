@@ -74,6 +74,12 @@ public sealed record AgentSettings
     /// </summary>
     public bool HideFromCapture { get; init; } = true;
 
+    /// <summary>
+    /// Your Salesforce org's internal (Lightning) address. Case links in mail are rewritten to
+    /// open here, not on the customer portal.
+    /// </summary>
+    public string SalesforceUrl { get; init; } = "https://bravurasecurity.lightning.force.com";
+
     /// <summary>The duration the Plan dialog starts on.</summary>
     public int PlanMinutes { get; init; } = 30;
 

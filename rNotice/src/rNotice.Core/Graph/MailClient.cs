@@ -104,6 +104,18 @@ public sealed class MailClient(GraphClient graph)
     }
 
     /// <summary>
+    /// One message's full body, for picking a link out of it. The caller keeps what it needs —
+    /// a Salesforce record ID — and drops the body: rNotice never stores a full message.
+    /// </summary>
+    public async Task<string> GetBodyAsync(string messageId, CancellationToken ct)
+    {
+        var m = await _graph.GetAsync($"/me/messages/{Uri.EscapeDataString(messageId)}?$select=body", ct).ConfigureAwait(false);
+        return m.TryGetProperty("body", out var body) && body.TryGetProperty("content", out var content)
+            ? content.GetString() ?? ""
+            : "";
+    }
+
+    /// <summary>
     /// A full message, or null for an entry that only says something changed — delta also
     /// reports read/unread flips, which may not carry the selected fields. Those are picked up
     /// separately as read changes.
