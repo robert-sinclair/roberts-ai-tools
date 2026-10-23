@@ -61,12 +61,15 @@
                     <TextBlock x:Name="DayLabel" FontWeight="SemiBold" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </DockPanel>
 
-                <ScrollViewer x:Name="DayScroll" Height="520" VerticalScrollBarVisibility="Auto">
+                <!-- Docked items must come before the filler: the last child of a DockPanel takes
+                     the remaining space, so the grid goes last to get the full width. -->
+                <TextBlock x:Name="Legend" DockPanel.Dock="Bottom" FontSize="11" Opacity="0.7" Margin="0,6,0,0" TextWrapping="Wrap" />
+
+                <ScrollViewer x:Name="DayScroll" Height="520" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
                     <Grid x:Name="DayCells" Background="Transparent"
                           MouseLeftButtonDown="OnCellsDown" MouseMove="OnCellsMove" MouseLeftButtonUp="OnCellsUp" />
                 </ScrollViewer>
-
-                <TextBlock x:Name="Legend" DockPanel.Dock="Bottom" FontSize="11" Opacity="0.7" Margin="0,6,0,0" />
             </DockPanel>
         </Grid>
     </DockPanel>
