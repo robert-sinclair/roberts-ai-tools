@@ -155,7 +155,14 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     /// <summary>A case number with a Lightning link found for it.</summary>
     public bool HasCaseLink => !string.IsNullOrEmpty(Item.CaseUrl) && CaseNumber is not null;
 
-    public string CaseLinkText => $"Case {CaseNumber} in Salesforce ↗";
+    // The title split around the case number, so the list can show the number itself as the
+    // link — inline, as the detail pane does, without a line of its own.
+    private int CaseAt => HasCaseLink ? Item.Title.IndexOf(CaseNumber!, StringComparison.Ordinal) : -1;
+
+    public bool HasCaseInTitle => CaseAt >= 0;
+    public bool HasPlainTitle => !HasCaseInTitle;
+    public string TitleLead => HasCaseInTitle ? Item.Title[..CaseAt] : Item.Title;
+    public string TitleTail => HasCaseInTitle ? Item.Title[(CaseAt + CaseNumber!.Length)..] : "";
     public Guid Id => Item.Id;
     public string Priority => Item.Classification.Priority.ToString();
     public bool IsMeeting => Item.Source == Source.Calendar;

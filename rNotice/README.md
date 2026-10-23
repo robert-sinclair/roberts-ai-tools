@@ -44,7 +44,7 @@ and stats rebuild*** — and a notification. The meeting's name is a link: click
 the detail pane, with the calendar on its day. Plan the task again and the note goes.
 
 **Salesforce cases.** Mail about a case — *Case Assignment: 00038001*, *Needs attention: Case
-00037339* — gets a **Case 00038001 in Salesforce ↗** link under the item, the case number itself is a link in the detail pane's title and excerpt,
+00037339* — has its case number turned into a link — in the item's title in the Intake list, and in the detail pane's title and excerpt —
 and *Open case … in Salesforce* on the right-click menu. It opens the internal Lightning record
 (`salesforceUrl` in `settings.json`), not the customer portal. No Salesforce sign-in: the record
 ID comes from the Salesforce link inside the message — from the excerpt when it's there,

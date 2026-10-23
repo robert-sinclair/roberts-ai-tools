@@ -20,7 +20,11 @@
                                HorizontalAlignment="Center" />
                 </Border>
                 <StackPanel Grid.Column="1">
-                    <TextBlock x:Name="ItemTitle" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ItemTitle" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasPlainTitle, Converter={StaticResource Visible}}" />
+                    <!-- A case in the title: the case number itself is the link to Salesforce. -->
+                    <TextBlock x:Name="ItemTitleWithCase" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding HasCaseInTitle, Converter={StaticResource Visible}}"><Run Text="{Binding TitleLead, Mode=OneWay}" /><Hyperlink NavigateUri="{Binding Item.CaseUrl}" RequestNavigate="OnCaseLink" ToolTip="Open the case in Salesforce"><Run Text="{Binding CaseNumber, Mode=OneWay}" /></Hyperlink><Run Text="{Binding TitleTail, Mode=OneWay}" /></TextBlock>
                     <TextBlock Text="{Binding Meta}" Opacity="0.75" FontSize="12" TextTrimming="CharacterEllipsis" />
                     <!-- rNotice's note. For a clash, the meeting's name is a link that shows the meeting. -->
                     <TextBlock Foreground="#B5651D" FontSize="12" FontStyle="Italic" TextWrapping="Wrap"
@@ -31,13 +35,6 @@
                                Visibility="{Binding HasPlainNote, Converter={StaticResource Visible}}" />
                     <TextBlock Text="{Binding Snoozed}" Opacity="0.75" FontSize="12" FontStyle="Italic"
                                Visibility="{Binding IsSnoozed, Converter={StaticResource Visible}}" />
-                    <!-- The case number as a link to the internal Salesforce record. -->
-                    <TextBlock FontSize="12" Margin="0,1,0,0"
-                               Visibility="{Binding HasCaseLink, Converter={StaticResource Visible}}">
-                        <Hyperlink NavigateUri="{Binding Item.CaseUrl}" RequestNavigate="OnCaseLink">
-                            <Run Text="{Binding CaseLinkText, Mode=OneWay}" />
-                        </Hyperlink>
-                    </TextBlock>
                 </StackPanel>
             </Grid>
             <DataTemplate.Triggers>
@@ -55,6 +52,7 @@
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Item.IsRead}" Value="True">
                     <Setter TargetName="ItemTitle" Property="FontWeight" Value="Normal" />
+                    <Setter TargetName="ItemTitleWithCase" Property="FontWeight" Value="Normal" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
