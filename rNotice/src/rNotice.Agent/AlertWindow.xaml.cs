@@ -150,10 +150,16 @@ public partial class AlertWindow : Window
     private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
     private void OnOpen(object sender, RoutedEventArgs e) => AgentHost.OpenLink(ItemOf(sender)?.SourceRef);
 
+    /// <summary>
+    /// Opens the call and takes the meeting off this window. It doesn't mark the meeting done:
+    /// the item goes by itself when the meeting ends, and a Done meeting that's later moved used
+    /// to miss its alert at the new time.
+    /// </summary>
     private void OnJoin(object sender, RoutedEventArgs e)
     {
         AgentHost.OpenLink(ItemOf(sender)?.JoinUrl);
-        _host.SetStage(IdOf(sender), Stage.Done);
+        _shown.Remove(IdOf(sender));
+        Reload();
     }
 
     private void OnSnoozeLoaded(object sender, RoutedEventArgs e) =>

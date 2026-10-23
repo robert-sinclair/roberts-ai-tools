@@ -234,6 +234,9 @@ public partial class QueueWindow : Window
             menu.Items.Add(Entry(item.Stage == Stage.Intake ? "Plan…" : "Change plan…", "P", () => _host.Plan(item.Id, this)));
         if (item.Stage != Stage.Done)
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
+        else
+            // Undo a Mark done. A meeting that has moved since will alert at its new time.
+            menu.Items.Add(Entry("Move back to Planned", "", () => _host.SetStage(item.Id, Stage.Planned)));
         if (item.IsOpen && view.CanSnooze)
             menu.Items.Add(Entry($"Snooze {_host.SnoozeMinutes} min", "S", () => { _host.Snooze(item.Id); Advance(list); }));
         menu.Items.Add(Entry("Dismiss", "Del", () => _host.SetStage(item.Id, Stage.Dismissed)));

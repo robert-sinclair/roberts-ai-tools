@@ -44,6 +44,7 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             if (result.Skipped) { skipped.Add((e.Id, result.SkipReason!)); continue; }
 
             live.Add(e.Id);
+            var before = _store.GetBySource(Source.Calendar, e.Id);
             var ingest = _store.Ingest(result.Item!, nowUtc);
             switch (ingest.Outcome)
             {
@@ -55,6 +56,12 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             // items stored before meetings started entering as Planned.
             if (ingest.Item is { Stage: Stage.Intake } stale)
                 _store.Save(stale with { Stage = Stage.Planned }, nowUtc);
+
+            // Moved to a new time after you'd marked it done: it's a meeting you still have to
+            // go to. Back to Planned, so it alerts at the new time — the merge has already
+            // re-armed it.
+            if (before is { Stage: Stage.Done } && ingest.Item is { } moved && moved.DueUtc != before.DueUtc)
+                _store.Save(moved with { Stage = Stage.Planned }, nowUtc);
         }
 
         foreach (var item in _store.List().Where(i => i.Source == Source.Calendar && !live.Contains(i.SourceId)))

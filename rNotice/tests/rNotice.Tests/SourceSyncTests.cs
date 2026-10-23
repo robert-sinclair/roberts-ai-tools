@@ -62,6 +62,21 @@ public sealed class SourceSyncTests : IDisposable
     }
 
     [Fact]
+    public void A_done_meeting_moved_to_a_new_time_comes_back_to_Planned_and_rearmed()
+    {
+        _sync.SyncCalendar([Ev("a", inMinutes: 0)], Now);
+        _store.Save(Assert.Single(_store.List()) with { Stage = Stage.Done, LastFiredUtc = Now }, Now);
+
+        // Rescheduled to 70 minutes from now.
+        _sync.SyncCalendar([Ev("a", inMinutes: 70)], Now);
+
+        var item = Assert.Single(_store.List());
+        Assert.Equal(Stage.Planned, item.Stage);
+        Assert.Null(item.LastFiredUtc);
+        Assert.Equal(Now.AddMinutes(70), item.DueUtc);
+    }
+
+    [Fact]
     public void Completed_meeting_stays_completed()
     {
         _sync.SyncCalendar([Ev("a")], Now);
