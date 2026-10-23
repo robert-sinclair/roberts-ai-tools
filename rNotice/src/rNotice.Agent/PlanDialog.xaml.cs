@@ -234,7 +234,9 @@ public partial class PlanDialog : Window
         _selStart = startUtc;
         _selMinutes = minutes;
         var day = DateOnly.FromDateTime(Local(startUtc));
-        if (showDay && day != _shownDay) ShowDay(day);
+        // Build the day if it's a different one — or if no day has been drawn yet. On open the
+        // first suggestion is usually today, which "a different day" alone never caught.
+        if (showDay && (day != _shownDay || _cellViews.Count == 0)) ShowDay(day);
         else Paint();
         ScrollToSelection();
     }
