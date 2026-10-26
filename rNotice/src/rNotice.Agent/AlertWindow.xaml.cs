@@ -164,7 +164,13 @@ public partial class AlertWindow : Window
     private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
     private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
     private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
-    private void OnSnoozeMeeting(object sender, RoutedEventArgs e) => _host.SnoozeMeeting(IdOf(sender));
+    /// <summary>Off this window either way: snoozed for real, or just closed if it was a preview.</summary>
+    private void OnSnoozeMeeting(object sender, RoutedEventArgs e)
+    {
+        _host.SnoozeMeeting(IdOf(sender));
+        _shown.Remove(IdOf(sender));
+        Reload();
+    }
 
     private void OnSnoozeMeetingLoaded(object sender, RoutedEventArgs e) =>
         ((Button)sender).Content = $"Snooze until {_host.MeetingSnoozeSeconds}s before";

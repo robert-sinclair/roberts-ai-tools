@@ -651,11 +651,13 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     /// <summary>
     /// Takes a meeting's alert and dim away until <c>meetingSnoozeSeconds</c> before it starts,
-    /// then brings both back. Does nothing if that moment has already passed.
+    /// then brings both back. Does nothing if that moment has already passed, or if the real
+    /// alert hasn't fired yet — a preview — so previewing never moves the real takeover.
     /// </summary>
     public void SnoozeMeeting(Guid id)
     {
-        if (_store.Get(id) is not { DueUtc: { } start }) return;
+        if (_store.Get(id) is not { DueUtc: { } start } item) return;
+        if (item.LastFiredUtc is null && item.FireAtUtc > DateTimeOffset.UtcNow) return;
         var until = start.AddSeconds(-_settings.MeetingSnoozeSeconds);
         var wait = until - DateTimeOffset.UtcNow;
         if (wait <= TimeSpan.Zero) return;
