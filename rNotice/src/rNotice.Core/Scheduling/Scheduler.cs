@@ -70,10 +70,24 @@ public sealed class Scheduler(SchedulerOptions options)
 
     public static Item MarkFired(Item item, DateTimeOffset nowUtc) => item with { LastFiredUtc = nowUtc };
 
-    private static bool IsDue(Item item, DateTimeOffset nowUtc)
+    /// <summary>
+    /// The item's own interrupt, raised to <see cref="SchedulerOptions.PlanInterrupt"/> for a
+    /// task you planned with a time. Meetings keep their own: they're already takeovers.
+    /// </summary>
+    private Interrupt BaseInterrupt(Item item)
+    {
+        var own = item.Classification.Interrupt;
+        var planned = item.Stage == Stage.Planned && item.PlannedStartUtc is not null && item.Source != Source.Calendar;
+        return planned && _options.PlanInterrupt > own ? _options.PlanInterrupt : own;
+    }
+
+    /// <summary>When the thing starts: a meeting's start, or a task's planned start.</summary>
+    private static DateTimeOffset? StartOf(Item item) => item.Source == Source.Calendar ? item.DueUtc : item.PlannedStartUtc ?? item.DueUtc;
+
+    private bool IsDue(Item item, DateTimeOffset nowUtc)
     {
         if (!item.IsOpen || item.AckedAtUtc is not null || item.LastFiredUtc is not null) return false;
-        if (item.Classification.Interrupt == Interrupt.Silent) return false;
+        if (BaseInterrupt(item) == Interrupt.Silent) return false;
         if (item.FireAtUtc is not { } fireAt) return false;
 
         var effective = item.SnoozedUntilUtc is { } snooze && snooze > fireAt ? snooze : fireAt;
@@ -89,8 +103,8 @@ public sealed class Scheduler(SchedulerOptions options)
     /// </summary>
     private Interrupt EffectiveInterrupt(Item item, DateTimeOffset nowUtc)
     {
-        var interrupt = item.Classification.Interrupt;
-        if (interrupt == Interrupt.Takeover && item.DueUtc is { } start &&
+        var interrupt = BaseInterrupt(item);
+        if (interrupt == Interrupt.Takeover && StartOf(item) is { } start &&
             nowUtc > start.AddSeconds(_options.TakeoverGraceSeconds))
         {
             return item.Source == Source.Calendar ? Interrupt.Silent : Interrupt.Alert;

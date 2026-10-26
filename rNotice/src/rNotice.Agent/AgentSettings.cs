@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using rNotice.Core.Items;
 using rNotice.Core.Rules;
 using rNotice.Core.Scheduling;
 
@@ -60,6 +61,12 @@ public sealed record AgentSettings
 
     /// <summary>How dark the takeover dims every monitor: 0.1 (barely) to 0.9 (nearly black).</summary>
     public double TakeoverDim { get; init; } = 0.45;
+
+    /// <summary>
+    /// How a planned task interrupts at its time: Takeover (dim every monitor, window on top),
+    /// Alert (window only) or Toast. Never quieter than the item's own classification.
+    /// </summary>
+    public Interrupt PlanInterrupt { get; init; } = Interrupt.Takeover;
 
     /// <summary>
     /// How long the takeover ignores clicks after it appears, so a click already on its way
@@ -139,7 +146,8 @@ public sealed record AgentSettings
     public SchedulerOptions ToSchedulerOptions() => new()
     {
         TakeoverGraceSeconds = TakeoverGraceSeconds,
-        QuietHours = QuietHours is { } q ? new QuietHours(q.Start, q.End, TimeZoneInfo.Local) : null
+        QuietHours = QuietHours is { } q ? new QuietHours(q.Start, q.End, TimeZoneInfo.Local) : null,
+        PlanInterrupt = PlanInterrupt
     };
 
     /// <summary>

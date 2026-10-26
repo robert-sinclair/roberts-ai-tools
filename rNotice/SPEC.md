@@ -108,9 +108,9 @@ What follows from that:
   rNotice** (`JoinedUtc`) and shows a started meeting as *in progress* until then. Join no
   longer marks a meeting Done — a Done meeting that was then moved never alerted at its new
   time — and a Done meeting whose start changes goes back to Planned.
-  **`Presence.Read` requested from IT on 2026-10-23** (`IT-REQUEST-PRESENCE.md`). **On hold:
-  nothing is built on presence until IT confirms the grant.** The probe will show whether it
-  arrived.
+  **`Presence.Read` requested from IT on 2026-10-23** (`IT-REQUEST-PRESENCE.md`) and **granted:
+  confirmed live on 2026-10-26** — a silent token carried it and `GET /me/presence` returned 200.
+  Building on it is build step 11.
 - **No "rebook" action, by decision (2026-10-22).** Moving a meeting happens in Outlook, and
   **Open in Outlook** gets you there from the alert and the queue. Moving it back to Intake was
   considered and dropped: it conflicts with the rule above. A "needs rebooking" flag that kept
@@ -1252,6 +1252,18 @@ one means a poller and a mapping, nothing structural.
 9. `rNotice.Mcp` + pipe protocol. **Includes the workbook acknowledge write-back** (from step
    4), proven by the 2026-10-21 spike, for `acknowledge_action`.
 10. Skill, README, install script.
+11. **Presence: joined detection.** Added 2026-10-26, after `Presence.Read` was granted. While
+    a meeting is in progress, read your own presence once a minute; if Teams shows you in a
+    call, in a meeting or presenting, mark the meeting joined (green), as Join in rNotice does.
+    Kept to what was promised to IT: your own presence only, the `activity` field only, nothing
+    stored, polled only while a meeting is under way.
+
+**Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
+that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
+top). Before this a plan kept the classification of the mail or chat it came from — usually
+`P3`/`silent` while there's no classifier — and the scheduler skips silent items, so four planned
+tasks on 2026-10-26 passed without a sound. A plan found more than `takeoverGraceSeconds` after
+its start (rNotice was off) comes up once as an ordinary alert, without the dim.
 
 Step 3 is a genuinely useful app on its own. Each of 5, 6 and 7 adds a source or a capability
 that someone might veto — mail scope, Teams scope, API egress — and each is severable. **If any

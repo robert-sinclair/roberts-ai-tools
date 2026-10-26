@@ -13,6 +13,39 @@ public class SchedulerTests
     private static IReadOnlyList<BusyBlock> InMeeting(ShowAs showAs = ShowAs.Busy, int endsInMinutes = 30) =>
         [new BusyBlock(Now.AddMinutes(-10), Now.AddMinutes(endsInMinutes), showAs)];
 
+    /// <summary>A quiet Teams message or mail, which you then planned for a time.</summary>
+    private static Item PlannedQuiet(DateTimeOffset start) =>
+        (Item(Interrupt.Silent, Priority.P3) with { Source = Source.Teams }).Plan(start, 30);
+
+    [Fact]
+    public void A_planned_task_takes_over_at_its_time_even_if_it_came_in_silent()
+    {
+        var task = PlannedQuiet(Now.AddMinutes(10));
+
+        Assert.True(_scheduler.Tick([task], Now.AddMinutes(9), Free).IsEmpty);
+        Assert.Single(_scheduler.Tick([task], Now.AddMinutes(10), Free).Takeovers);
+    }
+
+    [Fact]
+    public void How_a_plan_interrupts_is_a_setting()
+    {
+        var alerts = new Scheduler(new SchedulerOptions { PlanInterrupt = Interrupt.Alert });
+        Assert.Single(alerts.Tick([PlannedQuiet(Now)], Now, Free).Alerts);
+    }
+
+    [Fact]
+    public void A_plan_found_long_after_its_start_comes_up_as_an_ordinary_alert()
+    {
+        // rNotice was off at 10:30 and started at 11:00: still overdue work, but no dim.
+        var result = _scheduler.Tick([PlannedQuiet(Now.AddMinutes(-30))], Now, Free);
+        Assert.Single(result.Alerts);
+        Assert.Empty(result.Takeovers);
+    }
+
+    [Fact]
+    public void A_silent_item_with_no_plan_stays_silent() =>
+        Assert.True(_scheduler.Tick([Item(Interrupt.Silent, Priority.P3, fireAt: Now)], Now, Free).IsEmpty);
+
     [Fact]
     public void A_meeting_snoozed_to_just_before_its_start_comes_back_as_a_takeover()
     {

@@ -116,7 +116,8 @@ text, or `/regex/`), `rules.horizonDays`, `quietHours` (`{"start":"22:00","end":
 `snoozeMinutes`, `refreshSeconds` (how often the calendar and workbook are checked; default 60,
 minimum 30), `promoteByDefault` (whether planning ticks "Put it on my Outlook calendar"; default
 true), `planAlertLeadMinutes` (how early rNotice alerts for a task on your calendar; default 5),
-`teamsEnabled` (default true), `teamsBackfillHours` (default 24).
+`teamsEnabled` (default true), `teamsBackfillHours` (default 24), `planInterrupt` (how a planned
+task interrupts at its time: `Takeover` — the default, dims every monitor — `Alert` or `Toast`).
 
 **Auto refresh.** Both sources are checked every minute. The queue footer counts down to the next
 check, shows *Refreshing…* while one runs, and keeps your scroll position when the lists update.

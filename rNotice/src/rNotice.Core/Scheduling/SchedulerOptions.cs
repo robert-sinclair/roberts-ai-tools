@@ -1,3 +1,4 @@
+using rNotice.Core.Items;
 using rNotice.Core.Sources;
 
 namespace rNotice.Core.Scheduling;
@@ -45,4 +46,11 @@ public sealed record SchedulerOptions
     public int TakeoverGraceSeconds { get; init; } = 300;
 
     public QuietHours? QuietHours { get; init; }
+
+    /// <summary>
+    /// How a task you planned with a time interrupts when its time comes, at the least. The
+    /// plan is your decision that it matters then, so it never inherits a silent classification
+    /// from the mail or chat it came from. Found 2026-10-26: four planned tasks passed silently.
+    /// </summary>
+    public Interrupt PlanInterrupt { get; init; } = Interrupt.Takeover;
 }
