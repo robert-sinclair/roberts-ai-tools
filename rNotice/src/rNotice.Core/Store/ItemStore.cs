@@ -75,6 +75,7 @@ public sealed class ItemStore : IDisposable
         if (!columns.Contains("promote")) Execute("ALTER TABLE items ADD COLUMN promote INTEGER NOT NULL DEFAULT 0");
         if (!columns.Contains("calendar_start_utc")) Execute("ALTER TABLE items ADD COLUMN calendar_start_utc INTEGER");
         if (!columns.Contains("calendar_end_utc")) Execute("ALTER TABLE items ADD COLUMN calendar_end_utc INTEGER");
+        if (!columns.Contains("title_edited")) Execute("ALTER TABLE items ADD COLUMN title_edited INTEGER NOT NULL DEFAULT 0");
     }
 
     private void CreateSchema() => Execute("""
@@ -105,6 +106,7 @@ public sealed class ItemStore : IDisposable
             promote           INTEGER NOT NULL DEFAULT 0,
             calendar_start_utc INTEGER,
             calendar_end_utc  INTEGER,
+            title_edited      INTEGER NOT NULL DEFAULT 0,
             updated_utc       INTEGER NOT NULL,
             title             BLOB NOT NULL,
             reason            BLOB NOT NULL,
@@ -185,21 +187,21 @@ public sealed class ItemStore : IDisposable
         cmd.CommandText = """
             INSERT INTO items (id, source, source_id, stage, priority, interrupt, classified_by,
                 received_utc, due_utc, fire_at_utc, planned_start_utc, acked_at_utc,
-                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, note, note_link, promote, calendar_start_utc, calendar_end_utc, updated_utc,
+                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, note, note_link, promote, calendar_start_utc, calendar_end_utc, title_edited, updated_utc,
                 title, reason, snippet, sender, source_ref, join_url)
             VALUES ($id, $source, $source_id, $stage, $priority, $interrupt, $classified_by,
                 $received_utc, $due_utc, $fire_at_utc, $planned_start_utc, $acked_at_utc,
-                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $note, $note_link, $promote, $calendar_start_utc, $calendar_end_utc, $updated_utc,
+                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $note, $note_link, $promote, $calendar_start_utc, $calendar_end_utc, $title_edited, $updated_utc,
                 $title, $reason, $snippet, $sender, $source_ref, $join_url)
             ON CONFLICT (id) DO UPDATE SET
-                stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
+                source_id = excluded.source_id, stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
                 classified_by = excluded.classified_by, received_utc = excluded.received_utc, due_utc = excluded.due_utc,
                 fire_at_utc = excluded.fire_at_utc, planned_start_utc = excluded.planned_start_utc,
                 acked_at_utc = excluded.acked_at_utc, snoozed_until_utc = excluded.snoozed_until_utc,
                 last_fired_utc = excluded.last_fired_utc, calendar_event_id = excluded.calendar_event_id,
                 is_read = excluded.is_read, planned_minutes = excluded.planned_minutes, joined_utc = excluded.joined_utc, case_url = excluded.case_url, note = excluded.note, note_link = excluded.note_link, promote = excluded.promote,
                 calendar_start_utc = excluded.calendar_start_utc, calendar_end_utc = excluded.calendar_end_utc,
-                updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
+                title_edited = excluded.title_edited, updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
                 snippet = excluded.snippet, sender = excluded.sender,
                 source_ref = excluded.source_ref, join_url = excluded.join_url;
             """;
@@ -229,6 +231,7 @@ public sealed class ItemStore : IDisposable
         p.AddWithValue("$promote", item.PromoteToCalendar ? 1 : 0);
         p.AddWithValue("$calendar_start_utc", Ms(item.CalendarStartUtc));
         p.AddWithValue("$calendar_end_utc", Ms(item.CalendarEndUtc));
+        p.AddWithValue("$title_edited", item.TitleEdited ? 1 : 0);
         p.AddWithValue("$updated_utc", nowUtc.ToUnixTimeMilliseconds());
         p.AddWithValue("$title", _protector.Protect(item.Title));
         p.AddWithValue("$reason", _protector.Protect(item.Classification.Reason));
@@ -372,6 +375,7 @@ public sealed class ItemStore : IDisposable
                 PromoteToCalendar = r.GetInt64(r.GetOrdinal("promote")) != 0,
                 CalendarStartUtc = Time(r, "calendar_start_utc"),
                 CalendarEndUtc = Time(r, "calendar_end_utc"),
+                TitleEdited = r.GetInt64(r.GetOrdinal("title_edited")) != 0,
                 Title = Open(r, "title")!,
                 Snippet = Open(r, "snippet"),
                 From = Open(r, "sender"),

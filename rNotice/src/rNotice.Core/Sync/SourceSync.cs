@@ -186,6 +186,10 @@ public sealed class SourceSync(ItemStore store, Intake intake)
     /// to Intake if you'd marked it done or dismissed it — it's something new to answer. An older
     /// message coming back (edited, or a reaction added) never overwrites a newer one.
     ///
+    /// <b>A planned one-on-one item is frozen.</b> It keeps the message you planned and its link;
+    /// a newer message in that chat starts a new Intake item instead of rewriting your plan. An
+    /// edit or reaction to a message no newer than the frozen one adds nothing.
+    ///
     /// Your own reply, newer than the message the item shows, moves an Intake item to Done:
     /// you've answered it. A planned one stays planned — you planned it for a reason.
     /// </summary>
@@ -214,6 +218,24 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             if (nowUtc - item.ReceivedUtc > MailAlertWindow)
                 item = item with { LastFiredUtc = nowUtc };   // backlog: queue, don't interrupt
 
+            if (message.ChatType == ChatType.OneOnOne && FrozenFrom(message.ChatId).Any(f => f.ReceivedUtc >= item.ReceivedUtc))
+            {
+                skipped.Add((message.Id, "Already planned from this chat"));
+                continue;
+            }
+
+            if (_store.GetBySource(Source.Teams, item.SourceId) is { Stage: Stage.Planned } planned &&
+                message.ChatType == ChatType.OneOnOne)
+            {
+                if (item.ReceivedUtc <= planned.ReceivedUtc)
+                {
+                    skipped.Add((message.Id, "Already planned from this chat"));
+                    continue;
+                }
+                // Freeze the plan under a key of its own; the chat id is free for the new message.
+                _store.Save(planned with { SourceId = FrozenKey(planned) }, nowUtc);
+            }
+
             if (_store.GetBySource(Source.Teams, item.SourceId) is { } existing)
             {
                 if (item.ReceivedUtc < existing.ReceivedUtc)
@@ -240,6 +262,14 @@ public sealed class SourceSync(ItemStore store, Intake intake)
 
         return new SyncReport(inserted, updated, 0, 0, skipped);
     }
+
+    private const string FrozenMarker = "|planned|";
+
+    private static string FrozenKey(Item planned) =>
+        planned.SourceId + FrozenMarker + planned.ReceivedUtc.ToUnixTimeMilliseconds();
+
+    private IEnumerable<Item> FrozenFrom(string chatId) =>
+        _store.List().Where(i => i.Source == Source.Teams && i.SourceId.StartsWith(chatId + FrozenMarker, StringComparison.Ordinal));
 
     private static string? Text(object? cell)
     {

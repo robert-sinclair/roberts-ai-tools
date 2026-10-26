@@ -477,6 +477,29 @@ internal sealed class AgentHost(Application app) : IDisposable
     public void SetStage(Guid id, Stage stage) => Update(id, i => i with { Stage = stage });
 
     /// <summary>
+    /// Your own title for an item. It survives later polls of the source; blank restores the
+    /// source's on the next one. An Outlook event rNotice made for it is renamed to match.
+    /// </summary>
+    public async void SetTitle(Guid id, string title)
+    {
+        if (_store.Get(id) is not { } before || before.Source == Source.Calendar) return;
+        Update(id, i => i.Rename(title));
+
+        if (_store.Get(id) is { CalendarEventId: { } eventId } after && after.Title != before.Title)
+        {
+            try
+            {
+                await _calendar.RenameEventAsync(eventId, after.Title, CancellationToken.None);
+                Log.Info($"Calendar: renamed the event for '{after.Title}'");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Calendar: couldn't rename the event for '{after.Title}'", ex);
+            }
+        }
+    }
+
+    /// <summary>
     /// Asks "when will you do it?" and plans the item. Every way of planning comes through here —
     /// P, the right-click menu, a drag from Intake, the alert's Plan button — so they all behave
     /// the same. Cancel changes nothing.

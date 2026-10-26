@@ -162,7 +162,12 @@
                         <StackPanel>
                             <TextBlock x:Name="DetailPlaceholder" Opacity="0.6" Text="Select an item to see it here." />
                             <StackPanel x:Name="DetailBody">
-                                <RichTextBox x:Name="DetailTitle" Style="{StaticResource SelectableRich}" FontWeight="SemiBold" FontSize="16" />
+                                <RichTextBox x:Name="DetailTitle" Style="{StaticResource SelectableRich}" FontWeight="SemiBold" FontSize="16"
+                                             MouseDoubleClick="OnTitleDoubleClick" ToolTip="Double-click or F2 to edit the title" />
+                                <TextBox x:Name="TitleEditor" FontWeight="SemiBold" FontSize="16" Visibility="Collapsed"
+                                         TextWrapping="Wrap" AcceptsReturn="False" Padding="2"
+                                         KeyDown="OnTitleEditorKey" LostKeyboardFocus="OnTitleEditorLostFocus"
+                                         ToolTip="Enter saves, Esc cancels. Clear it to go back to the original title." />
                                 <TextBox x:Name="DetailMeta" Style="{StaticResource SelectableText}" Opacity="0.75" Margin="0,4,0,0" />
                                 <RichTextBox x:Name="DetailNote" Style="{StaticResource SelectableRich}" Foreground="#B5651D" FontStyle="Italic" Margin="0,4,0,0" />
                                 <TextBox x:Name="DetailReason" Style="{StaticResource SelectableText}" FontStyle="Italic" Opacity="0.85" Margin="0,4,0,0" />

@@ -89,10 +89,19 @@ public sealed record Item
     public DateTimeOffset? CalendarStartUtc { get; init; }
     public DateTimeOffset? CalendarEndUtc { get; init; }
     public DateTimeOffset? AckedAtUtc { get; init; }
+
+    /// <summary>You renamed it. Your title then survives every later poll of the source.</summary>
+    public bool TitleEdited { get; init; }
+
     public DateTimeOffset? SnoozedUntilUtc { get; init; }
     public DateTimeOffset? LastFiredUtc { get; init; }
 
     public bool IsOpen => Stage is Stage.Intake or Stage.Planned;
+
+    /// <summary>Your own title for it. Blank puts the source's title back on the next poll.</summary>
+    public Item Rename(string title) => string.IsNullOrWhiteSpace(title)
+        ? this with { TitleEdited = false }
+        : this with { Title = title.Trim(), TitleEdited = true };
 
     /// <summary>Snoozing re-arms the item, so it fires again once the snooze ends.</summary>
     public Item Snooze(DateTimeOffset untilUtc) => this with { SnoozedUntilUtc = untilUtc, LastFiredUtc = null };
@@ -157,7 +166,7 @@ public sealed record Item
         return this with
         {
             SourceRef = incoming.SourceRef,
-            Title = incoming.Title,
+            Title = TitleEdited ? Title : incoming.Title,
             Snippet = incoming.Snippet,
             From = incoming.From,
             DueUtc = incoming.DueUtc,

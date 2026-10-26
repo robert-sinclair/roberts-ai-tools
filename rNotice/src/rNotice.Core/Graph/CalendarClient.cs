@@ -61,6 +61,9 @@ public sealed class CalendarClient(GraphClient graph)
         return created.GetProperty("id").GetString()!;
     }
 
+    public Task RenameEventAsync(string eventId, string subject, CancellationToken ct) =>
+        _graph.SendJsonAsync(HttpMethod.Patch, $"/me/events/{Uri.EscapeDataString(eventId)}", new { subject }, ct);
+
     public Task MoveEventAsync(string eventId, DateTimeOffset startUtc, DateTimeOffset endUtc, CancellationToken ct) =>
         _graph.SendJsonAsync(HttpMethod.Patch, $"/me/events/{Uri.EscapeDataString(eventId)}",
             new { start = When(startUtc), end = When(endUtc) }, ct);

@@ -223,6 +223,8 @@ public partial class QueueWindow : Window
         var caseUrl = view.HasCaseLink ? item.CaseUrl : null;
 
         // The case number is the link, in the title and in the excerpt — no separate line.
+        // A refresh mid-edit leaves the editor alone.
+        if (_editingTitle != item.Id) EndTitleEdit();
         SetRich(DetailTitle, view.Title, view.CaseNumber, caseUrl);
         DetailMeta.Text = view.Meta;
         SetNote(view);
@@ -590,6 +592,43 @@ public partial class QueueWindow : Window
 
     // ── Keys ────────────────────────────────────────────────────────────────────────────────
 
+    // ── Editing a title ─────────────────────────────────────────────────────────────────────
+
+    private Guid? _editingTitle;
+
+    private static bool CanEditTitle(Item item) => item.Source != Source.Calendar;
+
+    private void BeginTitleEdit()
+    {
+        if (SelectedItem() is not { } item || !CanEditTitle(item)) return;
+        _editingTitle = item.Id;
+        TitleEditor.Text = item.Title;
+        DetailTitle.Visibility = Visibility.Collapsed;
+        TitleEditor.Visibility = Visibility.Visible;
+        TitleEditor.Focus();
+        TitleEditor.SelectAll();
+    }
+
+    private void EndTitleEdit(bool save = false)
+    {
+        if (_editingTitle is not { } id) return;
+        _editingTitle = null;
+        TitleEditor.Visibility = Visibility.Collapsed;
+        DetailTitle.Visibility = Visibility.Visible;
+        if (save) _host.SetTitle(id, TitleEditor.Text);
+    }
+
+    private void OnTitleDoubleClick(object sender, MouseButtonEventArgs e) => BeginTitleEdit();
+
+    private void OnTitleEditorKey(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { EndTitleEdit(save: true); e.Handled = true; }
+        else if (e.Key == Key.Escape) { EndTitleEdit(); e.Handled = true; }
+    }
+
+    /// <summary>Clicking away saves, as in most rename boxes.</summary>
+    private void OnTitleEditorLostFocus(object sender, KeyboardFocusChangedEventArgs e) => EndTitleEdit(save: true);
+
     private void OnKey(object sender, KeyEventArgs e)
     {
         // Typing or copying in the detail pane — Ctrl+C there must copy, not mark done.
@@ -614,6 +653,7 @@ public partial class QueueWindow : Window
                 if (_area != Area.Calendar) Advance(ListFor(_area));
                 break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
+            case Key.F2 when selected is not null && CanEditTitle(selected): BeginTitleEdit(); break;
             default: return;
         }
         e.Handled = true;
@@ -672,6 +712,8 @@ public partial class QueueWindow : Window
                         _host.SetPromotion(item.Id, false);
                 }));
         }
+        if (CanEditTitle(item))
+            menu.Items.Add(Entry("Edit title", "F2", () => { Select(item, _area); BeginTitleEdit(); }));
         if (item.Stage != Stage.Done)
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
         else

@@ -33,8 +33,21 @@ public sealed class ItemStoreTests : IDisposable
         PlannedMinutes = 45,
         JoinedUtc = Now.AddMinutes(-1),
         CaseUrl = "https://bravurasecurity.lightning.force.com/lightning/r/Case/500N300001MapmwIAB/view",
-        Note = "Moved back: test"
+        Note = "Moved back: test",
+        TitleEdited = true
     };
+
+    [Fact]
+    public void A_renamed_source_key_moves_the_item_to_its_new_key()
+    {
+        var item = Item(sourceId: "chat-1");
+        _store.Save(item, Now);
+        _store.Save(item with { SourceId = "chat-1|planned|1" }, Now);
+
+        Assert.Null(_store.GetBySource(item.Source, "chat-1"));
+        using var fresh = new ItemStore(_path, new DpapiFieldProtector());
+        Assert.Equal("chat-1|planned|1", fresh.Get(item.Id)!.SourceId);
+    }
 
     [Fact]
     public void Round_trips_every_field()

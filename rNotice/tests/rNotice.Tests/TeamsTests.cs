@@ -190,6 +190,57 @@ public sealed class TeamsSyncTests : IDisposable
     }
 
     [Fact]
+    public void A_planned_chat_is_frozen_and_the_next_message_starts_a_new_item()
+    {
+        _sync.SyncTeams([Dm("1", 0, "Hey Rob look at this asap please 00039100")], Now);
+        var planned = DmItem.Plan(Now.AddHours(1), 30);
+        _store.Save(planned, Now);
+
+        _sync.SyncTeams([Dm("2", 10, "also, lunch?")], Now.AddMinutes(10));
+
+        var frozen = _store.Get(planned.Id)!;
+        Assert.Equal((Stage.Planned, "Hey Rob look at this asap please 00039100"), (frozen.Stage, frozen.Title));
+        Assert.Equal((Stage.Intake, "also, lunch?"), (DmItem.Stage, DmItem.Title));
+        Assert.NotEqual(planned.Id, DmItem.Id);
+    }
+
+    [Fact]
+    public void An_edit_to_the_planned_message_changes_nothing()
+    {
+        _sync.SyncTeams([Dm("1", 0, "look at this asap")], Now);
+        _store.Save(DmItem.Plan(Now.AddHours(1), 30), Now);
+
+        _sync.SyncTeams([Dm("1", 0, "look at this asap (edited)")], Now.AddMinutes(5));
+
+        Assert.Single(_store.List());
+        Assert.Equal("look at this asap", DmItem.Title);
+    }
+
+    [Fact]
+    public void After_freezing_an_old_message_coming_back_adds_nothing()
+    {
+        _sync.SyncTeams([Dm("1", 0, "look at this asap")], Now);
+        _store.Save(DmItem.Plan(Now.AddHours(1), 30), Now);
+        _sync.SyncTeams([Dm("2", 10, "thanks")], Now.AddMinutes(10));
+        _store.Save(DmItem with { Stage = Stage.Done }, Now.AddMinutes(11));
+
+        _sync.SyncTeams([Dm("1", 0, "look at this asap (reaction)")], Now.AddMinutes(12));
+
+        Assert.Equal(2, _store.List().Count);
+    }
+
+    [Fact]
+    public void A_title_you_edited_survives_the_next_poll()
+    {
+        _sync.SyncTeams([Dm("1", 0, "first")], Now);
+        _store.Save(DmItem.Rename("Reply to Thomas about stats"), Now);
+
+        _sync.SyncTeams([Dm("2", 5, "second")], Now.AddMinutes(5));
+
+        Assert.Equal(("Reply to Thomas about stats", "second"), (DmItem.Title, DmItem.Snippet));
+    }
+
+    [Fact]
     public void A_mention_from_the_backlog_is_queued_without_alerting()
     {
         var report = _sync.SyncTeams([Chat(mentions: ["user-me"], at: Now.AddHours(-3))], Now);

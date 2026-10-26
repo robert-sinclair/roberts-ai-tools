@@ -269,6 +269,13 @@ item already owns the alert.
     chat**, updated with the latest message. A back-and-forth is one thing to handle.
   - A group or meeting message without a mention → skipped. A busy group chat runs at about a
     dozen messages a day; that would bury Intake.
+- **A planned 1:1 is frozen (0.8.4, 2026-10-26).** Planning a chat item means "this message";
+  later messages in the chat must not rewrite it. When a newer message arrives, the planned item
+  moves to a key of its own and the message starts a new Intake item. Edits and reactions to
+  messages no newer than the planned one are ignored.
+- **Titles are editable (0.8.4).** F2, double-click, or right-click → Edit title, on anything but
+  a meeting. An edited title is sticky — later polls keep it — and blank restores the source's.
+  An Outlook event rNotice made for the item is renamed to match.
 - **Your reply closes a 1:1.** If your own message is the latest in a one-on-one chat, its
   Intake item moves to Done with the note "You replied in Teams". Their next message reopens it.
   A planned one stays planned.
