@@ -1242,6 +1242,10 @@ one means a poller and a mapping, nothing structural.
    one-on-one chat as one item per chat. No per-chat delta exists for delegated access, so it
    reads by watermark.
 7. Model classification, behind a flag, off by default.
+   **Decided 2026-10-23:** effort starts at `low` (Opus 5.5 defaults to `medium`; raise it only if
+   a labelled sample shows `low` missing things). **Phase 1 classifies Teams messages only**; mail
+   stays rules-only until phase 1 has run on real traffic. API calls bill to the Anthropic Console
+   org that owns the key, separately from Claude.ai / Claude Code plan usage.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
    **Calendar promotion built 2026-10-23 (0.7.0)** — see *Promoting to the calendar*. Free
    slots shipped earlier (0.4.4). Workbook promotion is out (open question 6, still open).

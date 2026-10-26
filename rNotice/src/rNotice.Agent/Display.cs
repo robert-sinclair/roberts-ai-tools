@@ -112,7 +112,21 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
         }
     }
 
-    public void Tick() => PropertyChanged?.Invoke(this, new(nameof(Countdown)));
+    public void Tick()
+    {
+        PropertyChanged?.Invoke(this, new(nameof(Countdown)));
+        PropertyChanged?.Invoke(this, new(nameof(CanSnoozeMeeting)));
+    }
+
+    /// <summary>How long before the start a snoozed meeting alert returns. Set by the alert window.</summary>
+    public static int MeetingSnoozeSeconds { get; set; } = 10;
+
+    /// <summary>
+    /// A meeting alert can be put off until just before the start — while that's still a few
+    /// seconds away. Rechecked every second, so the button goes once there's no time to snooze.
+    /// </summary>
+    public bool CanSnoozeMeeting =>
+        IsMeeting && Item.DueUtc is { } start && DateTimeOffset.UtcNow < start.AddSeconds(-MeetingSnoozeSeconds - 5);
 
     /// <summary>A meeting's one line: when, both zones, and who organised it.</summary>
     public string MeetingLine => Item.DueUtc is { } start

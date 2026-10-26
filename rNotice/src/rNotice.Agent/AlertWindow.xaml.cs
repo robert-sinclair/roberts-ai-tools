@@ -27,6 +27,7 @@ public partial class AlertWindow : Window
     internal AlertWindow(AgentHost host, IReadOnlyList<Item> items, TimeSpan arming)
     {
         _host = host;
+        ItemView.MeetingSnoozeSeconds = host.MeetingSnoozeSeconds;
         InitializeComponent();
         foreach (var item in items) _shown[item.Id] = item.Stage;
         Arm(arming);
@@ -163,6 +164,10 @@ public partial class AlertWindow : Window
     private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
     private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
     private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
+    private void OnSnoozeMeeting(object sender, RoutedEventArgs e) => _host.SnoozeMeeting(IdOf(sender));
+
+    private void OnSnoozeMeetingLoaded(object sender, RoutedEventArgs e) =>
+        ((Button)sender).Content = $"Snooze until {_host.MeetingSnoozeSeconds}s before";
     private void OnOpen(object sender, RoutedEventArgs e) => AgentHost.OpenLink(ItemOf(sender)?.SourceRef);
 
     /// <summary>

@@ -647,13 +647,35 @@ internal sealed class AgentHost(Application app) : IDisposable
     public void Snooze(Guid id) =>
         Update(id, i => i.Snooze(DateTimeOffset.UtcNow.AddMinutes(_settings.SnoozeMinutes)));
 
+    public int MeetingSnoozeSeconds => _settings.MeetingSnoozeSeconds;
+
+    /// <summary>
+    /// Takes a meeting's alert and dim away until <c>meetingSnoozeSeconds</c> before it starts,
+    /// then brings both back. Does nothing if that moment has already passed.
+    /// </summary>
+    public void SnoozeMeeting(Guid id)
+    {
+        if (_store.Get(id) is not { DueUtc: { } start }) return;
+        var until = start.AddSeconds(-_settings.MeetingSnoozeSeconds);
+        var wait = until - DateTimeOffset.UtcNow;
+        if (wait <= TimeSpan.Zero) return;
+
+        Update(id, i => i.Snooze(until));
+
+        // The loop ticks every 5 seconds; a one-off tick brings it back on time, not up to 5 s late.
+        var timer = new DispatcherTimer { Interval = wait };
+        timer.Tick += (_, _) => { timer.Stop(); Tick(); };
+        timer.Start();
+    }
+
     private void Update(Guid id, Func<Item, Item> change)
     {
         if (_store.Get(id) is not { } item) return;
         var updated = change(item);
         _store.Save(updated, DateTimeOffset.UtcNow);
         Log.Info($"{updated.Source} item '{updated.Title}' → {updated.Stage}" +
-                 (updated.SnoozedUntilUtc != item.SnoozedUntilUtc ? $", snoozed {_settings.SnoozeMinutes} min" : ""));
+                 (updated.SnoozedUntilUtc != item.SnoozedUntilUtc && updated.SnoozedUntilUtc is { } until
+                     ? $", snoozed until {until.ToLocalTime():HH:mm:ss}" : ""));
         Changed?.Invoke();
         _ = PromoteAsync();
     }

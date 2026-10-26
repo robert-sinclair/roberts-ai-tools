@@ -41,6 +41,9 @@
                     <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource MeetingButton}"
                             Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
                     <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource MeetingButton}" />
+                    <Button Tag="{Binding Id}" Click="OnSnoozeMeeting" Loaded="OnSnoozeMeetingLoaded" Style="{StaticResource MeetingButton}"
+                            ToolTip="Hide this and the dim; both come back just before the meeting starts"
+                            Visibility="{Binding CanSnoozeMeeting, Converter={StaticResource Visible}}" />
                 </WrapPanel>
             </StackPanel>
         </DataTemplate>

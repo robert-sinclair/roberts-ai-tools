@@ -14,6 +14,17 @@ public class SchedulerTests
         [new BusyBlock(Now.AddMinutes(-10), Now.AddMinutes(endsInMinutes), showAs)];
 
     [Fact]
+    public void A_meeting_snoozed_to_just_before_its_start_comes_back_as_a_takeover()
+    {
+        var start = Now.AddSeconds(60);
+        var meeting = Item(Interrupt.Takeover, fireAt: Now, due: start) with { Source = Source.Calendar };
+        var snoozed = Scheduler.MarkFired(meeting, Now).Snooze(start.AddSeconds(-10));
+
+        Assert.Empty(_scheduler.Tick([snoozed], start.AddSeconds(-11), Free).Takeovers);
+        Assert.Single(_scheduler.Tick([snoozed], start.AddSeconds(-10), Free).Takeovers);
+    }
+
+    [Fact]
     public void Due_items_fire_grouped_by_interrupt()
     {
         var result = _scheduler.Tick(
