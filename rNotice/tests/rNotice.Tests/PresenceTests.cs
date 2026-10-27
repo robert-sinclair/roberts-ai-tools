@@ -40,6 +40,10 @@ public class PresenceTests
     }
 
     [Fact]
+    public void A_joined_meeting_is_still_under_way_so_presence_stays_live() =>
+        Assert.Single(Presence.UnderWay([Meeting(5) with { JoinedUtc = Now.AddMinutes(-4) }], Now));
+
+    [Fact]
     public void Done_meetings_and_tasks_are_never_polled_for()
     {
         var done = Meeting(5) with { Stage = Stage.Done };

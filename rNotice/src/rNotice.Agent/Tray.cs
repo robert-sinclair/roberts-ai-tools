@@ -70,7 +70,7 @@ internal sealed class Tray : IDisposable
                 { Font = new Drawing.Font(WinForms.Control.DefaultFont, Drawing.FontStyle.Bold) },
             new WinForms.ToolStripMenuItem("Refresh now", null, (_, _) => _host.RefreshNow()),
             new WinForms.ToolStripMenuItem("Preview meeting alert", null, (_, _) => _host.PreviewMeetingAlert()),
-            new WinForms.ToolStripMenuItem("Check Teams presence", null, (_, _) => _host.CheckPresenceNow()),
+            new WinForms.ToolStripMenuItem("Dev view", null, (_, _) => _host.OpenDevView()),
             new WinForms.ToolStripSeparator(),
             new WinForms.ToolStripMenuItem("Ignored senders…", null, (_, _) => _host.OpenIgnoredSenders()),
             new WinForms.ToolStripMenuItem("Watched Teams chats…", null, (_, _) => _host.OpenWatchedChats()),

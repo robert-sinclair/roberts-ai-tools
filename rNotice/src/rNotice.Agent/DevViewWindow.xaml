@@ -1,0 +1,37 @@
+<Window x:Class="rNotice.Agent.DevViewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="rNotice — Dev view" Width="620" Height="520" MinWidth="460" MinHeight="360"
+        WindowStartupLocation="CenterScreen" FontFamily="Segoe UI" FontSize="13"
+        Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14">
+        <StackPanel>
+            <TextBlock Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,12"
+                       Text="New things live here until they have a proper place. Updates every second." />
+
+            <!-- Refresh timers -->
+            <TextBlock Text="Timers" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <Grid x:Name="Timers">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="90" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+            </Grid>
+            <Button Content="Refresh all now" HorizontalAlignment="Left" Padding="12,3" Margin="0,8,0,0" Click="OnRefreshNow" />
+
+            <!-- Presence -->
+            <TextBlock Text="Teams presence" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,6" />
+            <TextBlock x:Name="PresenceMeetings" TextWrapping="Wrap" />
+            <TextBlock x:Name="PresenceValue" FontSize="18" FontWeight="SemiBold" Margin="0,6,0,0" TextWrapping="Wrap" />
+            <TextBlock x:Name="PresenceDetail" Opacity="0.75" TextWrapping="Wrap" Margin="0,2,0,0" />
+            <DockPanel Margin="0,10,0,0">
+                <Button x:Name="CheckButton" DockPanel.Dock="Left" Content="Check now" Padding="12,3" Click="OnCheckPresence" />
+                <TextBlock x:Name="CheckResult" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="Read once a minute only while a meeting is under way, held in memory, dropped when it ends; never stored. Check now reads it once, on request." />
+        </StackPanel>
+    </ScrollViewer>
+</Window>

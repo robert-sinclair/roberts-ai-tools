@@ -16,6 +16,16 @@ namespace rNotice.Agent;
 /// <summary>Last outcome of one source's poll, for the tray and the queue window.</summary>
 internal sealed record SourceStatus(string Name, DateTimeOffset? LastOkUtc, string Summary, bool Failing);
 
+/// <summary>One timer for the dev view: when it next runs, and how the last run went.</summary>
+internal sealed record DevTimer(string Name, DateTimeOffset? NextUtc, bool Running, string Detail, bool Failing);
+
+/// <summary>
+/// Presence as the dev view shows it. The activity is the last once-a-minute reading, held in
+/// memory only while a meeting is under way, and dropped when none is.
+/// </summary>
+internal sealed record DevPresence(bool Enabled, IReadOnlyList<string> MeetingsUnderWay, string? Activity,
+    DateTimeOffset? CheckedUtc, DateTimeOffset? NextUtc, bool Running);
+
 /// <summary>
 /// Wires the pollers, the store, the scheduler and the windows together.
 ///
@@ -141,6 +151,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     private void Tick()
     {
         var now = DateTimeOffset.UtcNow;
+        _lastTickUtc = now;
 
         if (_calendarPoll.IsDue(now)) _ = PollAsync(_calendarPoll, PollCalendarAsync, _settings.RefreshInterval);
         if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.RefreshInterval);
@@ -678,6 +689,51 @@ internal sealed class AgentHost(Application app) : IDisposable
     private static readonly TimeSpan PresenceInterval = TimeSpan.FromMinutes(1);
     private DateTimeOffset _nextPresenceUtc;
     private bool _presenceRunning;
+    private string? _lastActivity;
+    private DateTimeOffset? _lastActivityUtc;
+
+    // ── Dev view ────────────────────────────────────────────────────────────────────────────
+
+    private DateTimeOffset _lastTickUtc;
+
+    /// <summary>Every timer rNotice runs on, for the dev view's countdowns.</summary>
+    public IReadOnlyList<DevTimer> DevTimers()
+    {
+        static DateTimeOffset? When(DateTimeOffset t) => t == DateTimeOffset.MinValue ? null : t;
+        var timers = Polls.Select(p => new DevTimer(p.Name, When(p.Next), p.Running,
+            (p.Status.LastOkUtc is { } ok ? $"last OK {ok.ToLocalTime():HH:mm:ss} · " : "") + p.Status.Summary,
+            p.Status.Failing)).ToList();
+
+        var underWay = Presence.UnderWay(_store.List(Stage.Planned), DateTimeOffset.UtcNow).Count > 0;
+        timers.Add(new DevTimer("Presence", _settings.PresenceEnabled && underWay ? When(_nextPresenceUtc) : null, _presenceRunning,
+            !_settings.PresenceEnabled ? "off (presenceEnabled)" : underWay ? "once a minute while a meeting is under way" : "idle: no meeting under way",
+            false));
+        timers.Add(new DevTimer("Alerts", When(_lastTickUtc) is { } t ? t + TickInterval : null, false, "scheduler, every 5 s", false));
+        timers.Add(new DevTimer("Cleanup", When(_nextPurge), false, $"closed items older than {_settings.RetentionDays} days", false));
+        return timers;
+    }
+
+    public DevPresence DevPresenceNow()
+    {
+        var meetings = Presence.UnderWay(_store.List(Stage.Planned), DateTimeOffset.UtcNow)
+            .Select(m => m.JoinedUtc is { } j ? $"{m.Title} (joined {j.ToLocalTime():HH:mm})" : m.Title).ToList();
+        return new DevPresence(_settings.PresenceEnabled, meetings, _lastActivity, _lastActivityUtc,
+            meetings.Count > 0 ? _nextPresenceUtc : null, _presenceRunning);
+    }
+
+    private DevViewWindow? _devView;
+
+    public void OpenDevView()
+    {
+        if (_devView is { IsLoaded: true })
+        {
+            _devView.Activate();
+            return;
+        }
+        _devView = new DevViewWindow(this);
+        _devView.Closed += (_, _) => _devView = null;
+        _devView.Show();
+    }
 
     /// <summary>
     /// Once a minute, and only while a meeting is under way and not marked joined, reads your
@@ -686,12 +742,20 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private async Task CheckPresenceAsync(DateTimeOffset now)
     {
-        if (_presenceRunning || Presence.UnderWayNotJoined(_store.List(Stage.Planned), now).Count == 0) return;
+        if (_presenceRunning) return;
+        if (Presence.UnderWay(_store.List(Stage.Planned), now).Count == 0)
+        {
+            _lastActivity = null;   // no meeting: nothing held
+            _lastActivityUtc = null;
+            return;
+        }
         _presenceRunning = true;
         _nextPresenceUtc = now + PresenceInterval;
         try
         {
             var activity = await _presence.GetActivityAsync(CancellationToken.None);
+            _lastActivity = activity;
+            _lastActivityUtc = DateTimeOffset.UtcNow;
             if (Presence.MeetingJoined(_store.List(Stage.Planned), DateTimeOffset.UtcNow, activity) is { } meeting)
             {
                 Update(meeting.Id, i => i with { JoinedUtc = DateTimeOffset.UtcNow });
@@ -715,23 +779,20 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// not a notification: Do Not Disturb and Focus silently drop notifications, and a check you
     /// asked for must always answer.
     /// </summary>
-    public async void CheckPresenceNow()
+    public async Task<string> CheckPresenceNowAsync()
     {
-        string text;
         try
         {
             var activity = await _presence.GetActivityAsync(CancellationToken.None) ?? "(none)";
-            text = Presence.IsInACall(activity)
-                ? $"Teams says: {activity}\n\nThat counts as in a call, so a meeting under way is marked joined."
-                : $"Teams says: {activity}\n\nThat isn't a call, so nothing is marked joined.";
+            return Presence.IsInACall(activity)
+                ? $"{activity}: counts as in a call, so a meeting under way is marked joined."
+                : $"{activity}: not a call, so nothing is marked joined.";
         }
         catch (Exception ex)
         {
-            text = "Couldn't read your presence. The log has the details.";
             Log.Error("Presence check failed", ex);
+            return "Couldn't read your presence. The log has the details.";
         }
-        MessageBox.Show(text, "rNotice — Teams presence", MessageBoxButton.OK, MessageBoxImage.Information,
-            MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
     }
 
     public void Join(Guid id)

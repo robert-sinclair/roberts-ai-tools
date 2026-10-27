@@ -18,9 +18,13 @@ public static class Presence
     /// <summary>Teams shows you on a call or presenting.</summary>
     public static bool IsInACall(string? activity) => activity is not null && CallActivities.Contains(activity);
 
+    /// <summary>Meetings under way, joined or not: started, not yet ended, not done or dismissed.</summary>
+    public static IReadOnlyList<Item> UnderWay(IEnumerable<Item> items, DateTimeOffset nowUtc) =>
+        items.Where(i => i.Source == Source.Calendar && i.Stage == Stage.Planned && i.DueUtc <= nowUtc).ToList();
+
     /// <summary>
     /// Meetings under way that aren't marked joined: started, not yet ended (a meeting's item goes
-    /// when it ends), not done or dismissed. Presence is read only while this is non-empty.
+    /// when it ends), not done or dismissed. A call marks one of these joined.
     /// </summary>
     public static IReadOnlyList<Item> UnderWayNotJoined(IEnumerable<Item> items, DateTimeOffset nowUtc) =>
         items.Where(i => i.Source == Source.Calendar && i.Stage == Stage.Planned &&
