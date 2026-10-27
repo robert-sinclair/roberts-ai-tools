@@ -711,22 +711,27 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     /// <summary>
     /// Tray → Check Teams presence: what Teams says right now and whether rNotice would count it
-    /// as joined. Shown, not stored — for checking the mapping during a real meeting.
+    /// as joined. Shown, not stored — for checking the mapping during a real meeting. A window,
+    /// not a notification: Do Not Disturb and Focus silently drop notifications, and a check you
+    /// asked for must always answer.
     /// </summary>
     public async void CheckPresenceNow()
     {
+        string text;
         try
         {
             var activity = await _presence.GetActivityAsync(CancellationToken.None) ?? "(none)";
-            _tray.Notify("Teams presence", Presence.IsInACall(activity)
-                ? $"{activity}: counts as in a call, so a meeting under way is marked joined."
-                : $"{activity}: not a call, so nothing is marked joined.");
+            text = Presence.IsInACall(activity)
+                ? $"Teams says: {activity}\n\nThat counts as in a call, so a meeting under way is marked joined."
+                : $"Teams says: {activity}\n\nThat isn't a call, so nothing is marked joined.";
         }
         catch (Exception ex)
         {
-            _tray.Notify("Teams presence", "Couldn't read it. See the log.");
+            text = "Couldn't read your presence. The log has the details.";
             Log.Error("Presence check failed", ex);
         }
+        MessageBox.Show(text, "rNotice — Teams presence", MessageBoxButton.OK, MessageBoxImage.Information,
+            MessageBoxResult.OK, MessageBoxOptions.DefaultDesktopOnly);
     }
 
     public void Join(Guid id)
