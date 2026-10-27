@@ -1259,7 +1259,15 @@ one means a poller and a mapping, nothing structural.
 9. `rNotice.Mcp` + pipe protocol. **Includes the workbook acknowledge write-back** (from step
    4), proven by the 2026-10-21 spike, for `acknowledge_action`.
 10. Skill, README, install script.
-11. **Presence: joined detection.** Added 2026-10-26, after `Presence.Read` was granted. While
+11. **Presence: joined detection.** **Built 2026-10-27 (0.9.0).** Only `InACall`,
+    `InAConferenceCall` and `Presenting` count: Teams sets *In a meeting* from the Outlook
+    calendar, joined or not, while call and presenting come from the Teams app
+    ([User presence in Teams](https://learn.microsoft.com/en-us/microsoftteams/presence-admins)).
+    Two meetings under way at once are ambiguous and neither is marked. Note: the Graph
+    `presence` reference lists the call values under `availability`; its own get-presence
+    example returns `"activity": "Presenting"`, which is what rNotice reads. Tray → Check Teams
+    presence shows the live value, for confirming the mapping in a real meeting.
+    Added 2026-10-26, after `Presence.Read` was granted. While
     a meeting is in progress, read your own presence once a minute; if Teams shows you in a
     call, in a meeting or presenting, mark the meeting joined (green), as Join in rNotice does.
     Kept to what was promised to IT: your own presence only, the `activity` field only, nothing

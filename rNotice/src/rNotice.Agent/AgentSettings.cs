@@ -35,6 +35,12 @@ public sealed record AgentSettings
     /// <summary>Read the inbox. Off means no mail calls at all.</summary>
     public bool MailEnabled { get; init; } = true;
 
+    /// <summary>
+    /// While a meeting is under way and not marked joined, read your own Teams presence once a
+    /// minute; a call means you joined. Off means no presence calls at all.
+    /// </summary>
+    public bool PresenceEnabled { get; init; } = true;
+
     /// <summary>Read Teams chats. Off means no Teams calls at all.</summary>
     public bool TeamsEnabled { get; init; } = true;
 

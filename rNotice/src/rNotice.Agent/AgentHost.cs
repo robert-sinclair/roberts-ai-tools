@@ -40,6 +40,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     private WorkbookClient _workbook = null!;
     private MailClient _mail = null!;
     private TeamsClient _teams = null!;
+    private PresenceClient _presence = null!;
     private ItemStore _store = null!;
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
@@ -112,6 +113,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _calendar = new CalendarClient(_graph);
         _mail = new MailClient(_graph);
         _teams = new TeamsClient(_graph);
+        _presence = new PresenceClient(_graph);
         _workbook = new WorkbookClient(_graph, _settings.WorkbookFolder, _settings.WorkbookFile);
         _store = new ItemStore(Paths.Database, new DpapiFieldProtector());
         _scheduler = new Scheduler(_settings.ToSchedulerOptions());
@@ -144,6 +146,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         if (_workbookPoll.IsDue(now)) _ = PollAsync(_workbookPoll, PollWorkbookAsync, _settings.RefreshInterval);
         if (_settings.MailEnabled && _mailPoll.IsDue(now)) _ = PollAsync(_mailPoll, PollMailAsync, _settings.RefreshInterval);
         if (_settings.TeamsEnabled && _teamsPoll.IsDue(now)) _ = PollAsync(_teamsPoll, PollTeamsAsync, _settings.RefreshInterval);
+        if (_settings.PresenceEnabled && now >= _nextPresenceUtc) _ = CheckPresenceAsync(now);
 
         if (now >= _nextPurge)
         {
@@ -670,6 +673,62 @@ internal sealed class AgentHost(Application app) : IDisposable
                 i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes))));
 
     /// <summary>Opens the Teams call and notes that you joined through rNotice.</summary>
+    // ── Presence (step 11) ──────────────────────────────────────────────────────────────────
+
+    private static readonly TimeSpan PresenceInterval = TimeSpan.FromMinutes(1);
+    private DateTimeOffset _nextPresenceUtc;
+    private bool _presenceRunning;
+
+    /// <summary>
+    /// Once a minute, and only while a meeting is under way and not marked joined, reads your
+    /// own presence. A call or presenting marks that meeting joined, as Join in rNotice does.
+    /// The activity is used and dropped: never logged, never stored.
+    /// </summary>
+    private async Task CheckPresenceAsync(DateTimeOffset now)
+    {
+        if (_presenceRunning || Presence.UnderWayNotJoined(_store.List(Stage.Planned), now).Count == 0) return;
+        _presenceRunning = true;
+        _nextPresenceUtc = now + PresenceInterval;
+        try
+        {
+            var activity = await _presence.GetActivityAsync(CancellationToken.None);
+            if (Presence.MeetingJoined(_store.List(Stage.Planned), DateTimeOffset.UtcNow, activity) is { } meeting)
+            {
+                Update(meeting.Id, i => i with { JoinedUtc = DateTimeOffset.UtcNow });
+                Log.Info($"Joined '{meeting.Title}' (Teams shows you in a call)");
+            }
+        }
+        catch (SignInRequiredException) { }
+        catch (Exception ex)
+        {
+            Log.Error("Presence check failed", ex);
+        }
+        finally
+        {
+            _presenceRunning = false;
+        }
+    }
+
+    /// <summary>
+    /// Tray → Check Teams presence: what Teams says right now and whether rNotice would count it
+    /// as joined. Shown, not stored — for checking the mapping during a real meeting.
+    /// </summary>
+    public async void CheckPresenceNow()
+    {
+        try
+        {
+            var activity = await _presence.GetActivityAsync(CancellationToken.None) ?? "(none)";
+            _tray.Notify("Teams presence", Presence.IsInACall(activity)
+                ? $"{activity}: counts as in a call, so a meeting under way is marked joined."
+                : $"{activity}: not a call, so nothing is marked joined.");
+        }
+        catch (Exception ex)
+        {
+            _tray.Notify("Teams presence", "Couldn't read it. See the log.");
+            Log.Error("Presence check failed", ex);
+        }
+    }
+
     public void Join(Guid id)
     {
         if (_store.Get(id) is not { JoinUrl: { } url }) return;
