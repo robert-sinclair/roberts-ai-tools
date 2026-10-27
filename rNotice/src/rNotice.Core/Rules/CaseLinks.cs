@@ -14,10 +14,12 @@ public static class CaseLinks
         new(@"\bCase\b\D{0,20}?(?<n>\d{8})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
     // A Case record ID (key prefix 500, 15 or 18 characters) inside a Salesforce link —
-    // my.salesforce.com/500…, or …/lightning/r/Case/500…/view. Only inside a Salesforce
-    // address, so an unrelated 500-something elsewhere in a message is never taken for one.
+    // my.salesforce.com/500…, …/lightning/r/Case/500…/view, or the customer portal,
+    // bravurasecurity.my.site.com/portal/500… (an Experience Cloud site: the same record ID).
+    // Only inside a Salesforce address, so an unrelated 500-something elsewhere in a message
+    // is never taken for one.
     private static readonly Regex RecordInLink =
-        new(@"https?://[\w.-]*(?:salesforce\.com|force\.com)/(?:[\w/]*?/)?(?<id>500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?)(?![0-9A-Za-z])",
+        new(@"https?://[\w.-]*(?:salesforce\.com|force\.com|\.my\.site\.com)/(?:[\w/]*?/)?(?<id>500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?)(?![0-9A-Za-z])",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
 
     /// <summary>The case number in a subject or line, or null.</summary>

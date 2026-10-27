@@ -32,6 +32,16 @@ public class CaseLinksTests
             CaseLinks.FindRecordId("Open the case: https://bravurasecurity.my.salesforce.com/500N300001JH9jUIAT (Aut"));
 
     [Fact]
+    public void Record_ID_from_the_customer_portal_link_in_a_Customer_replied_email() =>
+        // Case 00038028, 2026-10-26: the only link in the message is the portal's.
+        Assert.Equal("500N300001MewUsIAJ",
+            CaseLinks.FindRecordId("Open the case: https://bravurasecurity.my.site.com/portal/500N300001MewUsIAJ"));
+
+    [Fact]
+    public void A_record_ID_on_some_other_site_is_not_a_case() =>
+        Assert.Null(CaseLinks.FindRecordId("https://example.com/portal/500N300001MewUsIAJ"));
+
+    [Fact]
     public void Record_ID_from_a_Lightning_link() =>
         Assert.Equal("500N300001JH9jUIAT",
             CaseLinks.FindRecordId("https://bravurasecurity.lightning.force.com/lightning/r/Case/500N300001JH9jUIAT/view"));

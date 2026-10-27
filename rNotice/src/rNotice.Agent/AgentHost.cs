@@ -379,6 +379,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         _chatsWindow.Show();
     }
     private const string ReadStateBackfillKey = "mail.readState.backfilled";
+    private const string PortalRescanKey = "caseLinks.portalRescan";
 
     /// <summary>
     /// Sent Items first, so a reply that lands right after you sent is matched; then the inbox
@@ -424,6 +425,15 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private async Task LinkCasesAsync(DateTimeOffset now)
     {
+        // 0.8.5 learned the customer-portal link. Items already looked at and found to have no
+        // link get looked at once more.
+        if (_store.GetState(PortalRescanKey) is null)
+        {
+            foreach (var looked in _store.List(Stage.Intake, Stage.Planned).Where(i => i.Source == Source.Mail && i.CaseUrl == ""))
+                _store.Save(looked with { CaseUrl = null }, now);
+            _store.SetState(PortalRescanKey, "done");
+        }
+
         var pending = _store.List(Stage.Intake, Stage.Planned)
             .Where(i => i.Source == Source.Mail && i.CaseUrl is null &&
                         (CaseLinks.FindCaseNumber(i.Title) ?? CaseLinks.FindCaseNumber(i.Snippet)) is not null)
