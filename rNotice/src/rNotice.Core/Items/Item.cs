@@ -93,10 +93,47 @@ public sealed record Item
     /// <summary>You renamed it. Your title then survives every later poll of the source.</summary>
     public bool TitleEdited { get; init; }
 
+    /// <summary>
+    /// When you said "I'm working on this", if you're on it now. While set, the item doesn't
+    /// alert except for the check-in at <see cref="FireAtUtc"/>.
+    /// </summary>
+    public DateTimeOffset? WorkStartedUtc { get; init; }
+
+    /// <summary>Time spent on it in sessions that have ended, in minutes.</summary>
+    public int WorkedMinutes { get; init; }
+
+    public bool IsWorking => WorkStartedUtc is not null;
+
+    /// <summary>Total time on it, the current session included.</summary>
+    public TimeSpan Worked(DateTimeOffset nowUtc) =>
+        TimeSpan.FromMinutes(WorkedMinutes) + (WorkStartedUtc is { } s && nowUtc > s ? nowUtc - s : TimeSpan.Zero);
+
     public DateTimeOffset? SnoozedUntilUtc { get; init; }
     public DateTimeOffset? LastFiredUtc { get; init; }
 
     public bool IsOpen => Stage is Stage.Intake or Stage.Planned;
+
+    /// <summary>
+    /// "I'm working on this." The plan stays where it is (decided 2026-10-27). The check-in comes
+    /// when the planned block ends, or after <paramref name="defaultMinutes"/> for a task with no
+    /// planned time or whose block has already ended. Starting again while on it changes nothing.
+    /// </summary>
+    public Item StartWork(DateTimeOffset nowUtc, int defaultMinutes)
+    {
+        if (IsWorking) return this;
+        var blockEnd = PlannedStartUtc?.AddMinutes(PlannedMinutes ?? defaultMinutes);
+        var checkIn = blockEnd > nowUtc ? blockEnd.Value : nowUtc.AddMinutes(defaultMinutes);
+        return this with { WorkStartedUtc = nowUtc, FireAtUtc = checkIn, LastFiredUtc = null, SnoozedUntilUtc = null };
+    }
+
+    /// <summary>"Still working": the next check-in, <paramref name="minutes"/> from now.</summary>
+    public Item KeepWorking(DateTimeOffset nowUtc, int minutes) =>
+        this with { FireAtUtc = nowUtc.AddMinutes(minutes), LastFiredUtc = null, SnoozedUntilUtc = null };
+
+    /// <summary>Ends the current session and banks its time. Not working: unchanged.</summary>
+    public Item StopWork(DateTimeOffset nowUtc) => WorkStartedUtc is { } s
+        ? this with { WorkStartedUtc = null, WorkedMinutes = WorkedMinutes + (int)Math.Round(Math.Max(0, (nowUtc - s).TotalMinutes)) }
+        : this;
 
     /// <summary>Your own title for it. Blank puts the source's title back on the next poll.</summary>
     public Item Rename(string title) => string.IsNullOrWhiteSpace(title)
@@ -159,8 +196,9 @@ public sealed record Item
         if (incoming.Source != Source || incoming.SourceId != SourceId)
             throw new ArgumentException("Can only merge a poll of the same source item.", nameof(incoming));
 
-        // A planned time is yours, alert lead and all: keep the fire time the plan set.
-        var fireAt = PlannedStartUtc is not null ? FireAtUtc : incoming.FireAtUtc;
+        // A planned time is yours, alert lead and all: keep the fire time the plan set. So is a
+        // check-in while you're working on it.
+        var fireAt = PlannedStartUtc is not null || IsWorking ? FireAtUtc : incoming.FireAtUtc;
         var fireMoved = fireAt != FireAtUtc;
 
         return this with

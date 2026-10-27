@@ -498,7 +498,29 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     public IReadOnlyList<Item> Items() => _store.List();
 
-    public void SetStage(Guid id, Stage stage) => Update(id, i => i with { Stage = stage });
+    /// <summary>Done, dismissed or back to Intake also ends a working session, banking its time.</summary>
+    public void SetStage(Guid id, Stage stage) =>
+        Update(id, i => (stage == Stage.Planned ? i : i.StopWork(DateTimeOffset.UtcNow)) with { Stage = stage });
+
+    // ── Working on it ───────────────────────────────────────────────────────────────────────
+
+    /// <summary>"I'm working on this": alerts stop until the check-in; the plan stays put.</summary>
+    public void StartWork(Guid id)
+    {
+        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes));
+        if (_store.Get(id) is { FireAtUtc: { } checkIn } item)
+            Log.Info($"Working on '{item.Title}'; check-in {Display.Time(checkIn)}");
+    }
+
+    /// <summary>"Still working": the next check-in, <paramref name="minutes"/> from now.</summary>
+    public void KeepWorking(Guid id, int minutes) =>
+        Update(id, i => i.KeepWorking(DateTimeOffset.UtcNow, minutes));
+
+    /// <summary>Stops the session without finishing: the time is banked, alerts resume as planned.</summary>
+    public void StopWork(Guid id) =>
+        Update(id, i => i.StopWork(DateTimeOffset.UtcNow) is var stopped && stopped.PlannedStartUtc is { } start && start > DateTimeOffset.UtcNow
+            ? stopped with { FireAtUtc = start, LastFiredUtc = null }
+            : stopped with { LastFiredUtc = DateTimeOffset.UtcNow });
 
     /// <summary>
     /// Your own title for an item. It survives later polls of the source; blank restores the
@@ -550,7 +572,8 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         if (dialog.ShowDialog() != true) return;
 
-        Update(id, i => i.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
+        // Re-planning means doing it later: a session in progress ends here.
+        Update(id, i => i.StopWork(DateTimeOffset.UtcNow).Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
             dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0));
         if (dialog.StartUtc is { } start)
             Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
@@ -814,7 +837,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     {
         if (_store.Get(id) is not { } item) return;
         var promote = item.Stage == Stage.Planned && item.PlannedStartUtc is not null ? item.PromoteToCalendar : _settings.PromoteByDefault;
-        Update(id, i => i.Plan(choice.StartUtc, choice.Minutes, promote, promote ? _settings.PlanAlertLeadMinutes : 0));
+        Update(id, i => i.StopWork(DateTimeOffset.UtcNow).Plan(choice.StartUtc, choice.Minutes, promote, promote ? _settings.PlanAlertLeadMinutes : 0));
         Log.Info($"'{item.Title}' booked for {Display.Time(choice.StartUtc)}, {choice.Minutes} min (from the alert)");
     }
 

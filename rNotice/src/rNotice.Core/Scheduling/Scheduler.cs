@@ -76,6 +76,9 @@ public sealed class Scheduler(SchedulerOptions options)
     /// </summary>
     private Interrupt BaseInterrupt(Item item)
     {
+        // Working on it: the only thing left to say is the check-in, and that needs no dim.
+        if (item.IsWorking) return Interrupt.Alert;
+
         var own = item.Classification.Interrupt;
         var planned = item.Stage == Stage.Planned && item.PlannedStartUtc is not null && item.Source != Source.Calendar;
         return planned && _options.PlanInterrupt > own ? _options.PlanInterrupt : own;

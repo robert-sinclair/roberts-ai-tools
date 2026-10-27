@@ -164,6 +164,33 @@ public partial class AlertWindow : Window
 
     private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
     private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
+    // ── Working on it ───────────────────────────────────────────────────────────────────────
+
+    private static readonly int[] KeepMinutes = [15, 30, 60];
+
+    private void OnStartWork(object sender, RoutedEventArgs e)
+    {
+        _host.StartWork(IdOf(sender));
+        _shown.Remove(IdOf(sender));
+        Reload();
+    }
+
+    private void OnKeepLoaded(object sender, RoutedEventArgs e)
+    {
+        var box = (ComboBox)sender;
+        box.ItemsSource = KeepMinutes.Select(m => Display.Duration(TimeSpan.FromMinutes(m))).ToList();
+        box.SelectedIndex = 0;
+    }
+
+    private void OnKeepWorking(object sender, RoutedEventArgs e)
+    {
+        var id = IdOf(sender);
+        var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
+        _host.KeepWorking(id, KeepMinutes[Math.Max(0, box?.SelectedIndex ?? 0)]);
+        _shown.Remove(id);
+        Reload();
+    }
+
     // ── Rebook in ───────────────────────────────────────────────────────────────────────────
 
     private sealed record RebookOption(RebookChoice Choice, string Text)
@@ -176,20 +203,25 @@ public partial class AlertWindow : Window
     /// <summary>Fresh choices every time it opens: the calendar may have changed since.</summary>
     private void OnRebookOpened(object? sender, EventArgs e) => FillRebook((ComboBox)sender!);
 
+    /// <summary>
+    /// Refills the choices, keeping the one you'd picked if it's still on offer; otherwise the
+    /// first — next free, 30 min — so Book works in one click.
+    /// </summary>
     private void FillRebook(ComboBox box)
     {
+        var kept = (box.SelectedItem as RebookOption)?.Choice;
         var options = _host.RebookChoices((Guid)box.Tag).Select(c => new RebookOption(c, Describe(c))).ToList();
-        box.SelectionChanged -= OnRebookChosen;
         box.ItemsSource = options;
-        box.SelectedIndex = -1;
-        box.SelectionChanged += OnRebookChosen;
+        box.SelectedIndex = Math.Max(0, options.FindIndex(o => o.Choice == kept));
         box.IsEnabled = options.Count > 0;
     }
 
-    private void OnRebookChosen(object sender, SelectionChangedEventArgs e)
+    /// <summary>Books what the dropdown shows. Choosing in the dropdown alone books nothing.</summary>
+    private void OnRebookBook(object sender, RoutedEventArgs e)
     {
-        if (sender is not ComboBox { SelectedItem: RebookOption option } box) return;
-        var id = (Guid)box.Tag;
+        var id = IdOf(sender);
+        var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
+        if (box?.SelectedItem is not RebookOption option) return;
         _host.RebookAt(id, option.Choice);
         _shown.Remove(id);
         Reload();

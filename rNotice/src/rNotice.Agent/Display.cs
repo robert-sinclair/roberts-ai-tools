@@ -10,6 +10,13 @@ namespace rNotice.Agent;
 /// </summary>
 internal static class Display
 {
+    /// <summary>"25 min", "1 h", "1 h 05 min".</summary>
+    public static string Duration(TimeSpan t)
+    {
+        var minutes = (int)Math.Round(t.TotalMinutes);
+        return minutes < 60 ? $"{minutes} min" : minutes % 60 == 0 ? $"{minutes / 60} h" : $"{minutes / 60} h {minutes % 60:00} min";
+    }
+
     public static string Time(DateTimeOffset utc)
     {
         var local = utc.ToLocalTime();
@@ -144,6 +151,21 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
 
     public bool CanSnooze => !IsMeeting;
 
+    public bool IsWorking => Item.IsWorking;
+    public bool CanStartWork => !IsMeeting && Item.IsOpen && !Item.IsWorking;
+
+    /// <summary>"Working since 11:06 · 25 min", or "worked 1 h 05 min" once it isn't in progress.</summary>
+    public string WorkLine
+    {
+        get
+        {
+            var worked = Item.Worked(DateTimeOffset.UtcNow);
+            if (Item.WorkStartedUtc is { } since)
+                return $"Working since {since.ToLocalTime():HH:mm} · {Display.Duration(worked)} so far";
+            return worked > TimeSpan.Zero ? $"worked {Display.Duration(worked)}" : "";
+        }
+    }
+
     /// <summary>The alert's slot picker: "Rebook in" for a planned task, "Book in" otherwise.</summary>
     public string RebookLabel => Item.Stage == Stage.Planned && Item.PlannedStartUtc is not null ? "Rebook in:" : "Book in:";
 
@@ -212,6 +234,7 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
             if (Item.CalendarEventId is not null && Item.Source != Source.Calendar) parts.Add("on your Outlook calendar");
             if (trailing is not null) parts.Add(trailing);
             if (Item.IsRead is { } read) parts.Add(read ? "read in Outlook" : "unread");
+            if (WorkLine is { Length: > 0 } work) parts.Add(work);
             return string.Join("  -  ", parts);
         }
     }

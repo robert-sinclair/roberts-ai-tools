@@ -1273,6 +1273,13 @@ one means a poller and a mapping, nothing structural.
     Kept to what was promised to IT: your own presence only, the `activity` field only, nothing
     stored, polled only while a meeting is under way.
 
+**Working on it (0.9.4, 2026-10-27).** A task can be marked in progress. Decided with Robert: the
+plan stays where it is; alerts stop until a check-in when the planned block ends (or after
+`planMinutes`); the check-in is an ordinary alert offering Done, Still working (+15/30/60 min) or
+Rebook; time spent is recorded per item (`work_started_utc`, `worked_minutes`, local only) and
+shown. A task being worked on is exempt from meeting-clash bounces and from the Teams
+reply-closes rule.
+
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
 top). Before this a plan kept the classification of the mail or chat it came from — usually

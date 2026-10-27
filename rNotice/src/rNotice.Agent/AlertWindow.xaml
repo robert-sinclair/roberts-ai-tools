@@ -62,13 +62,24 @@
                     <WrapPanel Margin="0,10,0,0">
                         <Button Content="Plan…" Tag="{Binding Id}" Click="OnPlan" Style="{StaticResource TaskButton}"
                                 Visibility="{Binding CanPlan, Converter={StaticResource Visible}}" />
+                        <Button Content="Working on it" Tag="{Binding Id}" Click="OnStartWork" Style="{StaticResource TaskButton}"
+                                FontWeight="SemiBold" ToolTip="No more alerts while you're on it; a check-in when the time's up"
+                                Visibility="{Binding CanStartWork, Converter={StaticResource Visible}}" />
                         <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource TaskButton}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
+                                    Visibility="{Binding IsWorking, Converter={StaticResource Visible}}">
+                            <TextBlock Text="Still working:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox Tag="{Binding Id}" Width="90" Loaded="OnKeepLoaded" />
+                            <Button Content="Keep going" Tag="{Binding Id}" Click="OnKeepWorking" Style="{StaticResource TaskButton}"
+                                    Margin="6,0,0,0" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
                                     Visibility="{Binding CanSnooze, Converter={StaticResource Visible}}">
                             <TextBlock Text="{Binding RebookLabel}" VerticalAlignment="Center" Margin="0,0,6,0" />
                             <ComboBox Tag="{Binding Id}" MinWidth="250" Loaded="OnRebookLoaded" DropDownOpened="OnRebookOpened"
-                                      SelectionChanged="OnRebookChosen"
                                       ToolTip="Next free slot, an hour or more later, or first thing next working day: 30 min or 1 h, clear of meetings and other plans" />
+                            <Button Content="Book" Tag="{Binding Id}" Click="OnRebookBook" Style="{StaticResource TaskButton}"
+                                    Margin="6,0,0,0" FontWeight="SemiBold" ToolTip="Book the slot shown" />
                         </StackPanel>
                         <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource TaskButton}"
                                 Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />

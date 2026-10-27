@@ -202,7 +202,7 @@ public sealed class SourceSync(ItemStore store, Intake intake)
         {
             if (_intake.IsMyOneOnOneReply(message))
             {
-                if (_store.GetBySource(Source.Teams, message.ChatId) is { Stage: Stage.Intake } answered &&
+                if (_store.GetBySource(Source.Teams, message.ChatId) is { Stage: Stage.Intake, IsWorking: false } answered &&
                     message.CreatedUtc > answered.ReceivedUtc)
                 {
                     _store.Save(answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null }, nowUtc);

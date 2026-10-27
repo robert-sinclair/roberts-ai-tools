@@ -22,7 +22,9 @@ public static class PlanConflicts
 
         foreach (var item in items)
         {
-            if (item.Stage != Stage.Planned || item.Source == Source.Calendar || item.PlannedStartUtc is not { } start)
+            // A task you're working on stays put, meeting or not: you're already on it.
+            if (item.Stage != Stage.Planned || item.Source == Source.Calendar || item.IsWorking ||
+                item.PlannedStartUtc is not { } start)
                 continue;
 
             var end = start.AddMinutes(item.PlannedMinutes ?? defaultMinutes);

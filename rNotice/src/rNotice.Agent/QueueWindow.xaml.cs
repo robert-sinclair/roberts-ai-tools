@@ -533,7 +533,7 @@ public partial class QueueWindow : Window
             TextWrapping = height > 34 ? TextWrapping.Wrap : TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis
         });
         if (height > 34)
-            content.Children.Add(new TextBlock { Text = e.Kind == CalendarKind.Task ? $"{when} · planned{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}" : when, FontSize = 11, Opacity = 0.75 });
+            content.Children.Add(new TextBlock { Text = e.Kind == CalendarKind.Task ? $"{when} · {(e.Item?.IsWorking == true ? "working" : "planned")}{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}" : when, FontSize = 11, Opacity = 0.75 });
 
         var block = new Border
         {
@@ -654,6 +654,9 @@ public partial class QueueWindow : Window
                 break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
             case Key.F2 when selected is not null && CanEditTitle(selected): BeginTitleEdit(); break;
+            case Key.W when selected is not null && selected.IsOpen && selected.Source != Source.Calendar:
+                if (selected.IsWorking) _host.StopWork(selected.Id); else _host.StartWork(selected.Id);
+                break;
             default: return;
         }
         e.Handled = true;
@@ -714,6 +717,10 @@ public partial class QueueWindow : Window
         }
         if (CanEditTitle(item))
             menu.Items.Add(Entry("Edit title", "F2", () => { Select(item, _area); BeginTitleEdit(); }));
+        if (item.Source != Source.Calendar && item.IsOpen)
+            menu.Items.Add(item.IsWorking
+                ? Entry("Stop working (not done)", "W", () => _host.StopWork(item.Id))
+                : Entry("Working on it", "W", () => _host.StartWork(item.Id)));
         if (item.Stage != Stage.Done)
             menu.Items.Add(Entry("Mark done", "C", () => _host.SetStage(item.Id, Stage.Done)));
         else
