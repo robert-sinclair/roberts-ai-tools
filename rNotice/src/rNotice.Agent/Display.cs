@@ -144,6 +144,9 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
 
     public bool CanSnooze => !IsMeeting;
 
+    /// <summary>The alert's slot picker: "Rebook in" for a planned task, "Book in" otherwise.</summary>
+    public string RebookLabel => Item.Stage == Stage.Planned && Item.PlannedStartUtc is not null ? "Rebook in:" : "Book in:";
+
     /// <summary>rNotice left a note on it — why a plan came back to Intake, for instance.</summary>
     public bool HasNote => !string.IsNullOrWhiteSpace(Item.Note);
 

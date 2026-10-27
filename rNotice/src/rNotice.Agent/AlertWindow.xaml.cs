@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using rNotice.Core.Items;
+using rNotice.Core.Scheduling;
 using WinForms = System.Windows.Forms;
 
 namespace rNotice.Agent;
@@ -163,7 +164,50 @@ public partial class AlertWindow : Window
 
     private void OnPlan(object sender, RoutedEventArgs e) => _host.Plan(IdOf(sender), this);
     private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
-    private void OnSnooze(object sender, RoutedEventArgs e) => _host.Snooze(IdOf(sender));
+    // ── Rebook in ───────────────────────────────────────────────────────────────────────────
+
+    private sealed record RebookOption(RebookChoice Choice, string Text)
+    {
+        public override string ToString() => Text;
+    }
+
+    private void OnRebookLoaded(object sender, RoutedEventArgs e) => FillRebook((ComboBox)sender);
+
+    /// <summary>Fresh choices every time it opens: the calendar may have changed since.</summary>
+    private void OnRebookOpened(object? sender, EventArgs e) => FillRebook((ComboBox)sender!);
+
+    private void FillRebook(ComboBox box)
+    {
+        var options = _host.RebookChoices((Guid)box.Tag).Select(c => new RebookOption(c, Describe(c))).ToList();
+        box.SelectionChanged -= OnRebookChosen;
+        box.ItemsSource = options;
+        box.SelectedIndex = -1;
+        box.SelectionChanged += OnRebookChosen;
+        box.IsEnabled = options.Count > 0;
+    }
+
+    private void OnRebookChosen(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox { SelectedItem: RebookOption option } box) return;
+        var id = (Guid)box.Tag;
+        _host.RebookAt(id, option.Choice);
+        _shown.Remove(id);
+        Reload();
+    }
+
+    private static string Describe(RebookChoice c)
+    {
+        var start = c.StartUtc.ToLocalTime();
+        var end = start.AddMinutes(c.Minutes);
+        var when = start.Date == DateTime.Today ? $"{start:HH:mm}–{end:HH:mm}" : $"{start:ddd} {start:HH:mm}–{end:HH:mm}";
+        var kind = c.Kind switch
+        {
+            RebookKind.NextFree => "Next free",
+            RebookKind.HourLater => "1 h+ later",
+            _ => "Tomorrow"
+        };
+        return $"{kind} · {when} ({(c.Minutes == 60 ? "1 h" : $"{c.Minutes} min")})";
+    }
     /// <summary>Off this window either way: snoozed for real, or just closed if it was a preview.</summary>
     private void OnSnoozeMeeting(object sender, RoutedEventArgs e)
     {
@@ -187,9 +231,6 @@ public partial class AlertWindow : Window
         _shown.Remove(IdOf(sender));
         Reload();
     }
-
-    private void OnSnoozeLoaded(object sender, RoutedEventArgs e) =>
-        ((Button)sender).Content = $"Snooze {_host.SnoozeMinutes} min";
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 }

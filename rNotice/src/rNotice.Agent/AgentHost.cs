@@ -683,7 +683,6 @@ internal sealed class AgentHost(Application app) : IDisposable
             .Select(i => new TimeBlock(i.PlannedStartUtc!.Value,
                 i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes))));
 
-    /// <summary>Opens the Teams call and notes that you joined through rNotice.</summary>
     // ── Presence (step 11) ──────────────────────────────────────────────────────────────────
 
     private static readonly TimeSpan PresenceInterval = TimeSpan.FromMinutes(1);
@@ -795,11 +794,28 @@ internal sealed class AgentHost(Application app) : IDisposable
         }
     }
 
+    /// <summary>Opens the Teams call and notes that you joined through rNotice.</summary>
     public void Join(Guid id)
     {
         if (_store.Get(id) is not { JoinUrl: { } url }) return;
         OpenLink(url);
         Update(id, i => i with { JoinedUtc = DateTimeOffset.UtcNow });
+    }
+
+    /// <summary>The alert's "Rebook in" choices. The item's own current slot counts as free.</summary>
+    public IReadOnlyList<RebookChoice> RebookChoices(Guid id) =>
+        Rebook.Choices(DateTimeOffset.UtcNow, _settings.ToWorkHours(), BlockedTime(except: id).ToList());
+
+    /// <summary>
+    /// Plans the item into the chosen slot. A plan already on your Outlook calendar stays there
+    /// (its event moves); a new one follows <c>promoteByDefault</c>, as a drag does.
+    /// </summary>
+    public void RebookAt(Guid id, RebookChoice choice)
+    {
+        if (_store.Get(id) is not { } item) return;
+        var promote = item.Stage == Stage.Planned && item.PlannedStartUtc is not null ? item.PromoteToCalendar : _settings.PromoteByDefault;
+        Update(id, i => i.Plan(choice.StartUtc, choice.Minutes, promote, promote ? _settings.PlanAlertLeadMinutes : 0));
+        Log.Info($"'{item.Title}' booked for {Display.Time(choice.StartUtc)}, {choice.Minutes} min (from the alert)");
     }
 
     public void Snooze(Guid id) =>

@@ -63,9 +63,13 @@
                         <Button Content="Plan…" Tag="{Binding Id}" Click="OnPlan" Style="{StaticResource TaskButton}"
                                 Visibility="{Binding CanPlan, Converter={StaticResource Visible}}" />
                         <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource TaskButton}" />
-                        <Button x:Name="SnoozeButton" Tag="{Binding Id}" Click="OnSnooze" Loaded="OnSnoozeLoaded"
-                                Style="{StaticResource TaskButton}"
-                                Visibility="{Binding CanSnooze, Converter={StaticResource Visible}}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
+                                    Visibility="{Binding CanSnooze, Converter={StaticResource Visible}}">
+                            <TextBlock Text="{Binding RebookLabel}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox Tag="{Binding Id}" MinWidth="250" Loaded="OnRebookLoaded" DropDownOpened="OnRebookOpened"
+                                      SelectionChanged="OnRebookChosen"
+                                      ToolTip="Next free slot, an hour or more later, or first thing next working day: 30 min or 1 h, clear of meetings and other plans" />
+                        </StackPanel>
                         <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource TaskButton}"
                                 Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
                     </WrapPanel>
