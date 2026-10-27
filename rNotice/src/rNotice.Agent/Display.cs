@@ -152,6 +152,11 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     public bool CanSnooze => !IsMeeting;
 
     public bool IsWorking => Item.IsWorking;
+
+    /// <summary>For a working item's check-in: the plan it hands over to, if one is due.</summary>
+    public Item? NextUp { get; init; }
+    public bool HasNextUp => NextUp is not null;
+    public string NextUpLine => NextUp is { PlannedStartUtc: { } s } next ? $"Next up: {next.Title} at {Display.Time(s)}" : "";
     public bool CanStartWork => !IsMeeting && Item.IsOpen && !Item.IsWorking;
 
     /// <summary>"Working since 11:06 · 25 min", or "worked 1 h 05 min" once it isn't in progress.</summary>

@@ -507,14 +507,94 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// <summary>"I'm working on this": alerts stop until the check-in; the plan stays put.</summary>
     public void StartWork(Guid id)
     {
-        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes));
+        // The check-in comes no later than the next plan's alert: that's where you hand over.
+        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes) is var w && w.FireAtUtc is { } checkIn
+            ? w with { FireAtUtc = Overrun.CheckIn(_store.List(), w, checkIn) }
+            : w);
         if (_store.Get(id) is { FireAtUtc: { } checkIn } item)
             Log.Info($"Working on '{item.Title}'; check-in {Display.Time(checkIn)}");
     }
 
-    /// <summary>"Still working": the next check-in, <paramref name="minutes"/> from now.</summary>
-    public void KeepWorking(Guid id, int minutes) =>
-        Update(id, i => i.KeepWorking(DateTimeOffset.UtcNow, minutes));
+    public static readonly int[] KeepGoingMinutes = [15, 30, 60];
+
+    /// <summary>
+    /// "Still working" for <paramref name="minutes"/> more. A planned task's block grows by that
+    /// much (its Outlook event too) and the plans after it that it now lands on move along
+    /// (<see cref="Overrun"/>), each with a note. An unplanned one just checks in again later.
+    /// </summary>
+    public void KeepWorking(Guid id, int minutes)
+    {
+        if (_store.Get(id) is not { } item) return;
+        var now = DateTimeOffset.UtcNow;
+        var newEnd = RunOverEnd(item, minutes, now);
+
+        foreach (var push in Pushes(item, newEnd))
+        {
+            var task = push.Task;
+            var promote = task.PromoteToCalendar;
+            _store.Save(task.Plan(push.StartUtc, task.PlannedMinutes, promote, promote ? _settings.PlanAlertLeadMinutes : 0) with
+            {
+                Note = $"Pushed to {Display.Time(push.StartUtc)}: '{item.Title}' ran over", NoteLink = null
+            }, now);
+            Log.Info($"'{task.Title}' pushed to {Display.Time(push.StartUtc)} ('{item.Title}' ran over)");
+        }
+
+        var extended = item.RunOver(newEnd, newEnd);
+        Update(id, i => i.RunOver(newEnd, Overrun.CheckIn(_store.List(), extended, newEnd)));
+        Log.Info($"Still working on '{item.Title}' until {Display.Time(newEnd)}");
+    }
+
+    /// <summary>The "Still working" choices, each saying what it would move: "30 min · moves 2 plans".</summary>
+    public IReadOnlyList<(int Minutes, string Text)> KeepGoingChoices(Guid id)
+    {
+        if (_store.Get(id) is not { } item) return [];
+        var now = DateTimeOffset.UtcNow;
+        var blockEnd = item.PlannedStartUtc?.AddMinutes(item.PlannedMinutes ?? _settings.PlanMinutes);
+        return KeepGoingMinutes.Select(m =>
+        {
+            var newEnd = RunOverEnd(item, m, now);
+            var parts = new List<string> { Display.Duration(TimeSpan.FromMinutes(m)) };
+            if (Pushes(item, newEnd).Count is var n and > 0) parts.Add($"moves {n} plan{(n == 1 ? "" : "s")}");
+            if (blockEnd is { } from && _meetingEvents.FirstOrDefault(e => e.StartUtc < newEnd && e.EndUtc > from) is { } clash)
+                parts.Add($"into {clash.Subject}");
+            return (m, string.Join(" · ", parts));
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Where a planned block ends after <paramref name="minutes"/> more: that much past its
+    /// planned end, so 9–10 plus 30 min is 9–10:30 even if you answer at 10:02. Answered well
+    /// after the block ended, it's that long from now, on the quarter hour.
+    /// </summary>
+    private DateTimeOffset RunOverEnd(Item item, int minutes, DateTimeOffset now)
+    {
+        var length = TimeSpan.FromMinutes(minutes);
+        if (item.PlannedStartUtc is not { } start) return now + length;
+        var end = start.AddMinutes(item.PlannedMinutes ?? _settings.PlanMinutes) + length;
+        return end < now + length - TimeSpan.FromMinutes(5) ? FreeSlots.RoundUp(now + length, _settings.ToWorkHours().Zone) : end;
+    }
+
+    private IReadOnlyList<Push> Pushes(Item item, DateTimeOffset newEnd) =>
+        Overrun.Pushes(_store.List(Stage.Planned), item, newEnd, _settings.ToWorkHours(), _meetingBlocks, _settings.PlanMinutes);
+
+    /// <summary>The plan a working item's check-in offers to start instead.</summary>
+    public Item? NextUp(Guid id) =>
+        _store.Get(id) is { IsWorking: true } item ? Overrun.NextUp(_store.List(Stage.Planned), item, _settings.PlanMinutes) : null;
+
+    /// <summary>
+    /// Moves on to the next plan without finishing this one: its time is banked and it goes back
+    /// to Intake with a note, to plan again; the next one starts.
+    /// </summary>
+    public void SwitchTo(Guid fromId, Guid toId)
+    {
+        if (_store.Get(fromId) is not { } from || _store.Get(toId) is not { } to) return;
+        var now = DateTimeOffset.UtcNow;
+        Update(fromId, i => i.StopWork(now) is var stopped
+            ? stopped.BackToIntake($"Paused for '{to.Title}' · worked {Display.Duration(stopped.Worked(now))}", now)
+            : i);
+        StartWork(toId);
+        Log.Info($"Switched from '{from.Title}' to '{to.Title}'");
+    }
 
     /// <summary>Stops the session without finishing: the time is banked, alerts resume as planned.</summary>
     public void StopWork(Guid id) =>
@@ -981,7 +1061,8 @@ internal sealed class AgentHost(Application app) : IDisposable
                         Save(item.Id, i => i with
                         {
                             PlannedStartUtc = start, PlannedMinutes = minutes,
-                            FireAtUtc = start.AddMinutes(-_settings.PlanAlertLeadMinutes), LastFiredUtc = null,
+                            // Working on it: the check-in moves with the end you dragged.
+                            FireAtUtc = i.IsWorking ? step.EndUtc : start.AddMinutes(-_settings.PlanAlertLeadMinutes), LastFiredUtc = null,
                             CalendarStartUtc = start, CalendarEndUtc = step.EndUtc,
                             Note = $"Moved in Outlook to {Display.Time(start)}", NoteLink = null
                         });

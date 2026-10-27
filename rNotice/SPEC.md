@@ -1280,6 +1280,24 @@ Rebook; time spent is recorded per item (`work_started_utc`, `worked_minutes`, l
 shown. A task being worked on is exempt from meeting-clash bounces and from the Teams
 reply-closes rule.
 
+**Running over (0.9.5, 2026-10-27).** Robert's example: A 9–10, B 10–10:30, C 10:30–11; at 10:00,
+continuing A for 30 min makes A 9–10:30, B 10:30–11, C 11–11:30. Rules (`Overrun`):
+
+- **Still working** on a planned task grows its block by that much from the planned end (answered
+  well after the end: from now, on the quarter hour). Its Outlook event follows.
+- Each later plan the grown block, or an already-pushed plan, now lands on moves to the first free
+  slot after it, in planned order: quarter hour, work hours, clear of meetings (so it can jump a
+  meeting or go to the next working day). A plan with room to spare stays, and so does what's
+  after it. Moved plans get a note (*Pushed to 10:30: 'A' ran over*) and re-arm their alert.
+- The dropdown says what each choice does: *30 min · moves 2 plans · into Standup*.
+- **Hand-off.** The check-in comes no later than the next plan's alert, and while you're working a
+  later plan doesn't alert on its own — one prompt at 10:00, not two. The check-in shows
+  *Next up: B at 10:00* and **Start next**, which stops A (time kept, back to Intake with a note,
+  its Outlook block removed as for any unplanned item) and starts work on B.
+- Dragging a working task's event end in Outlook moves its check-in with it; it doesn't push the
+  plans after it (rNotice only pushes on **Still working**).
+- An unplanned task has no block: **Still working** only moves its check-in.
+
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
 top). Before this a plan kept the classification of the mail or chat it came from — usually

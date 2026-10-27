@@ -42,9 +42,16 @@ public sealed class Scheduler(SchedulerOptions options)
         var toasts = new List<Item>();
         var deferred = new List<Deferral>();
 
-        foreach (var item in items)
+        var all = items as IReadOnlyCollection<Item> ?? items.ToList();
+
+        // While you're working on something, a later plan doesn't alert on its own: the check-in
+        // comes first and offers to start it (Overrun.CheckIn). One prompt at the hand-off, not two.
+        var handOff = all.Where(i => i.IsWorking && i.FireAtUtc is not null).Select(i => i.FireAtUtc).Min();
+
+        foreach (var item in all)
         {
             if (!IsDue(item, nowUtc)) continue;
+            if (handOff is { } h && WaitsForHandOff(item, h)) continue;
 
             var interrupt = EffectiveInterrupt(item, nowUtc);
             if (interrupt == Interrupt.Silent) continue;
@@ -69,6 +76,10 @@ public sealed class Scheduler(SchedulerOptions options)
     }
 
     public static Item MarkFired(Item item, DateTimeOffset nowUtc) => item with { LastFiredUtc = nowUtc };
+
+    private static bool WaitsForHandOff(Item item, DateTimeOffset handOffUtc) =>
+        !item.IsWorking && item.Stage == Stage.Planned && item.Source != Source.Calendar &&
+        item.PlannedStartUtc is not null && item.FireAtUtc >= handOffUtc;
 
     /// <summary>
     /// The item's own interrupt, raised to <see cref="SchedulerOptions.PlanInterrupt"/> for a

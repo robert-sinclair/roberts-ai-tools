@@ -130,6 +130,18 @@ public sealed record Item
     public Item KeepWorking(DateTimeOffset nowUtc, int minutes) =>
         this with { FireAtUtc = nowUtc.AddMinutes(minutes), LastFiredUtc = null, SnoozedUntilUtc = null };
 
+    /// <summary>
+    /// Still working past the planned block: the block now ends at <paramref name="newEndUtc"/>
+    /// (its Outlook event follows), and the next check-in is at <paramref name="checkInUtc"/>.
+    /// </summary>
+    public Item RunOver(DateTimeOffset newEndUtc, DateTimeOffset checkInUtc) => PlannedStartUtc is { } start
+        ? this with
+        {
+            PlannedMinutes = (int)Math.Round((newEndUtc - start).TotalMinutes),
+            FireAtUtc = checkInUtc, LastFiredUtc = null, SnoozedUntilUtc = null
+        }
+        : this with { FireAtUtc = checkInUtc, LastFiredUtc = null, SnoozedUntilUtc = null };
+
     /// <summary>Ends the current session and banks its time. Not working: unchanged.</summary>
     public Item StopWork(DateTimeOffset nowUtc) => WorkStartedUtc is { } s
         ? this with { WorkStartedUtc = null, WorkedMinutes = WorkedMinutes + (int)Math.Round(Math.Max(0, (nowUtc - s).TotalMinutes)) }

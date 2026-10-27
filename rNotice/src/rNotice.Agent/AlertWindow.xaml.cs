@@ -106,9 +106,9 @@ public partial class AlertWindow : Window
         }
 
         if (!live.Select(i => i.Id).SequenceEqual(_views.Select(v => v.Id)) ||
-            live.Any(i => _views.First(v => v.Id == i.Id).Item != i))
+            live.Any(i => _views.First(v => v.Id == i.Id) is var v && (v.Item != i || v.NextUp?.Id != _host.NextUp(i.Id)?.Id)))
         {
-            _views = live.Select(i => new ItemView(i)).ToList();
+            _views = live.Select(i => new ItemView(i) { NextUp = _host.NextUp(i.Id) }).ToList();
             ItemsList.ItemsSource = _views;
         }
 
@@ -166,8 +166,6 @@ public partial class AlertWindow : Window
     private void OnDone(object sender, RoutedEventArgs e) => _host.SetStage(IdOf(sender), Stage.Done);
     // ── Working on it ───────────────────────────────────────────────────────────────────────
 
-    private static readonly int[] KeepMinutes = [15, 30, 60];
-
     private void OnStartWork(object sender, RoutedEventArgs e)
     {
         _host.StartWork(IdOf(sender));
@@ -178,7 +176,7 @@ public partial class AlertWindow : Window
     private void OnKeepLoaded(object sender, RoutedEventArgs e)
     {
         var box = (ComboBox)sender;
-        box.ItemsSource = KeepMinutes.Select(m => Display.Duration(TimeSpan.FromMinutes(m))).ToList();
+        box.ItemsSource = _host.KeepGoingChoices((Guid)box.Tag).Select(c => c.Text).ToList();
         box.SelectedIndex = 0;
     }
 
@@ -186,8 +184,18 @@ public partial class AlertWindow : Window
     {
         var id = IdOf(sender);
         var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
-        _host.KeepWorking(id, KeepMinutes[Math.Max(0, box?.SelectedIndex ?? 0)]);
+        _host.KeepWorking(id, AgentHost.KeepGoingMinutes[Math.Max(0, box?.SelectedIndex ?? 0)]);
         _shown.Remove(id);
+        Reload();
+    }
+
+    private void OnStartNext(object sender, RoutedEventArgs e)
+    {
+        var id = IdOf(sender);
+        if (_host.NextUp(id) is not { } next) return;
+        _host.SwitchTo(id, next.Id);
+        _shown.Remove(id);
+        _shown.Remove(next.Id);
         Reload();
     }
 

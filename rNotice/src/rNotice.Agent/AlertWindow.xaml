@@ -59,7 +59,12 @@
                     <TextBlock Text="{Binding Snippet}" TextWrapping="Wrap" Margin="0,6,0,0" MaxHeight="60"
                                TextTrimming="CharacterEllipsis"
                                Visibility="{Binding HasSnippet, Converter={StaticResource Visible}}" />
+                    <TextBlock Text="{Binding NextUpLine}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Visibility="{Binding HasNextUp, Converter={StaticResource Visible}}" />
                     <WrapPanel Margin="0,10,0,0">
+                        <Button Content="Start next" Tag="{Binding Id}" Click="OnStartNext" Style="{StaticResource TaskButton}"
+                                FontWeight="SemiBold" ToolTip="Stop this one (back to Intake, time kept) and start the next"
+                                Visibility="{Binding HasNextUp, Converter={StaticResource Visible}}" />
                         <Button Content="Plan…" Tag="{Binding Id}" Click="OnPlan" Style="{StaticResource TaskButton}"
                                 Visibility="{Binding CanPlan, Converter={StaticResource Visible}}" />
                         <Button Content="Working on it" Tag="{Binding Id}" Click="OnStartWork" Style="{StaticResource TaskButton}"
@@ -69,7 +74,8 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
                                     Visibility="{Binding IsWorking, Converter={StaticResource Visible}}">
                             <TextBlock Text="Still working:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <ComboBox Tag="{Binding Id}" Width="90" Loaded="OnKeepLoaded" />
+                            <ComboBox Tag="{Binding Id}" MinWidth="90" Loaded="OnKeepLoaded"
+                                      ToolTip="A planned block grows by this much; plans it runs into move along" />
                             <Button Content="Keep going" Tag="{Binding Id}" Click="OnKeepWorking" Style="{StaticResource TaskButton}"
                                     Margin="6,0,0,0" />
                         </StackPanel>
