@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using rNotice.Core.Items;
+using rNotice.Core.Scheduling;
 
 namespace rNotice.Core.Store;
 
@@ -135,7 +136,42 @@ public sealed class ItemStore : IDisposable
             key   TEXT PRIMARY KEY,
             value BLOB NOT NULL
         );
+
+        -- Time spent in a planned block that was left behind when the plan moved on. Times and
+        -- ids only: the title comes from the item, and the row goes when the item is purged.
+        CREATE TABLE IF NOT EXISTS worked_blocks (
+            id         TEXT PRIMARY KEY,
+            item_id    TEXT    NOT NULL,
+            start_utc  INTEGER NOT NULL,
+            end_utc    INTEGER NOT NULL,
+            event_id   TEXT
+        );
         """);
+
+    public void AddWorkedBlock(WorkedBlock block) =>
+        Execute("""
+            INSERT OR REPLACE INTO worked_blocks (id, item_id, start_utc, end_utc, event_id)
+            VALUES ($id, $item, $start, $end, $event)
+            """, ("$id", block.Id), ("$item", block.ItemId.ToString()), ("$start", block.StartUtc.ToUnixTimeMilliseconds()),
+            ("$end", block.EndUtc.ToUnixTimeMilliseconds()), ("$event", (object?)block.EventId ?? DBNull.Value));
+
+    public void RemoveWorkedBlock(string id) => Execute("DELETE FROM worked_blocks WHERE id = $id", ("$id", id));
+
+    /// <summary>Worked blocks overlapping the span, earliest first.</summary>
+    public IReadOnlyList<WorkedBlock> WorkedBlocks(DateTimeOffset fromUtc, DateTimeOffset toUtc)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT id, item_id, start_utc, end_utc, event_id FROM worked_blocks WHERE start_utc < $to AND end_utc > $from ORDER BY start_utc";
+        cmd.Parameters.AddWithValue("$from", fromUtc.ToUnixTimeMilliseconds());
+        cmd.Parameters.AddWithValue("$to", toUtc.ToUnixTimeMilliseconds());
+        using var r = cmd.ExecuteReader();
+        var blocks = new List<WorkedBlock>();
+        while (r.Read())
+            blocks.Add(new WorkedBlock(r.GetString(0), Guid.Parse(r.GetString(1)),
+                DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3)),
+                r.IsDBNull(4) ? null : r.GetString(4)));
+        return blocks;
+    }
 
     public string? GetState(string key)
     {
@@ -330,6 +366,7 @@ public sealed class ItemStore : IDisposable
 
         var deleted = Execute("DELETE FROM items WHERE stage IN ($done, $dismissed) AND updated_utc < $cutoff",
             ("$done", (int)Stage.Done), ("$dismissed", (int)Stage.Dismissed), ("$cutoff", cutoff));
+        Execute("DELETE FROM worked_blocks WHERE item_id NOT IN (SELECT id FROM items)");
 
         tx.Commit();
         if (deleted > 0) _items = null;   // re-read on next use

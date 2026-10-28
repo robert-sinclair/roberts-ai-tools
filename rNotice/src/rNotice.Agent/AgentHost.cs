@@ -282,6 +282,11 @@ internal sealed class AgentHost(Application app) : IDisposable
             else _eventWrites.Remove(id);
         _promotedEvents = promoted;
         _calendarWindow = (from, now.AddDays(_settings.Rules.HorizonDays));
+
+        // A worked block whose event was deleted in Outlook goes from the schedule too.
+        foreach (var block in _store.WorkedBlocks(from, _calendarWindow.To))
+            if (block.EventId is { } eventId && block.StartUtc >= from && !promoted.ContainsKey(eventId))
+                _store.RemoveWorkedBlock(block.Id);
         _calendarKnownUtc = now;
 
         var report = _sync!.SyncCalendar(events, now);
@@ -749,6 +754,11 @@ internal sealed class AgentHost(Application app) : IDisposable
                 item is { IsOpen: true } ? CalendarKind.Meeting : CalendarKind.Busy, e.IsAllDay));
         }
 
+        // Time left behind when a started plan moved on: what you did, beside what's next.
+        foreach (var block in _store.WorkedBlocks(from, to))
+            if (_store.Get(block.ItemId) is { } worked)
+                entries.Add(new CalendarEntry(worked, worked.Title, block.StartUtc, block.EndUtc, CalendarKind.Worked, false));
+
         // Done tasks keep their block, greyed, so the day shows what you did as well as what's left.
         foreach (var task in _store.List(Stage.Planned, Stage.Done).Where(i => i.Source != Source.Calendar &&
                      i.PlannedStartUtc is { } s && s < to && s.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes) > from))
@@ -975,13 +985,45 @@ internal sealed class AgentHost(Application app) : IDisposable
     private void Update(Guid id, Func<Item, Item> change)
     {
         if (_store.Get(id) is not { } item) return;
-        var updated = change(item);
+        var updated = KeepWorkedTime(item, change(item));
         _store.Save(updated, DateTimeOffset.UtcNow);
         Log.Info($"{updated.Source} item '{updated.Title}' → {updated.Stage}" +
                  (updated.SnoozedUntilUtc != item.SnoozedUntilUtc && updated.SnoozedUntilUtc is { } until
                      ? $", snoozed until {until.ToLocalTime():HH:mm:ss}" : ""));
         Changed?.Invoke();
         _ = PromoteAsync();
+    }
+
+    /// <summary>
+    /// Leaves the time already spent in a started block behind when the plan moves on
+    /// (<see cref="WorkedTime"/>): a worked block on the schedule, and its Outlook event kept as
+    /// the record, trimmed to now. The item lets go of that event, so a new plan gets its own.
+    /// </summary>
+    private Item KeepWorkedTime(Item before, Item after)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (WorkedTime.Kept(before, after, now, _settings.PlanMinutes) is not var (start, end)) return after;
+
+        var eventId = before.CalendarEventId;
+        _store.AddWorkedBlock(new WorkedBlock(eventId ?? Guid.NewGuid().ToString("N"), before.Id, start, end, eventId));
+        Log.Info($"Kept {Display.Time(start)}–{Display.Time(end)} of '{before.Title}' as worked time" + (eventId is null ? "" : " (stays in Outlook)"));
+        if (eventId is null) return after;
+
+        if (before.CalendarEndUtc is { } eventEnd && end < eventEnd) _ = TrimEventAsync(eventId, start, end);
+        return after with { CalendarEventId = null, CalendarStartUtc = null, CalendarEndUtc = null };
+    }
+
+    private async Task TrimEventAsync(string eventId, DateTimeOffset start, DateTimeOffset end)
+    {
+        try
+        {
+            await _calendar.MoveEventAsync(eventId, start, end, CancellationToken.None);
+            Wrote(new PromotedEvent(eventId, start, end));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Calendar: couldn't trim a worked block to {Display.Time(end)}: {ex.Message}");
+        }
     }
 
     // ── Calendar promotion (step 8) ─────────────────────────────────────────────────────────

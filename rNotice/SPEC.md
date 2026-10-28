@@ -1253,6 +1253,9 @@ one means a poller and a mapping, nothing structural.
    a labelled sample shows `low` missing things). **Phase 1 classifies Teams messages only**; mail
    stays rules-only until phase 1 has run on real traffic. API calls bill to the Anthropic Console
    org that owns the key, separately from Claude.ai / Claude Code plan usage.
+   **Pending AI (2026-10-28):** when the model judges a Teams reply important, it should come up
+   as a top window alert (the alert window, no dim) instead of a toast. Until the API is
+   connected, replies stay as they are.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
    **Calendar promotion built 2026-10-23 (0.7.0)** — see *Promoting to the calendar*. Free
    slots shipped earlier (0.4.4). Workbook promotion is out (open question 6, still open).
@@ -1292,8 +1295,8 @@ continuing A for 30 min makes A 9–10:30, B 10:30–11, C 11–11:30. Rules (`O
 - The dropdown says what each choice does: *30 min · moves 2 plans · into Standup*.
 - **Hand-off.** The check-in comes no later than the next plan's alert, and while you're working a
   later plan doesn't alert on its own — one prompt at 10:00, not two. The check-in shows
-  *Next up: B at 10:00* and **Start next**, which stops A (time kept, back to Intake with a note,
-  its Outlook block removed as for any unplanned item) and starts work on B.
+  *Next up: B at 10:00* and **Start next**, which stops A (time kept, back to Intake with a note;
+  the time it had in its block stays as worked time, below) and starts work on B.
 - Dragging a working task's event end in Outlook moves its check-in with it; it doesn't push the
   plans after it (rNotice only pushes on **Still working**).
 - An unplanned task has no block: **Still working** only moves its check-in.
@@ -1304,6 +1307,22 @@ with *done · worked 1 h 05 min*, and keeps its Outlook event as a record; rNoti
 an event for a done task. Done before its block started frees the slot (plan cleared, event
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
+
+**Worked time stays in Outlook (0.9.7, 2026-10-28).** Asked by Robert: rNotice shouldn't remove
+time you've already spent from Outlook. A plan and its event are no longer one-to-one for life
+(`WorkedTime`):
+
+- Once a planned block has started (a minute in), any change that leaves it — rebook, re-plan,
+  drag, **Start next**, a meeting bouncing it to Intake, dismiss — keeps the time so far as a
+  **worked block**: from the block's start to now (or the block's end, if that came first).
+- If the block was in Outlook, that event stays as the record, trimmed to the same span, and the
+  item lets go of it. A new plan gets a new event. So a task worked 9:00–9:40 and rebooked to
+  14:00 has two events: 9:00–9:40 and 14:00–14:30.
+- Worked blocks show on the schedule in grey, *worked*, and select their item. They're stored as
+  times and ids only (`worked_blocks`), and go when the item is purged. One whose event was
+  deleted in Outlook goes from the schedule on the next calendar read.
+- Not affected: a block that hasn't started still moves or goes as before; **Still working**
+  keeps the same block and only moves its end; Done keeps the whole block (0.9.6).
 
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
