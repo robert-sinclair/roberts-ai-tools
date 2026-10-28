@@ -1298,6 +1298,13 @@ continuing A for 30 min makes A 9–10:30, B 10:30–11, C 11–11:30. Rules (`O
   plans after it (rNotice only pushes on **Still working**).
 - An unplanned task has no block: **Still working** only moves its check-in.
 
+**Done stays on the schedule (0.9.6, 2026-10-28).** Asked by Robert: a past item marked done
+should stay in the main window's schedule. A planned task marked done keeps its block, grey,
+with *done · worked 1 h 05 min*, and keeps its Outlook event as a record; rNotice never creates
+an event for a done task. Done before its block started frees the slot (plan cleared, event
+removed). The calendar is now read from local midnight rather than an hour back, so today's
+finished meetings stay on the schedule (grey, as busy time).
+
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
 top). Before this a plan kept the classification of the mail or chat it came from — usually

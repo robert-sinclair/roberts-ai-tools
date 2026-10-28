@@ -64,11 +64,19 @@ public class PromotionTests
         Assert.Empty(Promotion.Plan([Synced(60 * 24 * 30)], None, WinStart, WinEnd, 30));   // a month out: can't tell
     }
 
+    [Fact]
+    public void Done_keeps_its_event_as_a_record() =>
+        Assert.Empty(Promotion.Plan([Synced(60) with { Stage = Stage.Done }],
+            Events(new PromotedEvent("evt-1", Now.AddMinutes(60), Now.AddMinutes(90))), WinStart, WinEnd, 30));
+
+    [Fact]
+    public void Done_never_gets_a_new_event() =>
+        Assert.Empty(Promotion.Plan([Planned(60) with { Stage = Stage.Done }], None, WinStart, WinEnd, 30));
+
     [Theory]
-    [InlineData(Stage.Done)]
     [InlineData(Stage.Dismissed)]
     [InlineData(Stage.Intake)]
-    public void Finished_dismissed_or_back_in_Intake_removes_the_event(Stage stage) =>
+    public void Dismissed_or_back_in_Intake_removes_the_event(Stage stage) =>
         Assert.Equal(PromotionKind.Remove, One(Synced(60) with { Stage = stage }, Events(new PromotedEvent("evt-1", Now.AddMinutes(60), Now.AddMinutes(90)))).Kind);
 
     [Fact]

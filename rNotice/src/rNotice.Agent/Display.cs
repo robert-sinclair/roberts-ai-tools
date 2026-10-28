@@ -85,6 +85,9 @@ public enum CalendarKind
     /// <summary>A task you planned with rNotice.</summary>
     Task,
 
+    /// <summary>A planned task you've marked done: its block stays, grey, as a record.</summary>
+    DoneTask,
+
     /// <summary>A meeting rNotice doesn't track — blocklisted, done or dismissed. Busy time, nothing more.</summary>
     Busy
 }

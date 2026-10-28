@@ -511,6 +511,7 @@ public partial class QueueWindow : Window
             CalendarKind.Meeting when state == "live" => (Hex(0xFDEBD3), Hex(0xE08B1E), Brushes.Black),
             CalendarKind.Meeting => (Hex(0xDCE7F5), Hex(0x2B6CB0), Brushes.Black),
             CalendarKind.Task => (Hex(0xFCE8C8), Hex(0xE08B1E), Brushes.Black),
+            CalendarKind.DoneTask => (Hex(0xEEEEEE), Hex(0x9AA5B1), Brushes.DimGray),
             _ => (Hex(0xEEEEEE), Hex(0xBBBBBB), Brushes.DimGray)
         };
     }
@@ -533,7 +534,12 @@ public partial class QueueWindow : Window
             TextWrapping = height > 34 ? TextWrapping.Wrap : TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis
         });
         if (height > 34)
-            content.Children.Add(new TextBlock { Text = e.Kind == CalendarKind.Task ? $"{when} · {(e.Item?.IsWorking == true ? "working" : "planned")}{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}" : when, FontSize = 11, Opacity = 0.75 });
+            content.Children.Add(new TextBlock { Text = e.Kind switch
+            {
+                CalendarKind.Task => $"{when} · {(e.Item?.IsWorking == true ? "working" : "planned")}{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}",
+                CalendarKind.DoneTask => $"{when} · done" + (e.Item?.WorkedMinutes is > 0 and var m ? $" · worked {Display.Duration(TimeSpan.FromMinutes(m))}" : ""),
+                _ => when
+            }, FontSize = 11, Opacity = 0.75 });
 
         var block = new Border
         {

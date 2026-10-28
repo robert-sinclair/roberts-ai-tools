@@ -244,10 +244,21 @@ internal sealed class AgentHost(Application app) : IDisposable
         }
     }
 
+    /// <summary>Local midnight today, or an hour back if that's earlier (just after midnight).</summary>
+    private DateTimeOffset CalendarReadFrom(DateTimeOffset now)
+    {
+        var zone = _settings.ToWorkHours().Zone;
+        var midnight = TimeZoneInfo.ConvertTime(now, zone).Date;
+        var start = new DateTimeOffset(midnight, zone.GetUtcOffset(midnight)).ToUniversalTime();
+        return start < now.AddHours(-1) ? start : now.AddHours(-1);
+    }
+
     private async Task<string> PollCalendarAsync(DateTimeOffset now)
     {
         var readStartedUtc = DateTimeOffset.UtcNow;
-        var all = await _calendar.GetViewAsync(now.AddHours(-1), now.AddDays(_settings.Rules.HorizonDays), CancellationToken.None);
+        // From the start of today, so meetings already over stay on today's schedule.
+        var from = CalendarReadFrom(now);
+        var all = await _calendar.GetViewAsync(from, now.AddDays(_settings.Rules.HorizonDays), CancellationToken.None);
 
         // rNotice's own events are its planned tasks, not meetings. Counted as meetings they'd
         // come into the queue a second time, and every promoted task would clash with itself.
@@ -270,7 +281,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             if (write.AtUtc >= readStartedUtc) promoted[id] = write.Event;
             else _eventWrites.Remove(id);
         _promotedEvents = promoted;
-        _calendarWindow = (now.AddHours(-1), now.AddDays(_settings.Rules.HorizonDays));
+        _calendarWindow = (from, now.AddDays(_settings.Rules.HorizonDays));
         _calendarKnownUtc = now;
 
         var report = _sync!.SyncCalendar(events, now);
@@ -498,9 +509,22 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     public IReadOnlyList<Item> Items() => _store.List();
 
-    /// <summary>Done, dismissed or back to Intake also ends a working session, banking its time.</summary>
-    public void SetStage(Guid id, Stage stage) =>
-        Update(id, i => (stage == Stage.Planned ? i : i.StopWork(DateTimeOffset.UtcNow)) with { Stage = stage });
+    /// <summary>
+    /// Done, dismissed or back to Intake also ends a working session, banking its time. A task
+    /// done before its planned block started loses the plan: the slot is free again. Done once
+    /// it had started keeps its block, on the schedule and in Outlook, as a record.
+    /// </summary>
+    public void SetStage(Guid id, Stage stage)
+    {
+        var now = DateTimeOffset.UtcNow;
+        Update(id, i =>
+        {
+            var changed = (stage == Stage.Planned ? i : i.StopWork(now)) with { Stage = stage };
+            return stage == Stage.Done && i.Source != Source.Calendar && i.PlannedStartUtc > now
+                ? changed with { PlannedStartUtc = null, PlannedMinutes = null }
+                : changed;
+        });
+    }
 
     // ── Working on it ───────────────────────────────────────────────────────────────────────
 
@@ -725,12 +749,13 @@ internal sealed class AgentHost(Application app) : IDisposable
                 item is { IsOpen: true } ? CalendarKind.Meeting : CalendarKind.Busy, e.IsAllDay));
         }
 
-        foreach (var task in _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar &&
+        // Done tasks keep their block, greyed, so the day shows what you did as well as what's left.
+        foreach (var task in _store.List(Stage.Planned, Stage.Done).Where(i => i.Source != Source.Calendar &&
                      i.PlannedStartUtc is { } s && s < to && s.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes) > from))
         {
             var start = task.PlannedStartUtc!.Value;
             entries.Add(new CalendarEntry(task, task.Title, start, start.AddMinutes(task.PlannedMinutes ?? _settings.PlanMinutes),
-                CalendarKind.Task, false));
+                task.Stage == Stage.Done ? CalendarKind.DoneTask : CalendarKind.Task, false));
         }
         return entries;
     }

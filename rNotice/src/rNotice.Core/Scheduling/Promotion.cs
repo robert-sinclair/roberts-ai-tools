@@ -13,7 +13,7 @@ public enum PromotionKind
     /// <summary>You re-planned it here: move the event to the new time.</summary>
     Move,
 
-    /// <summary>No longer wanted on the calendar — done, dismissed, back in Intake, no time, or removed.</summary>
+    /// <summary>No longer wanted on the calendar — dismissed, back in Intake, no time, or removed.</summary>
     Remove,
 
     /// <summary>You moved the event in Outlook: the plan follows it.</summary>
@@ -44,8 +44,11 @@ public static class Promotion
         {
             if (item.Source == Source.Calendar) continue;   // meetings are already on the calendar
 
-            var wanted = item.PromoteToCalendar && item.Stage == Stage.Planned && item.PlannedStartUtc is not null;
             var has = item.CalendarEventId is not null;
+            // Done keeps the event it has, as a record of the time spent (asked 2026-10-28), but
+            // never gets a new one. Done before its block started has no time by then (AgentHost).
+            var wanted = item.PromoteToCalendar && item.PlannedStartUtc is not null &&
+                         (item.Stage == Stage.Planned || item.Stage == Stage.Done && has);
 
             if (!wanted)
             {
