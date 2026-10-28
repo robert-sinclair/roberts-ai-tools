@@ -788,7 +788,8 @@ internal sealed class AgentHost(Application app) : IDisposable
             // detail pane. Only blocklisted ones have no item behind them.
             var item = _store.GetBySource(Source.Calendar, e.Id);
             entries.Add(new CalendarEntry(item, e.Subject, e.StartUtc, e.EndUtc,
-                item is { IsOpen: true } ? CalendarKind.Meeting : CalendarKind.Busy, e.IsAllDay));
+                item switch { { IsOpen: true } => CalendarKind.Meeting, { Stage: Stage.Done } => CalendarKind.Done, _ => CalendarKind.Busy },
+                e.IsAllDay));
         }
 
         // Time left behind when a started plan moved on: what you did, beside what's next.
@@ -802,7 +803,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         {
             var start = task.PlannedStartUtc!.Value;
             entries.Add(new CalendarEntry(task, task.Title, start, start.AddMinutes(task.PlannedMinutes ?? _settings.PlanMinutes),
-                task.Stage == Stage.Done ? CalendarKind.DoneTask : CalendarKind.Task, false));
+                task.Stage == Stage.Done ? CalendarKind.Done : CalendarKind.Task, false));
         }
         return entries;
     }

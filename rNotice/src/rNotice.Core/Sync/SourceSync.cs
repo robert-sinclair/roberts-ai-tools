@@ -30,13 +30,15 @@ public sealed class SourceSync(ItemStore store, Intake intake)
     /// <summary>
     /// Calendar items mirror the calendar. A meeting that was cancelled, moved out of the window,
     /// blocklisted or is over loses its item outright — no tombstone, so if it comes back it
-    /// comes back as new.
+    /// comes back as new. The exception: one you marked done stays while it's over but still in
+    /// the calendar read, so it shows as done.
     /// </summary>
     public SyncReport SyncCalendar(IReadOnlyList<CalendarEvent> events, DateTimeOffset nowUtc)
     {
         int inserted = 0, updated = 0, removed = 0;
         var skipped = new List<(string, string)>();
         var live = new HashSet<string>();
+        var seen = events.Select(e => e.Id).ToHashSet();
 
         foreach (var e in events)
         {
@@ -64,7 +66,10 @@ public sealed class SourceSync(ItemStore store, Intake intake)
                 _store.Save(moved with { Stage = Stage.Planned }, nowUtc);
         }
 
-        foreach (var item in _store.List().Where(i => i.Source == Source.Calendar && !live.Contains(i.SourceId)))
+        // A meeting you marked done keeps its item once it's over, while the calendar still shows
+        // it, so the schedule can show it as done. Retention, or the read window moving on, ends it.
+        foreach (var item in _store.List().Where(i => i.Source == Source.Calendar && !live.Contains(i.SourceId) &&
+                     !(i.Stage == Stage.Done && seen.Contains(i.SourceId))))
         {
             _store.Delete(item.Id);
             removed++;

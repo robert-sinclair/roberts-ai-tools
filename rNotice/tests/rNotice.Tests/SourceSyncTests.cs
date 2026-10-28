@@ -51,6 +51,20 @@ public sealed class SourceSyncTests : IDisposable
     }
 
     [Fact]
+    public void A_meeting_marked_done_keeps_its_item_after_it_ends_while_the_calendar_shows_it()
+    {
+        _sync.SyncCalendar([Ev("a"), Ev("b")], Now);
+        foreach (var i in _store.List().Where(i => i.SourceId == "a")) _store.Save(i with { Stage = Stage.Done }, Now);
+
+        var later = Now.AddHours(2);   // both are over
+        _sync.SyncCalendar([Ev("a"), Ev("b")], later);
+        Assert.Equal(["a"], _store.List().Select(i => i.SourceId));
+
+        _sync.SyncCalendar([], later);   // gone from the read
+        Assert.Empty(_store.List());
+    }
+
+    [Fact]
     public void Meeting_stored_in_Intake_before_the_change_moves_to_Planned()
     {
         _sync.SyncCalendar([Ev("a")], Now);

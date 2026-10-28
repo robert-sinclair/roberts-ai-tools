@@ -538,7 +538,8 @@ public partial class QueueWindow : Window
             CalendarKind.Meeting when state == "live" => (Hex(0xFDEBD3), Hex(0xE08B1E), Brushes.Black),
             CalendarKind.Meeting => (Hex(0xDCE7F5), Hex(0x2B6CB0), Brushes.Black),
             CalendarKind.Task => (Hex(0xFCE8C8), Hex(0xE08B1E), Brushes.Black),
-            CalendarKind.DoneTask or CalendarKind.Worked => (Hex(0xEEEEEE), Hex(0x9AA5B1), Brushes.DimGray),
+            CalendarKind.Done => (Hex(0xEDE7F6), Hex(0x7E57C2), Hex(0x4A3B6B)),
+            CalendarKind.Worked => (Hex(0xEEEEEE), Hex(0x9AA5B1), Brushes.DimGray),
             _ => (Hex(0xEEEEEE), Hex(0xBBBBBB), Brushes.DimGray)
         };
     }
@@ -556,7 +557,7 @@ public partial class QueueWindow : Window
         // Too short for a second line: the start time goes in front of the title, as Outlook does.
         content.Children.Add(new TextBlock
         {
-            Text = height > 34 ? e.Title : $"{Local(e.StartUtc):HH:mm} · {e.Title}",
+            Text = (e.Kind == CalendarKind.Done ? "✓ " : "") + (height > 34 ? e.Title : $"{Local(e.StartUtc):HH:mm} · {e.Title}"),
             FontWeight = FontWeights.SemiBold, FontSize = 12, Foreground = text,
             TextWrapping = height > 34 ? TextWrapping.Wrap : TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis
         });
@@ -564,7 +565,7 @@ public partial class QueueWindow : Window
             content.Children.Add(new TextBlock { Text = e.Kind switch
             {
                 CalendarKind.Task => $"{when} · {(e.Item?.IsWorking == true ? "working" : "planned")}{(e.Item?.CalendarEventId is not null ? " · in Outlook" : "")}",
-                CalendarKind.DoneTask => $"{when} · done" + (e.Item?.WorkedMinutes is > 0 and var m ? $" · worked {Display.Duration(TimeSpan.FromMinutes(m))}" : ""),
+                CalendarKind.Done => $"{when} · done" + (e.Item?.WorkedMinutes is > 0 and var m ? $" · worked {Display.Duration(TimeSpan.FromMinutes(m))}" : ""),
                 CalendarKind.Worked => $"{when} · worked",
                 _ => when
             }, FontSize = 11, Opacity = 0.75 });
@@ -665,8 +666,10 @@ public partial class QueueWindow : Window
 
     private void OnKey(object sender, KeyEventArgs e)
     {
-        // Typing or copying in the detail pane — Ctrl+C there must copy, not mark done.
-        if (e.OriginalSource is TextBoxBase || Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
+        // Typing in the title editor, or copying in the detail pane — Ctrl+C there must copy, not
+        // mark done. The detail pane's read-only text doesn't count: clicking a calendar block can
+        // leave keyboard focus there, and C then did nothing (2026-10-28).
+        if (e.OriginalSource is TextBoxBase { IsReadOnly: false } || Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
             Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
             return;
 

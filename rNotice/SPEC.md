@@ -1308,6 +1308,14 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Done has its own colour (0.9.10, 2026-10-28).** Done tasks and done meetings show in purple
+with a tick (✓), distinct from meetings (blue), plans and live meetings (orange), joined meetings
+(green) and untracked busy time or worked blocks (grey). A meeting marked done keeps its item
+after it ends while the calendar read still shows it, so it stays purple instead of turning grey.
+Also fixed: **C** (and the other keys) did nothing when keyboard focus was in the detail pane's
+read-only text, which clicking a calendar block can leave it in; only the title editor now
+swallows keys.
+
 **Worked time stays in Outlook (0.9.7, 2026-10-28).** Asked by Robert: rNotice shouldn't remove
 time you've already spent from Outlook. A plan and its event are no longer one-to-one for life
 (`WorkedTime`):

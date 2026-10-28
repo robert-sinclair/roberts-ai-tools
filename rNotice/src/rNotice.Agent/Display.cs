@@ -86,8 +86,8 @@ public enum CalendarKind
     /// <summary>A task you planned with rNotice.</summary>
     Task,
 
-    /// <summary>A planned task you've marked done: its block stays, grey, as a record.</summary>
-    DoneTask,
+    /// <summary>A task or meeting you've marked done: its block stays, in purple with a tick, as a record.</summary>
+    Done,
 
     /// <summary>Time spent in a block before its plan moved on. Grey, like done.</summary>
     Worked,
