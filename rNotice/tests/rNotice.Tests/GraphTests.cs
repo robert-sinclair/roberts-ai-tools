@@ -162,6 +162,12 @@ public class CalendarWriteTests
     }
 
     [Fact]
+    public void Event_body_is_html_with_live_links() =>
+        Assert.Equal(
+            "00038030 &#183; Needs attention<br>&nbsp; &nbsp; <a href=\"https://x.force.com/lightning/r/Case/500N/view\">https://x.force.com/lightning/r/Case/500N/view</a><br>a &lt; b",
+            CalendarClient.BodyHtml("00038030 · Needs attention\n    https://x.force.com/lightning/r/Case/500N/view\na < b"));
+
+    [Fact]
     public async Task Delete_refuses_an_event_without_the_rNotice_tag()
     {
         var fake = new FakeHandler().Respond(HttpStatusCode.OK, """{ "id": "m1", "categories": ["Blue category"] }""");

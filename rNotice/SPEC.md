@@ -1342,6 +1342,10 @@ description carries each item's case number and subject. (`GroupPlan`)
   Planned count. **Done** on the group marks them done; **dismissing** the group sends them back to
   Intake. A new Teams message in a grouped one-on-one chat starts a new Intake item, as for any
   planned chat.
+- **Links (0.9.9).** In the detail pane every https address is a link, and in a group's list each
+  case number links to the case address on the line under it. rNotice's Outlook events are now
+  written as HTML (escaped text, line breaks kept, https addresses as links) so the same links
+  work from Outlook.
 
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on

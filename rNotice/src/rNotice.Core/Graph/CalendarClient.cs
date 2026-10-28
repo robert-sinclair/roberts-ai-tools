@@ -37,6 +37,32 @@ public sealed class CalendarClient(GraphClient graph)
     private static object When(DateTimeOffset utc) =>
         new { dateTime = utc.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture), timeZone = "UTC" };
 
+    // An https address in a body. Only https becomes a link.
+    private static readonly System.Text.RegularExpressions.Regex WebAddress =
+        new(@"https://[^\s<>""]+", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Plain text as an event body in HTML: escaped, line breaks kept, and every https address a
+    /// link — so a grouped plan's case links open from Outlook with one click.
+    /// </summary>
+    public static string BodyHtml(string text)
+    {
+        var html = new System.Text.StringBuilder();
+        var at = 0;
+        foreach (System.Text.RegularExpressions.Match m in WebAddress.Matches(text))
+        {
+            html.Append(Escape(text[at..m.Index]));
+            var url = System.Net.WebUtility.HtmlEncode(m.Value);
+            html.Append($"<a href=\"{url}\">{url}</a>");
+            at = m.Index + m.Length;
+        }
+        html.Append(Escape(text[at..]));
+        return html.ToString();
+
+        static string Escape(string s) =>
+            System.Net.WebUtility.HtmlEncode(s).Replace("\r\n", "\n").Replace("\n", "<br>").Replace("  ", "&nbsp; ");
+    }
+
     /// <summary>
     /// A time block for one planned task: yours alone (no attendees, ever), tentative so it never
     /// silences rNotice's own alerts, tagged so rNotice can recognise its own, with Outlook's
@@ -49,7 +75,7 @@ public sealed class CalendarClient(GraphClient graph)
         var created = await _graph.SendJsonAsync(HttpMethod.Post, "/me/events", new
         {
             subject,
-            body = new { contentType = "text", content = body },
+            body = new { contentType = "html", content = BodyHtml(body) },
             start = When(startUtc),
             end = When(endUtc),
             categories = new[] { category },

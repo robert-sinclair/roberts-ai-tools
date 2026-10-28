@@ -248,6 +248,15 @@ public partial class QueueWindow : Window
     /// Fills a read-only rich text box, keeping line breaks, with every occurrence of the case
     /// number as a link to the case when there is one.
     /// </summary>
+    // An https address in the text. Only https is made a link: OpenLink refuses anything else.
+    private static readonly System.Text.RegularExpressions.Regex WebAddress =
+        new(@"https://[^\s<>""]+", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Text with its links live: every https address, and the case number wherever it appears.
+    /// In a grouped plan's list, a line's case number links to the case address on the line
+    /// under it, so each case opens from its own number.
+    /// </summary>
     private void SetRich(RichTextBox box, string text, string? caseNumber, string? caseUrl)
     {
         var paragraph = new Paragraph { Margin = new Thickness(0) };
@@ -257,28 +266,19 @@ public partial class QueueWindow : Window
             if (l > 0) paragraph.Inlines.Add(new LineBreak());
             var line = lines[l];
 
-            if (caseNumber is null || caseUrl is null || !line.Contains(caseNumber))
-            {
-                paragraph.Inlines.Add(new Run(line));
-                continue;
-            }
+            var (number, url) = (caseNumber, caseUrl);
+            if (l + 1 < lines.Length && lines[l + 1].Trim() is var under && WebAddress.Match(under) is { Success: true } m &&
+                m.Value == under && CaseLinks.FindAnyCaseNumber(line) is { } own)
+                (number, url) = (own, under);
 
-            var parts = line.Split(caseNumber);
-            for (var p = 0; p < parts.Length; p++)
+            var at = 0;
+            foreach (System.Text.RegularExpressions.Match address in WebAddress.Matches(line))
             {
-                if (p > 0)
-                {
-                    var link = new Hyperlink(new Run(caseNumber))
-                    {
-                        NavigateUri = new Uri(caseUrl),
-                        ToolTip = "Open the case in Salesforce",
-                        Cursor = Cursors.Hand
-                    };
-                    link.RequestNavigate += OnCaseLink;
-                    paragraph.Inlines.Add(link);
-                }
-                if (parts[p].Length > 0) paragraph.Inlines.Add(new Run(parts[p]));
+                AddWithCase(paragraph, line[at..address.Index], number, url);
+                paragraph.Inlines.Add(Link(address.Value, address.Value, "Open in the browser"));
+                at = address.Index + address.Length;
             }
+            AddWithCase(paragraph, line[at..], number, url);
         }
 
         box.Document = new FlowDocument(paragraph)
@@ -328,6 +328,29 @@ public partial class QueueWindow : Window
         // whatever its state. Only a blocklisted meeting, which has no item, can't be shown.
         Select(_host.MeetingItem(eventId), Area.Calendar);
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => CalScroll.ScrollToVerticalOffset(Math.Max(0, Y(start) - HourPx)));
+    }
+
+    private void AddWithCase(Paragraph paragraph, string text, string? caseNumber, string? caseUrl)
+    {
+        if (caseNumber is null || caseUrl is null || !text.Contains(caseNumber))
+        {
+            if (text.Length > 0) paragraph.Inlines.Add(new Run(text));
+            return;
+        }
+
+        var parts = text.Split(caseNumber);
+        for (var p = 0; p < parts.Length; p++)
+        {
+            if (p > 0) paragraph.Inlines.Add(Link(caseNumber, caseUrl, "Open the case in Salesforce"));
+            if (parts[p].Length > 0) paragraph.Inlines.Add(new Run(parts[p]));
+        }
+    }
+
+    private Hyperlink Link(string text, string url, string tip)
+    {
+        var link = new Hyperlink(new Run(text)) { NavigateUri = new Uri(url), ToolTip = tip, Cursor = Cursors.Hand };
+        link.RequestNavigate += OnCaseLink;
+        return link;
     }
 
     private void OnCaseLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
