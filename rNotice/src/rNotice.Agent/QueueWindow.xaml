@@ -133,7 +133,7 @@
                         <TabItem.Header>
                             <TextBlock x:Name="IntakeHeader" Text="Intake" FontWeight="SemiBold" />
                         </TabItem.Header>
-                        <ListBox x:Name="IntakeList" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus"
+                        <ListBox x:Name="IntakeList" SelectionMode="Extended" SelectionChanged="OnSelectionChanged" GotKeyboardFocus="OnListFocus"
                                  PreviewMouseLeftButtonDown="OnMouseDown" PreviewMouseMove="OnMouseMove"
                                  ContextMenuOpening="OnListContextMenu">
                             <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>

@@ -22,6 +22,15 @@ public static class CaseLinks
         new(@"https?://[\w.-]*(?:salesforce\.com|force\.com|\.my\.site\.com)/(?:[\w/]*?/)?(?<id>500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?)(?![0-9A-Za-z])",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
 
+    // A bare case number — "look at this asap please 00039100". Bravura case numbers are eight
+    // digits with leading zeros, so only those are taken without the word "Case" in front.
+    private static readonly Regex BareCaseNumber =
+        new(@"(?<![\d.,/:-])(?<n>000\d{5})(?![\d.,/:-]?\d)", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    /// <summary>A case number with "Case" in front, or else a bare eight-digit 000… number, or null.</summary>
+    public static string? FindAnyCaseNumber(string? text) =>
+        FindCaseNumber(text) ?? (text is not null && BareCaseNumber.Match(text) is { Success: true } m ? m.Groups["n"].Value : null);
+
     /// <summary>The case number in a subject or line, or null.</summary>
     public static string? FindCaseNumber(string? text) =>
         text is not null && CaseNumber.Match(text) is { Success: true } m ? m.Groups["n"].Value : null;

@@ -1324,6 +1324,25 @@ time you've already spent from Outlook. A plan and its event are no longer one-t
 - Not affected: a block that hasn't started still moves or goes as before; **Still working**
   keeps the same block and only moves its end; Done keeps the whole block (0.9.6).
 
+**Planning several items together (0.9.8, 2026-10-28).** Asked by Robert: select several Intake
+items with Ctrl or Shift and plan them as one block with a title of your own; the event's
+description carries each item's case number and subject. (`GroupPlan`)
+
+- **P**, or right-click inside the selection → **Plan N together…**, opens the Plan dialog with a
+  **Title** box (the first item's subject, selected, so typing replaces it; blank becomes
+  "N items") and a preview of the description.
+- The group is a new item, source `Group`. It carries the title, time and Outlook event, and
+  behaves like any plan: alerts, drag, rebook, working on it, worked time.
+- Description, one line per item: `00039100 · <subject>`, or just the subject if no case number
+  is found; the Salesforce link underneath when rNotice has one. A case number is "Case" plus
+  eight digits, or a bare eight-digit number starting `000` (Teams messages often have no
+  "Case").
+- The items keep their own titles and go to Planned with no time, under the group
+  (`group_id`): no alerts of their own, not on the schedule or in the "No time" strip, not in the
+  Planned count. **Done** on the group marks them done; **dismissing** the group sends them back to
+  Intake. A new Teams message in a grouped one-on-one chat starts a new Intake item, as for any
+  planned chat.
+
 **Planned tasks always interrupt (0.8.3, 2026-10-26).** A task you plan with a time alerts at
 that time as at least `planInterrupt` (default `Takeover`: every monitor dims, the window sits on
 top). Before this a plan kept the classification of the mail or chat it came from — usually

@@ -99,6 +99,9 @@ public sealed record Item
     /// </summary>
     public DateTimeOffset? WorkStartedUtc { get; init; }
 
+    /// <summary>Planned as part of a group: the group item (<see cref="Source.Group"/>) carries the time.</summary>
+    public Guid? GroupId { get; init; }
+
     /// <summary>Time spent on it in sessions that have ended, in minutes.</summary>
     public int WorkedMinutes { get; init; }
 

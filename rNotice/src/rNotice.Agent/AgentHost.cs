@@ -529,6 +529,37 @@ internal sealed class AgentHost(Application app) : IDisposable
                 ? changed with { PlannedStartUtc = null, PlannedMinutes = null }
                 : changed;
         });
+
+        // A group's members follow it: done together, or back to Intake if the group is dismissed.
+        if (_store.Get(id) is { Source: Source.Group })
+            foreach (var member in _store.List().Where(m => m.GroupId == id && m.IsOpen))
+                if (GroupPlan.Follow(member, stage, now) is { } followed)
+                    Update(member.Id, _ => followed);
+    }
+
+    /// <summary>
+    /// Plans several Intake items as one block under a title you give (<see cref="GroupPlan"/>).
+    /// The Plan dialog asks for the title as well as the time.
+    /// </summary>
+    public void PlanGroup(IReadOnlyList<Guid> ids, Window? owner)
+    {
+        var members = ids.Select(_store.Get).OfType<Item>()
+            .Where(i => i.Stage == Stage.Intake && i.Source is not (Source.Calendar or Source.Group)).ToList();
+        if (members.Count == 0) return;
+        if (members.Count == 1) { Plan(members[0].Id, owner); return; }
+
+        var now = DateTimeOffset.UtcNow;
+        var draft = GroupPlan.Create(members[0].Title, members, now);
+        if (ShowPlanDialog(draft, except: Guid.Empty, owner, groupOf: members.Count) is not { } dialog) return;
+
+        var group = GroupPlan.Create(dialog.PlanTitle, members, now)
+            .Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes, dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0);
+        _store.Save(group, now);
+        foreach (var member in members) _store.Save(GroupPlan.Join(member, group.Id, now), now);
+        Log.Info($"Planned {members.Count} items together as '{group.Title}'" +
+                 (dialog.StartUtc is { } start ? $" for {Display.Time(start)}, {dialog.Minutes} min" : ""));
+        Changed?.Invoke();
+        _ = PromoteAsync();
     }
 
     // ── Working on it ───────────────────────────────────────────────────────────────────────
@@ -663,11 +694,24 @@ internal sealed class AgentHost(Application app) : IDisposable
     {
         if (_store.Get(id) is not { } item) return;
 
+        if (ShowPlanDialog(item, except: id, owner) is not { } dialog) return;
+
+        // Re-planning means doing it later: a session in progress ends here.
+        Update(id, i => i.StopWork(DateTimeOffset.UtcNow).Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
+            dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0));
+        if (dialog.StartUtc is { } start)
+            Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
+    }
+
+    /// <summary>The Plan dialog, or null if cancelled. <paramref name="groupOf"/> &gt; 0 asks for a title too.</summary>
+    private PlanDialog? ShowPlanDialog(Item item, Guid except, Window? owner, int groupOf = 0)
+    {
         var hours = _settings.ToWorkHours();
         var dialog = new PlanDialog(item, _settings.PlanMinutes, item.PlannedStartUtc is null ? _settings.PromoteByDefault : item.PromoteToCalendar,
-            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except: id)),
+            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except)),
             _calendarKnownUtc, hours,
-            day => DayGrid.Build(day, hours, AgendaFor(day, except: id), DateTimeOffset.UtcNow));
+            day => DayGrid.Build(day, hours, AgendaFor(day, except), DateTimeOffset.UtcNow),
+            groupOf);
         if (owner is { IsVisible: true })
         {
             dialog.Owner = owner;
@@ -678,14 +722,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
             dialog.Topmost = true;
         }
-
-        if (dialog.ShowDialog() != true) return;
-
-        // Re-planning means doing it later: a session in progress ends here.
-        Update(id, i => i.StopWork(DateTimeOffset.UtcNow).Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
-            dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0));
-        if (dialog.StartUtc is { } start)
-            Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
+        return dialog.ShowDialog() == true ? dialog : null;
     }
 
     private IReadOnlyList<TimeBlock> _meetingBlocks = [];
@@ -772,7 +809,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     /// <summary>Planned, but with no time: listed above the calendar whatever the day.</summary>
     public IReadOnlyList<Item> PlannedWithoutTime() =>
-        _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar && i.PlannedStartUtc is null).ToList();
+        _store.List(Stage.Planned).Where(i => i.Source != Source.Calendar && i.PlannedStartUtc is null && i.GroupId is null).ToList();
 
     /// <summary>
     /// Plans an item at a time it was dropped on in the calendar, for the default length. If that

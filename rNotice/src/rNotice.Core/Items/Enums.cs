@@ -5,7 +5,10 @@ public enum Source
     Workbook,
     Calendar,
     Mail,
-    Teams
+    Teams,
+
+    /// <summary>Several items planned together under one title (<c>GroupPlan</c>). Made by you, not polled.</summary>
+    Group
 }
 
 /// <summary>

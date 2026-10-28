@@ -67,6 +67,7 @@ internal static class Display
         Source.Calendar => "Meeting",
         Source.Mail => "Email",
         Source.Teams => "Chat",
+        Source.Group => "Group",
         _ => s.ToString()
     };
 

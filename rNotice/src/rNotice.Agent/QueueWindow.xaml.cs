@@ -78,7 +78,7 @@ public partial class QueueWindow : Window
             QueueOrder.SortByDay(items.Where(i => i.Stage == Stage.Intake), now, TimeZoneInfo.Local), byDay: true);
         Fill(DoneList, DoneHeader, "Done",
             items.Where(i => i.Stage == Stage.Done).OrderByDescending(i => i.DueUtc ?? i.ReceivedUtc).Take(50), byDay: false);
-        PlannedHeader.Text = $"Planned ({items.Count(i => i.Stage == Stage.Planned)})";
+        PlannedHeader.Text = $"Planned ({items.Count(i => i.Stage == Stage.Planned && i.GroupId is null)})";
 
         BuildCalendar();
 
@@ -115,6 +115,7 @@ public partial class QueueWindow : Window
     {
         var selected = (list.SelectedItem as ItemView)?.Id;
         var selectedIndex = list.SelectedIndex;
+        var alsoSelected = list.SelectedItems.OfType<ItemView>().Select(v => v.Id).Where(id => id != selected).ToHashSet();
         var views = items.Select(i => new ItemView(i)).ToList();
 
         // A refresh every minute rebuilds the list; keep the scroll where it was.
@@ -137,6 +138,9 @@ public partial class QueueWindow : Window
         if (views.FirstOrDefault(v => v.Id == selected) is { } still)
         {
             list.SelectedItem = still;
+            // A Ctrl/Shift selection survives the minute's refresh too.
+            if (list.SelectionMode != SelectionMode.Single)
+                foreach (var other in views.Where(v => alsoSelected.Contains(v.Id))) list.SelectedItems.Add(other);
         }
         else if (selected is not null && selectedIndex >= 0 && list.Items.Count > 0)
         {
@@ -652,6 +656,9 @@ public partial class QueueWindow : Window
             case Key.Right: ChangeDay(+1); break;
             case Key.Up when _area == Area.Calendar: StepCalendar(-1); break;
             case Key.Down when _area == Area.Calendar: StepCalendar(+1); break;
+            case Key.P when _area == Area.Intake && IntakeList.SelectedItems.Count > 1:
+                _host.PlanGroup(SelectedIntakeIds(), this);
+                break;
             case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
             case Key.Delete when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
@@ -680,6 +687,10 @@ public partial class QueueWindow : Window
         CalScroll.ScrollToVerticalOffset(Math.Max(0, Y(next.StartUtc) - HourPx));
     }
 
+    /// <summary>The Intake rows selected with Ctrl or Shift, in list order.</summary>
+    private IReadOnlyList<Guid> SelectedIntakeIds() =>
+        IntakeList.Items.OfType<ItemView>().Where(v => IntakeList.SelectedItems.Contains(v)).Select(v => v.Id).ToList();
+
     private static bool CanPlan(Item item) =>
         item.Stage == Stage.Intake || (item.Stage == Stage.Planned && item.Source != Source.Calendar);
 
@@ -693,9 +704,21 @@ public partial class QueueWindow : Window
             e.Handled = true;
             return;
         }
-        container.IsSelected = true;
+        // Right-clicking inside a Ctrl/Shift selection keeps it; anywhere else selects just that row.
+        var several = container.IsSelected && list.SelectedItems.Count > 1;
+        if (!several)
+        {
+            list.SelectedItems.Clear();
+            container.IsSelected = true;
+        }
         Select(view.Item, ListArea(list));
         BuildMenu(list.ContextMenu!, view.Item, () => Advance(list));
+        if (several && list == IntakeList)
+        {
+            var ids = SelectedIntakeIds();
+            list.ContextMenu!.Items.Insert(0, Entry($"Plan {ids.Count} together…", "P", () => _host.PlanGroup(ids, this)));
+            list.ContextMenu.Items.Insert(1, new Separator());
+        }
     }
 
     /// <summary>

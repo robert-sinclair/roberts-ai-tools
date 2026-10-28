@@ -79,6 +79,7 @@ public sealed class ItemStore : IDisposable
         if (!columns.Contains("title_edited")) Execute("ALTER TABLE items ADD COLUMN title_edited INTEGER NOT NULL DEFAULT 0");
         if (!columns.Contains("work_started_utc")) Execute("ALTER TABLE items ADD COLUMN work_started_utc INTEGER");
         if (!columns.Contains("worked_minutes")) Execute("ALTER TABLE items ADD COLUMN worked_minutes INTEGER NOT NULL DEFAULT 0");
+        if (!columns.Contains("group_id")) Execute("ALTER TABLE items ADD COLUMN group_id TEXT");
     }
 
     private void CreateSchema() => Execute("""
@@ -112,6 +113,7 @@ public sealed class ItemStore : IDisposable
             title_edited      INTEGER NOT NULL DEFAULT 0,
             work_started_utc  INTEGER,
             worked_minutes    INTEGER NOT NULL DEFAULT 0,
+            group_id          TEXT,
             updated_utc       INTEGER NOT NULL,
             title             BLOB NOT NULL,
             reason            BLOB NOT NULL,
@@ -227,11 +229,11 @@ public sealed class ItemStore : IDisposable
         cmd.CommandText = """
             INSERT INTO items (id, source, source_id, stage, priority, interrupt, classified_by,
                 received_utc, due_utc, fire_at_utc, planned_start_utc, acked_at_utc,
-                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, note, note_link, promote, calendar_start_utc, calendar_end_utc, title_edited, work_started_utc, worked_minutes, updated_utc,
+                snoozed_until_utc, last_fired_utc, calendar_event_id, is_read, planned_minutes, joined_utc, case_url, note, note_link, promote, calendar_start_utc, calendar_end_utc, title_edited, work_started_utc, worked_minutes, group_id, updated_utc,
                 title, reason, snippet, sender, source_ref, join_url)
             VALUES ($id, $source, $source_id, $stage, $priority, $interrupt, $classified_by,
                 $received_utc, $due_utc, $fire_at_utc, $planned_start_utc, $acked_at_utc,
-                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $note, $note_link, $promote, $calendar_start_utc, $calendar_end_utc, $title_edited, $work_started_utc, $worked_minutes, $updated_utc,
+                $snoozed_until_utc, $last_fired_utc, $calendar_event_id, $is_read, $planned_minutes, $joined_utc, $case_url, $note, $note_link, $promote, $calendar_start_utc, $calendar_end_utc, $title_edited, $work_started_utc, $worked_minutes, $group_id, $updated_utc,
                 $title, $reason, $snippet, $sender, $source_ref, $join_url)
             ON CONFLICT (id) DO UPDATE SET
                 source_id = excluded.source_id, stage = excluded.stage, priority = excluded.priority, interrupt = excluded.interrupt,
@@ -242,7 +244,7 @@ public sealed class ItemStore : IDisposable
                 is_read = excluded.is_read, planned_minutes = excluded.planned_minutes, joined_utc = excluded.joined_utc, case_url = excluded.case_url, note = excluded.note, note_link = excluded.note_link, promote = excluded.promote,
                 calendar_start_utc = excluded.calendar_start_utc, calendar_end_utc = excluded.calendar_end_utc,
                 title_edited = excluded.title_edited, work_started_utc = excluded.work_started_utc,
-                worked_minutes = excluded.worked_minutes, updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
+                worked_minutes = excluded.worked_minutes, group_id = excluded.group_id, updated_utc = excluded.updated_utc, title = excluded.title, reason = excluded.reason,
                 snippet = excluded.snippet, sender = excluded.sender,
                 source_ref = excluded.source_ref, join_url = excluded.join_url;
             """;
@@ -275,6 +277,7 @@ public sealed class ItemStore : IDisposable
         p.AddWithValue("$title_edited", item.TitleEdited ? 1 : 0);
         p.AddWithValue("$work_started_utc", Ms(item.WorkStartedUtc));
         p.AddWithValue("$worked_minutes", item.WorkedMinutes);
+        p.AddWithValue("$group_id", (object?)item.GroupId?.ToString() ?? DBNull.Value);
         p.AddWithValue("$updated_utc", nowUtc.ToUnixTimeMilliseconds());
         p.AddWithValue("$title", _protector.Protect(item.Title));
         p.AddWithValue("$reason", _protector.Protect(item.Classification.Reason));
@@ -423,6 +426,7 @@ public sealed class ItemStore : IDisposable
                 TitleEdited = r.GetInt64(r.GetOrdinal("title_edited")) != 0,
                 WorkStartedUtc = Time(r, "work_started_utc"),
                 WorkedMinutes = r.GetInt32(r.GetOrdinal("worked_minutes")),
+                GroupId = r.IsDBNull(r.GetOrdinal("group_id")) ? null : Guid.Parse(r.GetString(r.GetOrdinal("group_id"))),
                 Title = Open(r, "title")!,
                 Snippet = Open(r, "snippet"),
                 From = Open(r, "sender"),

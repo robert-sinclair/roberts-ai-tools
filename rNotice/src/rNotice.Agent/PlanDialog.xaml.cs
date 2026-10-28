@@ -50,11 +50,14 @@ public partial class PlanDialog : Window
     public DateTimeOffset? StartUtc { get; private set; }
     public int Minutes => _selMinutes > 0 ? _selMinutes : Durations[Math.Max(0, Duration.SelectedIndex)];
 
+    /// <summary>The title typed for a group plan; empty otherwise.</summary>
+    public string PlanTitle => TitleBox.Text.Trim();
+
     /// <summary>Whether the plan goes on your Outlook calendar. Ignored for "no time".</summary>
     public bool Promote => OnCalendar.IsChecked == true;
 
     internal PlanDialog(Item item, int defaultMinutes, bool promote, Func<int, IReadOnlyList<DateTimeOffset>> suggest,
-        DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day)
+        DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day, int groupOf = 0)
     {
         _item = item;
         _suggest = suggest;
@@ -67,6 +70,16 @@ public partial class PlanDialog : Window
         var view = new ItemView(item);
         ItemTitle.Text = view.Title;
         ItemMeta.Text = view.Meta;
+        if (groupOf > 0)
+        {
+            Title = $"Plan {groupOf} items together";
+            ItemTitle.Visibility = Visibility.Collapsed;
+            ItemMeta.Text = $"{groupOf} items, one block. They stay in rNotice under it, and are done when it's done.";
+            GroupPanel.Visibility = Visibility.Visible;
+            GroupList.Text = item.Snippet;
+            TitleBox.Text = item.Title;
+            Loaded += (_, _) => { TitleBox.Focus(); TitleBox.SelectAll(); };
+        }
 
         NoTime.Content = item.DueUtc is { } due
             ? $"No time — remind me as usual ({Display.Time(due)})"
