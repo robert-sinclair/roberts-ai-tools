@@ -35,7 +35,9 @@ public sealed record CalendarEvent(
     // You organised it. Your own name isn't shown as who it's from.
     bool IsOrganizer = false,
     string? JoinUrl = null,
-    string? WebLink = null);
+    string? WebLink = null,
+    // The description, as text, without the Teams join block.
+    string? Body = null);
 
 /// <summary>One inbox message from <c>messages/delta</c>.</summary>
 public sealed record MailMessage(

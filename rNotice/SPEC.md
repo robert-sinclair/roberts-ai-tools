@@ -1308,6 +1308,12 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Meeting descriptions (0.9.11, 2026-10-29).** A meeting's description now shows in the detail
+pane, links live. The calendar read selects `body` and asks for it as text with
+`Prefer: outlook.body-content-type="text"` (documented on List calendarView). The Teams join
+block (from a rule of underscores on) is cut, since Join already covers it, and the rest is
+trimmed to the snippet length (500 characters). Before this, calendar items had no snippet at all.
+
 **Done has its own colour (0.9.10, 2026-10-28).** Done tasks and done meetings show in purple
 with a tick (✓), distinct from meetings (blue), plans and live meetings (orange), joined meetings
 (green) and untracked busy time or worked blocks (grey). A meeting marked done keeps its item

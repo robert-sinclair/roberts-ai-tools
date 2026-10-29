@@ -128,6 +128,31 @@ public class CalendarClientTests
     }
 
     [Fact]
+    public async Task Calendar_read_asks_for_the_body_as_text()
+    {
+        var fake = new FakeHandler().Respond(HttpStatusCode.OK, """{"value":[]}""");
+        await new CalendarClient(fake.Client()).GetViewAsync(DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(1), default);
+
+        var req = fake.Requests.Single();
+        Assert.Equal("outlook.timezone=\"UTC\", outlook.body-content-type=\"text\"", req.Headers.GetValues("Prefer").Single());
+        Assert.Contains("body", req.RequestUri!.Query);
+    }
+
+    [Fact]
+    public void Meeting_description_drops_the_Teams_join_block()
+    {
+        var e = CalendarClient.Map(Json("""
+            { "id": "1", "subject": "Follow up required",
+              "start": { "dateTime": "2026-10-29T14:00:00", "timeZone": "UTC" },
+              "end":   { "dateTime": "2026-10-29T15:00:00", "timeZone": "UTC" },
+              "body": { "contentType": "text", "content": "00038037 · Needs attention\r\n  https://x.force.com/Case/500N/view\r\n\r\n________________________________________________________________________________\r\nMicrosoft Teams meeting\r\nJoin on your computer" } }
+            """));
+
+        Assert.Equal("00038037 · Needs attention\n  https://x.force.com/Case/500N/view", e.Body);
+        Assert.Null(CalendarClient.Description("\r\n__________________________________________\r\nMicrosoft Teams meeting"));
+    }
+
+    [Fact]
     public void Missing_onlineMeeting_means_no_join_link() =>
         Assert.Null(CalendarClient.Map(Json("""
             { "id": "1", "subject": "s", "showAs": "workingElsewhere",

@@ -62,6 +62,7 @@ public sealed class Intake(RulesOptions options, Me me)
             Stage = Stage.Planned,
             SourceRef = e.WebLink,
             Title = e.Subject,
+            Snippet = TextMatch.Truncate(e.Body, _options.SnippetLength),
             From = e.IsOrganizer ? null : e.Organizer,
             ReceivedUtc = nowUtc,
             DueUtc = e.StartUtc,

@@ -32,13 +32,16 @@ public sealed class GraphClient(HttpClient http, TokenProvider token)
     private readonly HttpClient _http = http;
     private readonly TokenProvider _token = token;
 
-    public Task<JsonElement> GetAsync(string path, CancellationToken ct) =>
-        SendAsync(HttpMethod.Get, path, null, ct);
+    public Task<JsonElement> GetAsync(string path, CancellationToken ct, string? prefer = null) =>
+        SendAsync(HttpMethod.Get, path, null, ct, prefer);
 
     public Task<JsonElement> SendJsonAsync(HttpMethod method, string path, object body, CancellationToken ct) =>
         SendAsync(method, path, () => new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"), ct);
 
-    public async Task<JsonElement> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct)
+    /// <param name="prefer">A further <c>Prefer</c> preference for this request, such as
+    /// <c>outlook.body-content-type="text"</c>.</param>
+    public async Task<JsonElement> SendAsync(HttpMethod method, string path, Func<HttpContent>? content, CancellationToken ct,
+        string? prefer = null)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -46,7 +49,8 @@ public sealed class GraphClient(HttpClient http, TokenProvider token)
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await _token(ct).ConfigureAwait(false));
             // Every timestamp in UTC. Mailbox time zone differences are a documented source of
             // results that do not line up.
-            request.Headers.TryAddWithoutValidation("Prefer", "outlook.timezone=\"UTC\"");
+            request.Headers.TryAddWithoutValidation("Prefer",
+                "outlook.timezone=\"UTC\"" + (prefer is null ? "" : ", " + prefer));
             request.Content = content?.Invoke();
 
             using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
@@ -68,12 +72,13 @@ public sealed class GraphClient(HttpClient http, TokenProvider token)
     }
 
     /// <summary>Follows <c>@odata.nextLink</c> to exhaustion. Stopping early silently drops data.</summary>
-    public async IAsyncEnumerable<JsonElement> GetPagedAsync(string path, [EnumeratorCancellation] CancellationToken ct)
+    public async IAsyncEnumerable<JsonElement> GetPagedAsync(string path, [EnumeratorCancellation] CancellationToken ct,
+        string? prefer = null)
     {
         string? next = path;
         while (next is not null)
         {
-            var page = await GetAsync(next, ct).ConfigureAwait(false);
+            var page = await GetAsync(next, ct, prefer).ConfigureAwait(false);
             foreach (var item in page.GetProperty("value").EnumerateArray())
                 yield return item;
 

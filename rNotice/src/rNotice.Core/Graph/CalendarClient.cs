@@ -11,7 +11,11 @@ namespace rNotice.Core.Graph;
 public sealed class CalendarClient(GraphClient graph)
 {
     private const string Select =
-        "subject,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink";
+        "subject,body,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink";
+
+    // The body as text rather than HTML, so the description needs no tag stripping.
+    // (https://learn.microsoft.com/en-us/graph/api/user-list-calendarview — request headers)
+    private const string TextBody = "outlook.body-content-type=\"text\"";
 
     private readonly GraphClient _graph = graph;
 
@@ -27,7 +31,7 @@ public sealed class CalendarClient(GraphClient graph)
                    $"&$select={Select}&$top=50";
 
         var events = new List<CalendarEvent>();
-        await foreach (var e in _graph.GetPagedAsync(path, ct).ConfigureAwait(false))
+        await foreach (var e in _graph.GetPagedAsync(path, ct, TextBody).ConfigureAwait(false))
             events.Add(Map(e));
         return events;
     }
@@ -139,7 +143,25 @@ public sealed class CalendarClient(GraphClient graph)
         JoinUrl: e.TryGetProperty("onlineMeeting", out var om) && om.ValueKind == JsonValueKind.Object
             ? Str(om, "joinUrl")
             : null,
-        WebLink: Str(e, "webLink"));
+        WebLink: Str(e, "webLink"),
+        Body: e.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.Object
+            ? Description(Str(body, "content"))
+            : null);
+
+    // The Teams join block starts with a rule of underscores, then "Microsoft Teams meeting".
+    // Everything from the rule on is join details rNotice already shows as Join.
+    private static readonly System.Text.RegularExpressions.Regex TeamsRule =
+        new(@"^_{20,}\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+    /// <summary>A meeting's description: its text body without the Teams join block, or null if blank.</summary>
+    internal static string? Description(string? text)
+    {
+        if (text is null) return null;
+        text = text.Replace("\r\n", "\n").Replace('\u00a0', ' ');
+        if (TeamsRule.Match(text) is { Success: true } rule) text = text[..rule.Index];
+        text = text.Trim();
+        return text.Length == 0 ? null : text;
+    }
 
     /// <summary>
     /// <c>dateTimeTimeZone</c>. With <c>Prefer: outlook.timezone="UTC"</c> the zone is UTC;

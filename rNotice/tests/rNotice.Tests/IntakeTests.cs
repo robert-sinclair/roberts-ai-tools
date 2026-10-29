@@ -23,6 +23,10 @@ public class CalendarIntakeTests
     }
 
     [Fact]
+    public void A_meetings_description_is_its_snippet() =>
+        Assert.Equal("Case list", _intake.FromCalendar(Event() with { Body = "Case list" }, Now).Item!.Snippet);
+
+    [Fact]
     public void A_meeting_you_organised_has_no_from_and_others_name_the_organiser()
     {
         Assert.Null(_intake.FromCalendar(Event() with { IsOrganizer = true }, Now).Item!.From);
