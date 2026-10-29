@@ -15,11 +15,12 @@ public static class CaseLinks
 
     // A Case record ID (key prefix 500, 15 or 18 characters) inside a Salesforce link —
     // my.salesforce.com/500…, …/lightning/r/Case/500…/view, or the customer portal,
-    // bravurasecurity.my.site.com/portal/500… (an Experience Cloud site: the same record ID).
+    // bravurasecurity.my.site.com/portal/500… (an Experience Cloud site: the same record ID),
+    // which mail now also gives under its own domain, support.bravurasecurity.com/500… (0.9.12).
     // Only inside a Salesforce address, so an unrelated 500-something elsewhere in a message
     // is never taken for one.
     private static readonly Regex RecordInLink =
-        new(@"https?://[\w.-]*(?:salesforce\.com|force\.com|\.my\.site\.com)/(?:[\w/]*?/)?(?<id>500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?)(?![0-9A-Za-z])",
+        new(@"https?://[\w.-]*(?:salesforce\.com|force\.com|\.my\.site\.com|support\.bravurasecurity\.com)/(?:[\w/]*?/)?(?<id>500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?)(?![0-9A-Za-z])",
             RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
 
     // A bare case number — "look at this asap please 00039100". Bravura case numbers are eight

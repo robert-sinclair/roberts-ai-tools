@@ -269,13 +269,16 @@ public partial class QueueWindow : Window
             var (number, url) = (caseNumber, caseUrl);
             if (l + 1 < lines.Length && lines[l + 1].Trim() is var under && WebAddress.Match(under) is { Success: true } m &&
                 m.Value == under && CaseLinks.FindAnyCaseNumber(line) is { } own)
-                (number, url) = (own, under);
+                (number, url) = (own, _host.InternalCaseUrl(under) ?? under);
 
             var at = 0;
             foreach (System.Text.RegularExpressions.Match address in WebAddress.Matches(line))
             {
                 AddWithCase(paragraph, line[at..address.Index], number, url);
-                paragraph.Inlines.Add(Link(address.Value, address.Value, "Open in the browser"));
+                // A link to a case — portal or Salesforce — is shown and opened as its Lightning link.
+                paragraph.Inlines.Add(_host.InternalCaseUrl(address.Value) is { } lightning
+                    ? Link(lightning, lightning, "Open the case in Salesforce")
+                    : Link(address.Value, address.Value, "Open in the browser"));
                 at = address.Index + address.Length;
             }
             AddWithCase(paragraph, line[at..], number, url);

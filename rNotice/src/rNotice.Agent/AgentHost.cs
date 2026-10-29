@@ -409,7 +409,8 @@ internal sealed class AgentHost(Application app) : IDisposable
         _chatsWindow.Show();
     }
     private const string ReadStateBackfillKey = "mail.readState.backfilled";
-    private const string PortalRescanKey = "caseLinks.portalRescan";
+    // Changed when rNotice learns a new kind of case link, so mail already looked at gets one more look.
+    private const string PortalRescanKey = "caseLinks.portalRescan.support";
 
     /// <summary>
     /// Sent Items first, so a reply that lands right after you sent is matched; then the inbox
@@ -453,10 +454,17 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// the internal Lightning link. The body isn't kept. Each item is looked at once (an empty
     /// link means "looked, none"), at most ten a poll so a backlog doesn't stall the refresh.
     /// </summary>
+    /// <summary>
+    /// The internal Lightning link for any Salesforce or customer-portal link to a case, or null
+    /// if the address isn't one. Case links always open in Lightning, never the portal.
+    /// </summary>
+    public string? InternalCaseUrl(string address) =>
+        CaseLinks.FindRecordId(address) is { } id ? CaseLinks.LightningUrl(_settings.SalesforceUrl, id) : null;
+
     private async Task LinkCasesAsync(DateTimeOffset now)
     {
-        // 0.8.5 learned the customer-portal link. Items already looked at and found to have no
-        // link get looked at once more.
+        // 0.8.5 learned the customer-portal link, 0.9.12 its support.bravurasecurity.com
+        // address. Items already looked at and found to have no link get looked at once more.
         if (_store.GetState(PortalRescanKey) is null)
         {
             foreach (var looked in _store.List(Stage.Intake, Stage.Planned).Where(i => i.Source == Source.Mail && i.CaseUrl == ""))

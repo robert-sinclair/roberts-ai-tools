@@ -38,6 +38,12 @@ public class CaseLinksTests
             CaseLinks.FindRecordId("Open the case: https://bravurasecurity.my.site.com/portal/500N300001MewUsIAJ"));
 
     [Fact]
+    public void Record_ID_from_the_support_portal_address() =>
+        // Case 00038028, 2026-10-28: the portal link now comes under support.bravurasecurity.com.
+        Assert.Equal("500N300001MewUsIAJ",
+            CaseLinks.FindRecordId("Open the case: https://support.bravurasecurity.com/500N300001MewUsIAJ"));
+
+    [Fact]
     public void A_record_ID_on_some_other_site_is_not_a_case() =>
         Assert.Null(CaseLinks.FindRecordId("https://example.com/portal/500N300001MewUsIAJ"));
 

@@ -1308,6 +1308,13 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Case links are always Lightning (0.9.12, 2026-10-29).** Customer-portal links now also come as
+`support.bravurasecurity.com/500…` (Case 00038028, *Customer replied*), which rNotice didn't
+recognise, so the case got no link. That address is now read like the other portal and
+Salesforce links. In the detail pane, any link to a case is shown and opened as its internal
+Lightning link (`…lightning.force.com/lightning/r/Case/<18-char ID>/view`), never the portal.
+Mail already looked at without finding a link is looked at once more.
+
 **Meeting descriptions (0.9.11, 2026-10-29).** A meeting's description now shows in the detail
 pane, links live. The calendar read selects `body` and asks for it as text with
 `Prefer: outlook.body-content-type="text"` (documented on List calendarView). The Teams join
