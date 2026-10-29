@@ -126,7 +126,7 @@ One local record per thing, whatever it came from:
 | `Source` | `workbook` \| `calendar` \| `mail` \| `teams` |
 | `SourceId` | Row `Id`, event id, message id, chatMessage id |
 | `SourceRef` | Deep link back — Excel row, Outlook event, Outlook message, Teams message link |
-| `Title`, `Snippet` | Subject/title and a short excerpt. Never the full body. |
+| `Title`, `Snippet` | Subject/title and the message text, up to 2000 characters. |
 | `From`, `ReceivedUtc` | Who and when |
 | `Stage` | As above |
 | `Priority`, `Interrupt` | The two axes |
@@ -464,8 +464,9 @@ and getting it wrong in either direction is costly — miss a real question, or 
 
 So: items no rule classified go to Claude, in batches, on a timer.
 
-- **Input is the snippet, not the body.** Subject, sender, first ~500 characters. Enough to
-  judge, far less to expose.
+- **Input is the whole message.** Subject or chat name, sender, and the full message text,
+  with no character limit (decided 2026-10-29). Text past the 2000 stored characters is read
+  when the item is classified and not kept. Attachments are never sent.
 - **Output is structured** — `output_config.format` with a schema of `{priority, interrupt,
   reason}`, so there's no response parsing to get wrong.
 - **Cached by source id.** An item is classified once. Re-polling never re-asks.
@@ -1136,13 +1137,14 @@ Two destinations, and they are not the same risk.
 **Microsoft Graph.** Your own tenant, your own data, your own token. This is the same data
 Outlook already moves. Nothing new.
 
-**The Anthropic API**, if the classifier is on. Subject lines, sender addresses and ~500
-character snippets of mail and Teams messages leave your machine and your tenant. At a company
+**The Anthropic API**, if the classifier is on. Subject lines, sender addresses and the full
+text of mail and Teams messages leave your machine and your tenant. At a company
 doing PAM and IGA, some of that content will concern client environments.
 
 Mitigations in the design:
 
-- **Snippets, never full bodies.** Enough to judge, far less to expose.
+- **No attachments, and nothing kept past 2000 characters.** The full text goes to the model
+  (2026-10-29); the store keeps only the first 2000 characters.
 - **The classifier is optional** and the app works without it. Rules cover the examples you
   gave.
 - **A `neverClassify` list** — senders, domains, subject patterns and chat ids whose content
@@ -1307,6 +1309,11 @@ with *done · worked 1 h 05 min*, and keeps its Outlook event as a record; rNoti
 an event for a done task. Done before its block started frees the slot (plan cleared, event
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
+
+**Longer message text (0.9.13, 2026-10-29).** The store keeps up to 2000 characters of a
+message's text (`rules.snippetLength`, was 500). Mail is still limited by Graph: `bodyPreview`
+is the first 255 characters of the body. Teams messages and meeting descriptions get the full
+2000. The classifier (step 7) sends the full text, with no limit.
 
 **Case links are always Lightning (0.9.12, 2026-10-29).** Customer-portal links now also come as
 `support.bravurasecurity.com/500…` (Case 00038028, *Customer replied*), which rNotice didn't

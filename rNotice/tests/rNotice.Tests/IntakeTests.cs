@@ -154,10 +154,10 @@ public class MailIntakeTests
         Assert.False(_intake.FromMail(Mail(from: "x@evilbuilds.bravurasecurity.com.attacker.net"), NoThreads).Skipped);
 
     [Fact]
-    public void Snippet_is_truncated_never_the_full_body()
+    public void Snippet_is_cut_at_2000_characters()
     {
-        var item = _intake.FromMail(Mail(preview: new string('x', 2000)), NoThreads).Item!;
-        Assert.True(item.Snippet!.Length <= 501);
+        var item = _intake.FromMail(Mail(preview: new string('x', 5000)), NoThreads).Item!;
+        Assert.Equal(2001, item.Snippet!.Length);   // 2000 and the ellipsis
     }
 }
 

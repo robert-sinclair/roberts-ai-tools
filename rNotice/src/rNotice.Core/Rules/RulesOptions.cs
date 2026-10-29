@@ -33,8 +33,8 @@ public sealed record RulesOptions
     /// <summary>Used when a row's <c>LeadMinutes</c> is blank.</summary>
     public int DefaultLeadMinutes { get; init; } = 15;
 
-    /// <summary>"Subject, sender, first ~500 characters."</summary>
-    public int SnippetLength { get; init; } = 500;
+    /// <summary>How much of a message's text is stored: up to 2000 characters (500 before 0.9.13).</summary>
+    public int SnippetLength { get; init; } = 2000;
 
     /// <summary>The category rNotice puts on events it promotes.</summary>
     public string PromotedCategory { get; init; } = "rNotice";

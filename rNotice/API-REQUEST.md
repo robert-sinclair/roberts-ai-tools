@@ -25,8 +25,8 @@ strongly to interrupt me, and a one-line reason. An important Teams reply would 
 an alert window instead of a toast.
 
 **What is sent.**
-- For each message: the subject or chat name, the sender, and the first ~500 characters. Never
-  full bodies or attachments.
+- For each message: the subject or chat name, the sender, and the full message text.
+  Attachments are never sent.
 - My classification rules and past corrections, as a cached prefix.
 - Phase 1 is **Teams messages only**. Mail stays on rules until phase 1 has run on real traffic.
 - Bravura has policy approval to use Anthropic on all data. Even so, rNotice has a "never
@@ -40,8 +40,8 @@ itself, and a daily cap on full-screen alerts limits that.
 **Usage and cost.**
 - Model: `claude-opus-5-5`, effort `low`. The model is a setting and can be changed.
 - Each message is classified once and never re-sent. Messages are batched on a timer.
-- Expected volume: [tens to low hundreds of messages a day]. At ~500-character snippets, I
-  expect a few dollars a month at most.
+- Expected volume: [tens to low hundreds of messages a day]. Teams messages are usually short,
+  so I expect a few dollars a month at most.
 - I'm happy to have a monthly spend limit set on the key, for example [$20].
 
 **Handling the key and the data.**
