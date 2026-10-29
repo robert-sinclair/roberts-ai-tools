@@ -464,9 +464,9 @@ and getting it wrong in either direction is costly — miss a real question, or 
 
 So: items no rule classified go to Claude, in batches, on a timer.
 
-- **Input is the whole message.** Subject or chat name, sender, and the full message text,
-  with no character limit (decided 2026-10-29). Text past the 2000 stored characters is read
-  when the item is classified and not kept. Attachments are never sent.
+- **Input is the first 2000 characters.** Subject or chat name, sender, and the first 2000
+  characters of the message: what's stored, and what IT was told on 2026-10-29
+  (`IT-REQUEST-ANTHROPIC-API.md`). Nothing more of the message is sent.
 - **Output is structured** — `output_config.format` with a schema of `{priority, interrupt,
   reason}`, so there's no response parsing to get wrong.
 - **Cached by source id.** An item is classified once. Re-polling never re-asks.
@@ -1137,14 +1137,13 @@ Two destinations, and they are not the same risk.
 **Microsoft Graph.** Your own tenant, your own data, your own token. This is the same data
 Outlook already moves. Nothing new.
 
-**The Anthropic API**, if the classifier is on. Subject lines, sender addresses and the full
-text of mail and Teams messages leave your machine and your tenant. At a company
+**The Anthropic API**, if the classifier is on. Subject lines, sender addresses and the first
+2000 characters of Teams messages (phase 1; mail later) leave your machine and your tenant. At a company
 doing PAM and IGA, some of that content will concern client environments.
 
 Mitigations in the design:
 
-- **No attachments, and nothing kept past 2000 characters.** The full text goes to the model
-  (2026-10-29); the store keeps only the first 2000 characters.
+- **The first 2000 characters, never more.** The same text the store keeps. No attachments.
 - **The classifier is optional** and the app works without it. Rules cover the examples you
   gave.
 - **A `neverClassify` list** — senders, domains, subject patterns and chat ids whose content
@@ -1255,6 +1254,11 @@ one means a poller and a mapping, nothing structural.
    a labelled sample shows `low` missing things). **Phase 1 classifies Teams messages only**; mail
    stays rules-only until phase 1 has run on real traffic. API calls bill to the Anthropic Console
    org that owns the key, separately from Claude.ai / Claude Code plan usage.
+   **API key requested from IT 2026-10-29** (`IT-REQUEST-ANTHROPIC-API.md`, the text as sent).
+   Its promises are the build spec for this step: first 2000 characters per message, Teams only
+   in phase 1, structured output and no tools, `claude-opus-5-5` at `low`, suggested $20/month
+   limit, key in DPAPI, every call logged with item ID and byte count and never the text, rules
+   alone without a key. Going past any of them means telling IT first.
    **Pending AI (2026-10-28):** when the model judges a Teams reply important, it should come up
    as a top window alert (the alert window, no dim) instead of a toast. Until the API is
    connected, replies stay as they are.
@@ -1313,7 +1317,7 @@ finished meetings stay on the schedule (grey, as busy time).
 **Longer message text (0.9.13, 2026-10-29).** The store keeps up to 2000 characters of a
 message's text (`rules.snippetLength`, was 500). Mail is still limited by Graph: `bodyPreview`
 is the first 255 characters of the body. Teams messages and meeting descriptions get the full
-2000. The classifier (step 7) sends the full text, with no limit.
+2000. The classifier (step 7) sends the same 2000 characters, as IT was told.
 
 **Case links are always Lightning (0.9.12, 2026-10-29).** Customer-portal links now also come as
 `support.bravurasecurity.com/500…` (Case 00038028, *Customer replied*), which rNotice didn't
