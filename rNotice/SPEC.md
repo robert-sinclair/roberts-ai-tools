@@ -1314,6 +1314,30 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**The meeting alert's options (0.9.14, 2026-10-30).** Asked by Robert: Join, Open in Outlook,
+Mark done and Snooze weren't enough. The row is now **Join**, **Working on it**, **Open in
+Outlook**, **Mark done**, **Rebook**, **Follow up**, and the meeting snooze is gone with its
+`meetingSnoozeSeconds` setting — Rebook covers "not now" properly.
+
+- **Working on it** is the same action as on a task alert (`StartWork`), and now applies to
+  everything, meetings included — the queue's **W** and right-click entry no longer refuse them.
+  A meeting carries no planned block of its own, so `StartWork` takes the block end explicitly and
+  the agent passes the meeting's end from the calendar read; one already over checks in
+  `planMinutes` from now. Nothing reaches Outlook: `WorkedTime` has always left calendar items
+  alone, so no real meeting is trimmed or moved.
+- **Rebook** moves the meeting itself — a `PATCH` on the real event, which sends an update to
+  everyone invited. Only for a meeting you organise (`isOrganizer`), not all-day: Graph refuses
+  the rest, and a button that only ever fails is worse than no button. The slots are the task
+  Rebook's (next free / an hour or more later / the next working day) at the meeting's own length,
+  with its current slot counted as free. Choosing a slot and pressing **Rebook** are the two
+  deliberate steps; there is no further confirmation, on purpose — the alert is up for seconds.
+  The item follows on the next calendar read, which is asked for straight away.
+- **Follow up** leaves the meeting alone and opens the Plan dialog on a new item, *Follow up -
+  &lt;title&gt;*, with suggestions and the day view starting a week on. The prefix doesn't stack.
+  The new item is `Source.FollowUp` — made by you, polled by nothing, so no sync deletes it — and
+  carries the original's text and case link into the Outlook event it's promoted to. Cancelling
+  the dialog saves nothing: the draft only becomes an item once a time is chosen.
+
 **Longer message text (0.9.13, 2026-10-29).** The store keeps up to 2000 characters of a
 message's text (`rules.snippetLength`, was 500). Mail is still limited by Graph: `bodyPreview`
 is the first 255 characters of the body. Teams messages and meeting descriptions get the full

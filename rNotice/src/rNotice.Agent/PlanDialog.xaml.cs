@@ -57,7 +57,8 @@ public partial class PlanDialog : Window
     public bool Promote => OnCalendar.IsChecked == true;
 
     internal PlanDialog(Item item, int defaultMinutes, bool promote, Func<int, IReadOnlyList<DateTimeOffset>> suggest,
-        DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day, int groupOf = 0)
+        DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day, int groupOf = 0,
+        DateOnly? firstDay = null)
     {
         _item = item;
         _suggest = suggest;
@@ -97,7 +98,9 @@ public partial class PlanDialog : Window
         Legend.Inlines.Add(Swatch(SelectedBrush, "your selection"));
         if (item.PlannedStartUtc is not null) Legend.Inlines.Add(new System.Windows.Documents.Run("   dashed: the current plan"));
 
-        _shownDay = NextWorkDay(Today(), includeToday: true);
+        // A follow-up starts a week out, so the day view opens there even before a suggestion
+        // selects one — and stays there if the week has no free slot at all.
+        _shownDay = NextWorkDay(firstDay ?? Today(), includeToday: true);
         foreach (var m in Durations) Duration.Items.Add(Label(m));
         var start = Array.IndexOf(Durations, defaultMinutes);
         Duration.SelectedIndex = start >= 0 ? start : 1;   // fills the suggestions and selects the first

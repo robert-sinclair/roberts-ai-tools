@@ -24,10 +24,15 @@ public static class Rebook
 {
     public static readonly int[] Durations = [30, 60];
 
-    public static IReadOnlyList<RebookChoice> Choices(DateTimeOffset nowUtc, WorkHours hours, IReadOnlyList<TimeBlock> busy)
+    /// <param name="durations">
+    /// The slot lengths to offer. Null means <see cref="Durations"/> — a task, where 30 min or
+    /// an hour is a choice. A meeting being moved passes its own length: that's what has to fit.
+    /// </param>
+    public static IReadOnlyList<RebookChoice> Choices(DateTimeOffset nowUtc, WorkHours hours, IReadOnlyList<TimeBlock> busy,
+        IReadOnlyList<int>? durations = null)
     {
         var choices = new List<RebookChoice>();
-        foreach (var minutes in Durations)
+        foreach (var minutes in durations ?? Durations)
         {
             var length = TimeSpan.FromMinutes(minutes);
             DateTimeOffset? First(DateTimeOffset from) =>
@@ -47,11 +52,6 @@ public static class Rebook
     }
 
     /// <summary>Midnight, local, at the start of the next working day after today.</summary>
-    internal static DateTimeOffset StartOfNextWorkingDay(DateTimeOffset nowUtc, WorkHours hours)
-    {
-        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, hours.Zone).DateTime).AddDays(1);
-        for (var i = 0; i < 7 && !hours.Days.Contains(day.DayOfWeek); i++) day = day.AddDays(1);
-        var local = day.ToDateTime(TimeOnly.MinValue);
-        return new DateTimeOffset(local, hours.Zone.GetUtcOffset(local)).ToUniversalTime();
-    }
+    internal static DateTimeOffset StartOfNextWorkingDay(DateTimeOffset nowUtc, WorkHours hours) =>
+        FreeSlots.StartOfWorkingDay(nowUtc, hours, daysOn: 1);
 }

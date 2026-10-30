@@ -15,6 +15,10 @@ public class WorkingTests
     private static Item PlannedTask(int startMin, int minutes = 30) =>
         (Item(Interrupt.Silent, Priority.P3) with { Source = Source.Teams }).Plan(Now.AddMinutes(startMin), minutes);
 
+    /// <summary>A meeting as intake makes one: already Planned, with no planned time of its own.</summary>
+    private static Item Meeting() =>
+        Item(Interrupt.Takeover, Priority.P1, due: Now, stage: Stage.Planned) with { Source = Source.Calendar };
+
     [Fact]
     public void Check_in_comes_when_the_planned_block_ends_and_the_plan_stays() =>
         Assert.Equal((Now.AddMinutes(25), Now.AddMinutes(-5)),
@@ -27,6 +31,14 @@ public class WorkingTests
     [Fact]
     public void A_block_already_over_checks_in_the_default_length_from_now() =>
         Assert.Equal(Now.AddMinutes(30), PlannedTask(-60).StartWork(Now, 30).FireAtUtc);
+
+    [Fact]
+    public void A_meeting_checks_in_when_the_meeting_ends() =>
+        Assert.Equal(Now.AddMinutes(45), Meeting().StartWork(Now, 30, Now.AddMinutes(45)).FireAtUtc);
+
+    [Fact]
+    public void A_meeting_already_over_checks_in_the_default_length_from_now() =>
+        Assert.Equal(Now.AddMinutes(30), Meeting().StartWork(Now, 30, Now.AddMinutes(-5)).FireAtUtc);
 
     [Fact]
     public void Starting_again_while_on_it_changes_nothing()

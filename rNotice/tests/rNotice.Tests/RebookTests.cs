@@ -27,6 +27,16 @@ public class RebookTests
     }
 
     [Fact]
+    public void A_meeting_being_moved_is_offered_its_own_length_only()
+    {
+        var choices = Rebook.Choices(T(11, 2), Hours, [], [45]);
+
+        Assert.All(choices, c => Assert.Equal(45, c.Minutes));
+        Assert.Equal(T(11, 15), Pick(choices, RebookKind.NextFree, 45).StartUtc);
+        Assert.Equal(3, choices.Count);
+    }
+
+    [Fact]
     public void Every_choice_avoids_meetings()
     {
         // 11:15-12:00 and 12:15-13:00 booked.
