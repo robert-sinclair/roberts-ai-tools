@@ -1316,6 +1316,25 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Create (0.10.5, 2026-10-30).** Asked by Robert: a third tab beside Intake and Done for work
+that arrived through no source — a corridor conversation, something you thought of. A **Title**, a
+**Description**, then **Cancel** (clears both fields) or **Plan**, which is the ordinary Plan
+dialog; cancelling there saves nothing, so a draft never becomes an item by accident.
+
+The item is `Source.Created` — made by you, polled by nothing, like `Source.FollowUp` — so no sync
+takes it away. The description becomes its text, which is what the Outlook event's description is
+built from.
+
+A case number in either field is resolved before the dialog opens: a Case record ID in a
+Salesforce address you pasted wins and is learned, then the case map (0.10.3). A number neither
+knows goes to the routine as soon as the item is stored rather than at the next Teams poll, and
+the item is linked when the answer lands. The note under the fields says which of the three is
+happening, so an unlinked case is visible rather than silent.
+
+Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest have nothing to
+act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
+handler ignores keys raised from an editable text box.
+
 **Case map import (0.10.4, 2026-10-30).** Asked by Robert: fill the case map from Salesforce in
 one go. Dev view → *Case map*: **Copy Salesforce prompt** copies a prompt for a Claude chat with
 the read-only Salesforce connector, which returns every case changed in the last six months as
