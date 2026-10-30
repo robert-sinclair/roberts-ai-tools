@@ -232,14 +232,37 @@ public sealed class RoutineSyncTests : IDisposable
     }
 
     [Fact]
-    public void An_ordinary_reply_closes_the_chat_and_cancels_the_request()
+    public void Your_reply_sends_the_chat_to_the_routine_instead_of_closing_it()
     {
         Sync().SyncTeams([Theirs(0)], Now);
         _store.Save(Routine.Sent(Dm, Guid.NewGuid(), Now.AddMinutes(1)), Now.AddMinutes(1));
 
         Sync().SyncTeams([Mine(2, "it's 3 pm")], Now.AddMinutes(2));
 
+        Assert.Equal((Stage.Intake, RoutineStatus.Waiting, (Guid?)null, "You replied in Teams"),
+            (Dm.Stage, Dm.Routine!.Status, Dm.Routine.RequestId, Dm.Note));
+    }
+
+    [Fact]
+    public void Without_the_routine_your_reply_still_closes_the_chat()
+    {
+        Sync(routine: false).SyncTeams([Theirs(0), Mine(2, "it's 3 pm")], Now.AddMinutes(2));
         Assert.Equal((Stage.Done, (RoutineInfo?)null), (Dm.Stage, Dm.Routine));
+    }
+
+    [Fact]
+    public void An_old_reply_read_as_backlog_closes_the_chat_without_a_routine_call()
+    {
+        Sync().SyncTeams([Theirs(0), Mine(2, "it's 3 pm")], Now.AddHours(2));
+        Assert.Equal(Stage.Done, Dm.Stage);
+    }
+
+    [Fact]
+    public void A_reply_in_a_chat_you_said_you_would_follow_up_on_closes_it()
+    {
+        Sync().SyncTeams([Theirs(0), Mine(1, "I'll follow up")], Now.AddMinutes(1));
+        Sync().SyncTeams([Mine(5, "here's the answer")], Now.AddMinutes(5));
+        Assert.Equal(Stage.Done, Dm.Stage);
     }
 
     [Fact]

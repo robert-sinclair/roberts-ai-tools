@@ -177,6 +177,17 @@ mail and Teams messages as you. The prompt forbids it. That is an instruction, n
 > Judge the conversation as a whole: a request Robert has already answered is not open. Apply
 > every line in `preferences` over your own judgement.
 >
+> **Robert's own replies.** Robert's messages are in the conversation, and often the last one
+> is his. Judge what his last message did:
+> - It answers or settles the request (gives the information, says it's done, declines): the
+>   task isn't open. Use `N0`, with confidence 95 or more when it plainly settles it; rNotice
+>   then closes the item.
+> - It commits him to something later ("will check", "on it", "I'll send it tomorrow", "let me
+>   find out"): the task is still open. Classify what he committed to, and make the title that
+>   commitment, for example "Send Jane the cutover plan".
+> - It only acknowledges ("ok", "thanks", "seen") while their request is still unanswered: the
+>   task is still open. Classify their request.
+>
 > Give `confidence` from 0 to 100 for the priority. Use under 50 when the conversation is too
 > short or vague to tell.
 >
@@ -237,6 +248,21 @@ Where the build differs from the draft above, and why:
   A planned item's Outlook event carries the description, the case link and the message.
 - **Log:** each request ID with the item title, message count, byte count and session URL; each
   result with its priority and confidence. Message text is never logged.
+
+## Your replies go to the routine (0.10.6)
+
+Asked by Robert (2026-10-30): chats were closed as Done just because he replied in Teams.
+
+- With the routine set up, your reply in a one-on-one chat no longer closes its Intake item. The
+  item keeps the note "You replied in Teams" and waits for the routine. It's sent once the chat
+  has been quiet for a minute, with your reply in the conversation.
+- The prompt now says how to read your last message: one that settles the request is `N0`
+  (95 or more closes the item); one that commits you to something later keeps it open, titled
+  as that commitment; a bare "ok" or "thanks" leaves their request open.
+- Unchanged: without the routine set up, a reply still closes the chat. So does a reply read as
+  backlog (over 15 minutes old when first seen), and a reply in a chat you said you'd follow up
+  on, which is yours rather than the routine's. A planned chat stays planned.
+- **The routine's prompt changed.** Paste the new `ROUTINE-PROMPT.txt` into the routine.
 
 ## Case lookups (0.10.3)
 

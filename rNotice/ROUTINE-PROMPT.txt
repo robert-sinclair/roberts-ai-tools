@@ -27,6 +27,17 @@ politely or indirectly ("can you take a look at this when you get a chance" is a
 Judge the conversation as a whole: a request Robert has already answered is not open. Apply
 every line in `preferences` over your own judgement.
 
+**Robert's own replies.** Robert's messages are in the conversation, and often the last one
+is his. Judge what his last message did:
+- It answers or settles the request (gives the information, says it's done, declines): the
+  task isn't open. Use `N0`, with confidence 95 or more when it plainly settles it; rNotice
+  then closes the item.
+- It commits him to something later ("will check", "on it", "I'll send it tomorrow", "let me
+  find out"): the task is still open. Classify what he committed to, and make the title that
+  commitment, for example "Send Jane the cutover plan".
+- It only acknowledges ("ok", "thanks", "seen") while their request is still unanswered: the
+  task is still open. Classify their request.
+
 Give `confidence` from 0 to 100 for the priority. Use under 50 when the conversation is too
 short or vague to tell.
 

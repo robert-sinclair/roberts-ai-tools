@@ -1335,6 +1335,12 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Replies go to the routine (0.10.6, 2026-10-30).** Asked by Robert: chats were marked Done just
+because he replied. With the routine set up, your reply in a one-on-one chat sends it to the
+routine instead (note "You replied in Teams"), which closes it only if the reply settled it. The
+prompt gained a section on reading Robert's last message. Without the routine, for backlog, and
+in a chat you said you'd follow up on, a reply still closes it. See `ROUTINE-CLASSIFY.md`.
+
 **Case map import (0.10.4, 2026-10-30).** Asked by Robert: fill the case map from Salesforce in
 one go. Dev view → *Case map*: **Copy Salesforce prompt** copies a prompt for a Claude chat with
 the read-only Salesforce connector, which returns every case changed in the last six months as

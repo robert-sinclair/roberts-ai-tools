@@ -199,7 +199,9 @@ public sealed class SourceSync(ItemStore store, Intake intake, bool routine = fa
     /// edit or reaction to a message no newer than the frozen one adds nothing.
     ///
     /// Your own reply, newer than the message the item shows, moves an Intake item to Done:
-    /// you've answered it. A planned one stays planned — you planned it for a reason.
+    /// you've answered it. With the classify routine set up, it goes to the routine instead,
+    /// which closes it only if your reply settled it. A planned one stays planned — you
+    /// planned it for a reason.
     /// </summary>
     public SyncReport SyncTeams(IReadOnlyList<ChatMessage> messages, DateTimeOffset nowUtc)
     {
@@ -215,11 +217,18 @@ public sealed class SourceSync(ItemStore store, Intake intake, bool routine = fa
                     if (FollowUp(message, nowUtc)) updated++;
                     continue;
                 }
-                // Answered. A request still out for it is cancelled: its result won't match.
                 if (_store.GetBySource(Source.Teams, message.ChatId) is { Stage: Stage.Intake, IsWorking: false } answered &&
                     message.CreatedUtc > answered.ReceivedUtc)
                 {
-                    _store.Save(answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null, Routine = null }, nowUtc);
+                    // With the routine, a reply doesn't close the chat: it may answer the request or
+                    // promise something, and the routine judges which (2026-10-30). Without it, or
+                    // for backlog, or a chat you said you'd follow up on, a reply closes it as
+                    // before. Either way a request still out is replaced or cancelled.
+                    var judge = _routine && answered.Classification.By != ClassifiedBy.User &&
+                                nowUtc - message.CreatedUtc <= MailAlertWindow;
+                    _store.Save(judge
+                        ? answered with { Note = "You replied in Teams", NoteLink = null, Routine = new RoutineInfo { Status = RoutineStatus.Waiting } }
+                        : answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null, Routine = null }, nowUtc);
                     updated++;
                 }
                 continue;
