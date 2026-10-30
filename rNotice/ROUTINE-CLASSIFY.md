@@ -1,8 +1,9 @@
 # Draft: the classify routine (step 7)
 
-**Status: draft for review, 2026-10-30.** IT declined the Anthropic API key (2026-10-30), so step
-7 runs as a Claude Code routine on Robert's subscription. Nothing here is built yet. Open
-questions are at the end.
+**Status: decided 2026-10-30, not built.** IT declined the Anthropic API key (2026-10-30) and
+asked Robert to make the case that one is needed (`IT-CASE-API-KEY.md`). Until then, step 7 runs
+as a Claude Code routine on Robert's subscription. Robert's answers to the open questions are
+under *Decisions* at the end.
 
 ## The flow
 
@@ -114,8 +115,16 @@ look into it". The phrases are a list in `settings.json`, so you can add yours.
 - **Applies it:** the title (unless you've edited it), the description as the item's text,
   priority, confidence, and the case link. `ClassifiedBy: model`, with the summary as the
   reason.
+- **Low confidence (under 60):** the priority is shown as a suggestion only. The item keeps its
+  rules priority, stays silent, and shows "Routine suggests P2 (45%)". Title, description and
+  case link are still applied.
+- **N0 at 95 or more:** the item is dismissed, with the summary as the reason. N0 under 95
+  stays in Intake, silent.
 - **Interrupts by priority:** P1 is an alert window, no dim. P2 is a toast. P3 and N0 are
   silent.
+- **Planning stays yours.** The result updates the Intake item; it doesn't schedule it. When you
+  plan it, rNotice creates its Outlook event, with the description and the case link in the
+  event body.
 - **Then deletes the file.**
 - **No result after 15 minutes:** the item drops the tag and keeps its rules classification,
   marked "Routine didn't answer". It's sent again with the next new message, under a new ID.
@@ -185,15 +194,13 @@ mail and Teams messages as you. The prompt forbids it. That is an instruction, n
 > never read mail, chats, calendars or other files, never change or delete anything. If the
 > upload fails, retry once, then stop.
 
-## Open questions
+## Decisions (Robert, 2026-10-30)
 
-1. **N0:** should rNotice dismiss the item, or keep it in Intake as silent?
-2. **"Read and planned":** does planned mean rNotice puts the task on your calendar
-   automatically, or only that the result is applied to the Intake item for you to plan?
-3. **Low confidence:** below what confidence should rNotice not act on the priority, and just
-   show it as a suggestion? I'd say under 50.
-4. **Which chats:** one-on-one chats only, as today? Group chats without a mention are skipped
-   now. Should they go to the routine too?
-5. **"I'll follow up" phrases:** are the five above right, and what's yours?
-6. **IT:** they declined the key. This sends the same text to Anthropic on your subscription,
-   and now also lets the routine read Salesforce. Is that fine with them?
+1. **N0:** dismissed when confidence is 95 or more. Otherwise it stays in Intake, silent.
+2. **Planning:** planning an Intake item must create its Outlook event. The routine's result
+   doesn't plan anything by itself.
+3. **Low confidence:** under 60 is a suggestion, not acted on.
+4. **Chats:** one-on-one only. Group chats come later.
+5. **"I'll follow up" phrases:** the five listed are right.
+6. **IT:** declined the key, and asked Robert to show that an API key is needed and gives a
+   benefit. See `IT-CASE-API-KEY.md`.
