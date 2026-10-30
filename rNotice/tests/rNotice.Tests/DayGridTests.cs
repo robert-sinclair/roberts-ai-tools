@@ -62,4 +62,14 @@ public class DayGridTests
         Assert.Equal((Index(9, 30), Index(10, 0)), DayGrid.Selection(cells, Index(10, 0), Index(9, 30)));
         Assert.Equal((-1, -1), DayGrid.Selection(cells, Index(9, 0), Index(10, 0)));
     }
+
+    [Fact]
+    public void A_click_takes_the_whole_how_long_value_as_far_as_it_is_free()
+    {
+        var cells = DayGrid.Build(Friday, Hours, [new AgendaEntry(T(12, 0), T(12, 30), "Lunch", true)], T(17, 0, day: 22));
+
+        Assert.Equal((Index(10, 0), Index(11, 45)), DayGrid.ClickSelection(cells, Index(10, 0), 120));   // 2 h
+        Assert.Equal((Index(10, 0), Index(10, 15)), DayGrid.ClickSelection(cells, Index(10, 0), 30));
+        Assert.Equal((Index(11, 0), Index(11, 45)), DayGrid.ClickSelection(cells, Index(11, 0), 120));   // stops at lunch
+    }
 }

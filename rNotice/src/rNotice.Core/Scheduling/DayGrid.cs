@@ -59,6 +59,13 @@ public static class DayGrid
     }
 
     /// <summary>
+    /// A single click: the "How long" length from the clicked quarter hour, or as far as it
+    /// stays free. Asked by Robert (2026-10-30): a click gave 15 minutes whatever "How long" said.
+    /// </summary>
+    public static (int First, int Last) ClickSelection(IReadOnlyList<DayCell> cells, int at, int minutes) =>
+        Selection(cells, at, Math.Min(cells.Count - 1, at + Math.Max(1, minutes / 15) - 1));
+
+    /// <summary>
     /// The cells from <paramref name="from"/> to <paramref name="to"/> (either order), or as far
     /// as they stay free — a selection can't run through a meeting or another plan.
     /// </summary>

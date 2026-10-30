@@ -48,6 +48,8 @@ public partial class PlanDialog : Window
     private int _selMinutes;
     private int _anchor = -1;
     private bool _dragging;
+    // The pointer has left the clicked quarter hour: from then on the drag sets the length.
+    private bool _dragMoved;
 
     /// <summary>Set when the user chose to plan. <see cref="StartUtc"/> null means no time.</summary>
     public bool Planned { get; private set; }
@@ -312,15 +314,20 @@ public partial class PlanDialog : Window
 
         _anchor = i;
         _dragging = true;
+        _dragMoved = false;
         DayCells.CaptureMouse();
-        SelectCells(i, i);
+        // A click books the whole "How long"; dragging away from the cell sets a length instead.
+        var (first, last) = DayGrid.ClickSelection(_cells, i, Durations[Math.Max(0, Duration.SelectedIndex)]);
+        SelectRange(first, last);
     }
 
     private void OnCellsMove(object sender, MouseEventArgs e)
     {
         if (!_dragging || e.LeftButton != MouseButtonState.Pressed) return;
         var i = CellAt(e);
-        if (i >= 0) SelectCells(_anchor, i);
+        if (i < 0 || (!_dragMoved && i == _anchor)) return;
+        _dragMoved = true;
+        SelectCells(_anchor, i);
     }
 
     private void OnCellsUp(object sender, MouseButtonEventArgs e)
@@ -332,6 +339,11 @@ public partial class PlanDialog : Window
     private void SelectCells(int from, int to)
     {
         var (first, last) = DayGrid.Selection(_cells, from, to);
+        SelectRange(first, last);
+    }
+
+    private void SelectRange(int first, int last)
+    {
         if (first < 0) return;
         _selStart = _cells[first].StartUtc;
         _selMinutes = (last - first + 1) * 15;
