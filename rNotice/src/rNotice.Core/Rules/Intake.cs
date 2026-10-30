@@ -146,6 +146,10 @@ public sealed class Intake(RulesOptions options, Me me)
     public bool IsMyOneOnOneReply(ChatMessage m) =>
         !m.IsSystemMessage && m.ChatType == ChatType.OneOnOne && m.FromUserId == _me.UserId;
 
+    /// <summary>Your own one-on-one message saying you'll follow up (<see cref="RulesOptions.FollowUpPhrases"/>).</summary>
+    public bool IsFollowUp(ChatMessage m) =>
+        IsMyOneOnOneReply(m) && Routines.Routine.IsFollowUp(m.TextPreview, _options.FollowUpPhrases);
+
     public IntakeResult FromTeams(ChatMessage m)
     {
         if (m.IsSystemMessage) return IntakeResult.Skip("System message");

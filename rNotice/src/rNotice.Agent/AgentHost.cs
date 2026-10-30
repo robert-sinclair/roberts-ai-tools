@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using rNotice.Core.Graph;
 using rNotice.Core.Items;
+using rNotice.Core.Routines;
 using rNotice.Core.Rules;
 using rNotice.Core.Scheduling;
 using rNotice.Core.Sources;
@@ -51,6 +52,11 @@ internal sealed class AgentHost(Application app) : IDisposable
     private MailClient _mail = null!;
     private TeamsClient _teams = null!;
     private PresenceClient _presence = null!;
+    private RoutineClient _routineClient = null!;
+    private ResultsFolderClient _results = null!;
+    // When each routine fire went out in the last hour, oldest first: the hourly cap.
+    private readonly Queue<DateTimeOffset> _routineFires = new();
+    private string _routineLast = "Nothing yet";
     private ItemStore _store = null!;
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
@@ -124,6 +130,8 @@ internal sealed class AgentHost(Application app) : IDisposable
         _mail = new MailClient(_graph);
         _teams = new TeamsClient(_graph);
         _presence = new PresenceClient(_graph);
+        _routineClient = new RoutineClient(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
+        _results = new ResultsFolderClient(_graph, _settings.WorkbookFolder);
         _workbook = new WorkbookClient(_graph, _settings.WorkbookFolder, _settings.WorkbookFile);
         _store = new ItemStore(Paths.Database, new DpapiFieldProtector());
         _scheduler = new Scheduler(_settings.ToSchedulerOptions());
@@ -239,7 +247,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             var me = await _graph.GetMeAsync(CancellationToken.None);
             _me = me;
             Display.MyDomain = me.Address.Contains('@') ? Senders.DomainEntry(me.Address) : null;
-            _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
+            _sync = NewSync(me);
             Log.Info($"Signed in as {me.Address}");
         }
     }
@@ -360,8 +368,178 @@ internal sealed class AgentHost(Application app) : IDisposable
         foreach (var (key, mark) in marks)
             _store.SetState(key, mark.ToString("o", CultureInfo.InvariantCulture));
 
+        await RunRoutineAsync(now);
+
         var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Teams);
         return $"{watched.Count} chats watched, {open} in Intake";
+    }
+
+    // ── Classify routine (ROUTINE-CLASSIFY.md) ─────────────────────────────────────────────
+
+    private const string RoutineUrlKey = "routine.fireUrl";
+    private const string RoutineTokenKey = "routine.token";
+
+    private SourceSync NewSync(Me me) => new(_store, new Intake(_settings.Rules, me), routine: RoutineConfigured);
+
+    /// <summary>The routine's fire URL and token are set. Both live encrypted in the store, never in settings.json.</summary>
+    public bool RoutineConfigured => _store.GetState(RoutineUrlKey) is not null && _store.GetState(RoutineTokenKey) is not null;
+
+    public string? RoutineFireUrl => _store.GetState(RoutineUrlKey);
+
+    /// <summary>Sets the routine's API trigger: the fire URL, and the token shown once when it was generated. Returns an error, or null.</summary>
+    public string? SetRoutine(string fireUrl, string token)
+    {
+        fireUrl = fireUrl.Trim();
+        token = token.Trim();
+        if (!RoutineClient.IsFireUrl(fireUrl)) return "That isn't a routine fire URL (https://api.anthropic.com/v1/claude_code/routines/…/fire).";
+        if (token.Length == 0) return "The token is empty.";
+        _store.SetState(RoutineUrlKey, fireUrl);
+        _store.SetState(RoutineTokenKey, token);
+        if (_me is { } me) _sync = NewSync(me);
+        Log.Info("Routine: fire URL and token set");
+        Changed?.Invoke();
+        return null;
+    }
+
+    public void ClearRoutine()
+    {
+        _store.SetState(RoutineUrlKey, null);
+        _store.SetState(RoutineTokenKey, null);
+        if (_me is { } me) _sync = NewSync(me);
+        Log.Info("Routine: fire URL and token removed");
+        Changed?.Invoke();
+    }
+
+    public sealed record DevRoutine(bool Configured, int Waiting, int Sent, int FiresLastHour, string Last);
+
+    public DevRoutine DevRoutineNow()
+    {
+        var tracked = _store.List(Stage.Intake).Where(i => i.Routine is not null).ToList();
+        return new DevRoutine(RoutineConfigured,
+            tracked.Count(i => i.Routine!.Status == RoutineStatus.Waiting),
+            tracked.Count(i => i.Routine!.Status == RoutineStatus.Sent),
+            _routineFires.Count(t => DateTimeOffset.UtcNow - t < TimeSpan.FromHours(1)),
+            _routineLast);
+    }
+
+    private void RoutineNote(string line)
+    {
+        _routineLast = $"{DateTime.Now:HH:mm:ss}  {line}";
+        Log.Info("Routine: " + line);
+    }
+
+    /// <summary>
+    /// After each Teams poll: read results for requests in flight, give up on overdue ones, then
+    /// send chats that are waiting and have been quiet for a minute. Each step re-reads the item
+    /// after an await, so a reply or a plan made meanwhile is never undone.
+    /// </summary>
+    private async Task RunRoutineAsync(DateTimeOffset now)
+    {
+        var ct = CancellationToken.None;
+        var fireUrl = _store.GetState(RoutineUrlKey);
+        var token = _store.GetState(RoutineTokenKey);
+
+        if (fireUrl is null || token is null)
+        {
+            foreach (var waiting in _store.List(Stage.Intake).Where(i => i.Routine?.Status == RoutineStatus.Waiting))
+                _store.Save(waiting with { Routine = waiting.Routine! with { Status = RoutineStatus.Unavailable } }, now);
+            return;
+        }
+
+        if (_store.List().Any(i => i.Routine?.Status == RoutineStatus.Sent))
+            await ReadRoutineResultsAsync(now, ct);
+
+        foreach (var overdue in _store.List().Where(i => Routine.IsOverdue(i, now)))
+        {
+            _store.Save(overdue with { Routine = overdue.Routine! with { Status = RoutineStatus.NoAnswer } }, now);
+            RoutineNote($"no result for {overdue.Routine!.RequestId} after {Routine.Timeout.TotalMinutes:0} min: '{overdue.Title}'");
+        }
+
+        var chats = _chats;
+        foreach (var item in _store.List(Stage.Intake).Where(i => i.Source == Source.Teams && i.Routine?.Status == RoutineStatus.Waiting))
+        {
+            if (chats.FirstOrDefault(c => c.Id == item.SourceId) is not { } chat) continue;
+            if (!Routine.IsDue(item, chat.LastMessageUtc, now)) continue;
+
+            while (_routineFires.Count > 0 && now - _routineFires.Peek() >= TimeSpan.FromHours(1)) _routineFires.Dequeue();
+            if (_routineFires.Count >= Routine.MaxFiresPerHour)
+            {
+                RoutineNote($"{Routine.MaxFiresPerHour} requests in the last hour; the rest wait");
+                break;
+            }
+
+            var requestId = Guid.NewGuid();
+            try
+            {
+                var (found, _) = await _teams.GetMessagesSinceAsync(chat, now - Routine.Lookback, ct);
+                var messages = found
+                    .Where(m => !m.IsSystemMessage && !string.IsNullOrWhiteSpace(m.TextPreview))
+                    .Select(m => new RoutineMessage(m.FromName ?? "Unknown", m.CreatedUtc, m.TextPreview!))
+                    .ToList();
+                var text = Routine.RequestText(requestId, _results.Folder, chat.Name, item.SourceRef, messages);
+                var fire = await _routineClient.FireAsync(fireUrl, token, text, ct);
+                _routineFires.Enqueue(now);
+
+                if (_store.Get(item.Id) is { Routine.Status: RoutineStatus.Waiting } current)
+                    _store.Save(Routine.Sent(current, requestId, now), now);
+                RoutineNote($"sent {requestId} for '{item.Title}': {Math.Min(messages.Count, Routine.MaxMessages)} message(s), " +
+                            $"{System.Text.Encoding.UTF8.GetByteCount(text)} bytes · {fire.SessionUrl}");
+            }
+            catch (Exception ex) when (ex is RoutineException or HttpRequestException or TaskCanceledException or GraphException)
+            {
+                if (_store.Get(item.Id) is { Routine: { } r } current)
+                    _store.Save(current with { Routine = r with { Status = RoutineStatus.Unavailable } }, now);
+                RoutineNote($"couldn't send for '{item.Title}': {ex.Message}");
+            }
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Reads every result file named after a request ID. A result is applied only to the item
+    /// whose request is still out under that ID; anything else is logged and deleted. Every
+    /// result file is deleted once read.
+    /// </summary>
+    private async Task ReadRoutineResultsAsync(DateTimeOffset now, CancellationToken ct)
+    {
+        foreach (var file in await _results.ListJsonAsync(ct))
+        {
+            if (Routine.RequestIdOf(file.Name) is not { } requestId) continue;
+
+            RoutineResult? result;
+            string? error;
+            try
+            {
+                result = Routine.Parse(await _results.ReadAsync(file.Id, ct), out error);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                (result, error) = (null, "not valid JSON");
+            }
+            catch (GraphException ex) when (ex.IsNotFound)
+            {
+                continue;
+            }
+
+            var owner = _store.List().FirstOrDefault(i => i.Routine is { Status: RoutineStatus.Sent } r && r.RequestId == requestId);
+            if (owner is null)
+                RoutineNote($"result {requestId} matches no request in flight; deleted");
+            else if (result is null || result.RequestId != requestId)
+            {
+                _store.Save(owner with { Routine = owner.Routine! with { Status = RoutineStatus.NoAnswer } }, now);
+                RoutineNote($"result {requestId} rejected ({error ?? "requestId inside doesn't match the file name"})");
+            }
+            else
+            {
+                var applied = Routine.Apply(owner, result, now);
+                _store.Save(applied, now);
+                RoutineNote($"result {requestId}: {result.Priority} at {result.Confidence}% for '{applied.Title}'" +
+                            (result.CaseUrl is null ? "" : $" · case {result.CaseNumber}"));
+            }
+
+            try { await _results.DeleteAsync(file.Id, ct); }
+            catch (GraphException ex) when (ex.IsNotFound) { }
+        }
     }
 
     // ── Watched chats ───────────────────────────────────────────────────────────────────────
@@ -389,7 +567,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             return;
         }
         _settings = updated;
-        if (_me is { } me) _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
+        if (_me is { } me) _sync = NewSync(me);
         Log.Info($"Watched Teams chats: {chatIds.Count} picked; one-on-one chats {(oneOnOne ? "watched" : "not watched")}");
         _teamsPoll.Now();
         Tick();
@@ -1097,6 +1275,20 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// made during a run triggers one more. Failures are logged and retried on the next change
     /// or calendar refresh.
     /// </summary>
+    /// <summary>
+    /// An event's description: the routine's description and the case link when there are
+    /// any, then the message text, then where it came from.
+    /// </summary>
+    private static string EventBody(Item item)
+    {
+        var parts = new List<string>();
+        if (item.Routine?.Description is { Length: > 0 } description) parts.Add(description);
+        if (item.CaseUrl is { Length: > 0 } caseUrl) parts.Add(caseUrl);
+        if (item.Snippet is { Length: > 0 } snippet) parts.Add(snippet);
+        parts.Add($"Planned with rNotice. Item {item.Id}.");
+        return string.Join("\n\n", parts);
+    }
+
     private async Task PromoteAsync()
     {
         if (_promoting) { _promoteAgain = true; return; }
@@ -1135,8 +1327,7 @@ internal sealed class AgentHost(Application app) : IDisposable
                 {
                     case PromotionKind.Create:
                     {
-                        var body = (item.Snippet is { Length: > 0 } s ? s + "\n\n" : "") +
-                                   $"Planned with rNotice. Item {item.Id}.";
+                        var body = EventBody(item);
                         var id = await _calendar.CreateEventAsync(item.Title, body, step.StartUtc!.Value, step.EndUtc!.Value,
                             category, reminderMinutesBeforeStart: 0, CancellationToken.None);
                         Wrote(new PromotedEvent(id, step.StartUtc.Value, step.EndUtc.Value));
@@ -1320,7 +1511,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         _settings = updated;
         // The rules are fixed per Intake, so the next poll needs a new one with the new list.
-        if (_me is { } me) _sync = new SourceSync(_store, new Intake(_settings.Rules, me));
+        if (_me is { } me) _sync = NewSync(me);
         return true;
     }
 

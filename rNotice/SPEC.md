@@ -1259,6 +1259,8 @@ one means a poller and a mapping, nothing structural.
    in phase 1, structured output and no tools, `claude-opus-5-5` at `low`, suggested $20/month
    limit, key in DPAPI, every call logged with item ID and byte count and never the text, rules
    alone without a key. Going past any of them means telling IT first.
+   **Built as a routine (0.10.0, 2026-10-30)** after IT declined the key: `ROUTINE-CLASSIFY.md`.
+   P1 from the routine comes up as an alert window, P2 as a toast.
    **Pending AI (2026-10-28):** when the model judges a Teams reply important, it should come up
    as a top window alert (the alert window, no dim) instead of a toast. Until the API is
    connected, replies stay as they are.
@@ -1313,6 +1315,16 @@ with *done · worked 1 h 05 min*, and keeps its Outlook event as a record; rNoti
 an event for a done task. Done before its block started frees the slot (plan cleared, event
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
+
+**Classify routine (0.10.0, 2026-10-30).** Step 7 runs as a Claude Code routine, not through an
+API key: IT declined the key, and the case for it is shelved while the routine runs for a few
+weeks. One-on-one Teams chats with a new message wait for the routine, and are sent once the chat
+has been quiet for a minute, under a new request ID (a GUID). The routine writes
+`<requestId>.json` to the workbook's OneDrive folder: P1, P2, P3 or N0, a confidence from 0 to
+100, a title, summary and description, and the case's Lightning link when a case number is
+mentioned. rNotice applies it and deletes the file. Under 60 is only a suggestion; N0 at 95 or
+more closes the item. Your own "I'll follow up" skips the routine and makes the chat P1. Full
+design, prompt and the differences from the draft: `ROUTINE-CLASSIFY.md`.
 
 **Longer message text (0.9.13, 2026-10-29).** The store keeps up to 2000 characters of a
 message's text (`rules.snippetLength`, was 500). Mail is still limited by Graph: `bodyPreview`

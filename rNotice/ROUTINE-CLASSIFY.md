@@ -1,9 +1,10 @@
 # Draft: the classify routine (step 7)
 
-**Status: decided 2026-10-30, not built.** IT declined the Anthropic API key (2026-10-30) and
-asked Robert to make the case that one is needed (`IT-CASE-API-KEY.md`). Until then, step 7 runs
-as a Claude Code routine on Robert's subscription. Robert's answers to the open questions are
-under *Decisions* at the end.
+**Status: built in 0.10.0 (2026-10-30), to run for a few weeks before deciding on the API.**
+IT declined the Anthropic API key (2026-10-30) and asked Robert to make the case that one is
+needed. That case is shelved (`IT-CASE-API-KEY.md`) while the routine runs. Robert's answers to
+the open questions are under *Decisions*, and where the build differs from this draft is under
+*As built*.
 
 ## The flow
 
@@ -44,7 +45,7 @@ under *Decisions* at the end.
 | A message under 1 minute old in the chat | Waits. Checks again on the next poll. |
 | Quiet for 1 minute, item waiting for routine | Sends one request. |
 | You said you'll follow up | No request. Intake, P1. |
-| A request is already in flight for the chat | Waits for it. New messages wait for the next request. |
+| A request is already in flight for the chat | A new message replaces it: the chat waits for quiet again and goes under a new ID. The old result is dropped when it arrives. |
 | New messages arrive after a result was applied | Waits for quiet, then sends a new request with a new ID. |
 | No token, or the fire fails | No request. The item stays as the rules left it, with the tag "Routine unavailable". |
 
@@ -193,6 +194,38 @@ mail and Teams messages as you. The prompt forbids it. That is an instruction, n
 > Salesforce connector, and Salesforce only for the case lookup. Never send mail or messages,
 > never read mail, chats, calendars or other files, never change or delete anything. If the
 > upload fails, retry once, then stop.
+
+## As built (0.10.0)
+
+Where the build differs from the draft above, and why:
+
+- **Setup is in the Dev view** (tray → Dev view → *Classify routine*): paste the fire URL and the
+  token. Both are stored encrypted with DPAPI in rNotice's store, never in `settings.json`.
+  Without them, nothing is sent and items are tagged "Routine unavailable".
+- **Messages sent:** the newest 20 from the last 3 days of the chat, not only those since the
+  last request. The routine needs the context to judge whether a request is already answered.
+- **A new message while a request is out replaces it** (the table above), rather than waiting
+  for it. The result then reflects the whole conversation.
+- **N0 at 95 or more closes the item as Done, not Dismissed.** A dismissed chat leaves a
+  tombstone when it's purged, and that would hide every later message in the chat for good.
+  It's in the Done tab with the note "Routine: not a task (97%)".
+- **"I'll follow up"** makes the item P1 and silent: it's your own commitment, so it goes to the
+  top of the queue without an alert. It stays yours: later messages in the chat don't send it
+  to the routine until it's closed. With no item for the chat yet, one is made, titled "Follow
+  up with <chat>".
+- **Results are read only while a request is out**, on each Teams poll (about once a minute).
+  Any GUID-named `.json` file in the folder that matches no request in flight is deleted and
+  logged.
+- **The rate cap is 25 requests an hour**, under the routine's 30, so a burst waits instead of
+  failing.
+- **Backlog isn't sent.** Messages older than 15 minutes when first seen, such as on a first
+  start, don't go to the routine.
+- **Where it shows:** the item's line in the queue says "Waiting for routine", "Routine working
+  since 14:02", "Routine: P2 · 80%", "Routine suggests P2 (45%)", "Routine didn't answer" or
+  "Routine unavailable". The detail pane and alert show the description, then the last message.
+  A planned item's Outlook event carries the description, the case link and the message.
+- **Log:** each request ID with the item title, message count, byte count and session URL; each
+  result with its priority and confidence. Message text is never logged.
 
 ## Decisions (Robert, 2026-10-30)
 

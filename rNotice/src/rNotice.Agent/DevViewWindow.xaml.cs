@@ -23,6 +23,7 @@ public partial class DevViewWindow : Window
         _clock.Tick += (_, _) => Render();
         _clock.Start();
         Closed += (_, _) => _clock.Stop();
+        RoutineUrl.Text = _host.RoutineFireUrl ?? "";
         Render();
     }
 
@@ -31,6 +32,7 @@ public partial class DevViewWindow : Window
         var now = DateTimeOffset.UtcNow;
         RenderTimers(now);
         RenderPresence(now);
+        RenderRoutine();
     }
 
     private void RenderTimers(DateTimeOffset now)
@@ -100,6 +102,30 @@ public partial class DevViewWindow : Window
         PresenceDetail.Text =
             (Presence.IsInACall(p.Activity) ? "Counts as in a call: a meeting under way is marked joined." : "Not a call: nothing is marked joined.") +
             $"  Read {(int)(now - p.CheckedUtc!.Value).TotalSeconds}s ago · next {Countdown(p.NextUtc, now)}.";
+    }
+
+    private void RenderRoutine()
+    {
+        var r = _host.DevRoutineNow();
+        RoutineStatus.Text = r.Configured
+            ? $"Set up. {r.Waiting} waiting, {r.Sent} out, {r.FiresLastHour} sent in the last hour."
+            : "Not set up: paste the fire URL and token below.";
+        RoutineLast.Text = r.Last;
+    }
+
+    private void OnSaveRoutine(object sender, RoutedEventArgs e)
+    {
+        var error = _host.SetRoutine(RoutineUrl.Text, RoutineToken.Password);
+        RoutineResult.Text = error ?? "Saved.";
+        if (error is null) RoutineToken.Clear();
+    }
+
+    private void OnClearRoutine(object sender, RoutedEventArgs e)
+    {
+        _host.ClearRoutine();
+        RoutineUrl.Text = "";
+        RoutineToken.Clear();
+        RoutineResult.Text = "Removed.";
     }
 
     private void OnRefreshNow(object sender, RoutedEventArgs e) => _host.RefreshNow();

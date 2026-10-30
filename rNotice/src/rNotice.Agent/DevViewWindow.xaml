@@ -32,6 +32,22 @@
             </DockPanel>
             <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                        Text="Read once a minute only while a meeting is under way, held in memory, dropped when it ends; never stored. Check now reads it once, on request." />
+
+            <!-- Classify routine -->
+            <TextBlock Text="Classify routine" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,6" />
+            <TextBlock x:Name="RoutineStatus" TextWrapping="Wrap" />
+            <TextBlock x:Name="RoutineLast" Opacity="0.75" TextWrapping="Wrap" Margin="0,2,0,8" FontFamily="Consolas" FontSize="12" />
+            <TextBlock Text="Fire URL" Margin="0,4,0,2" />
+            <TextBox x:Name="RoutineUrl" Padding="3,2" />
+            <TextBlock Text="Token (shown once when you generate it)" Margin="0,8,0,2" />
+            <PasswordBox x:Name="RoutineToken" Padding="3,2" />
+            <DockPanel Margin="0,10,0,0">
+                <Button DockPanel.Dock="Left" Content="Save" Padding="12,3" Click="OnSaveRoutine" />
+                <Button DockPanel.Dock="Left" Content="Remove" Padding="12,3" Margin="8,0,0,0" Click="OnClearRoutine" />
+                <TextBlock x:Name="RoutineResult" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="From the routine's API trigger at claude.ai/code/routines. Both are stored encrypted with Windows DPAPI under your account, never in settings.json. One-on-one Teams chats go to the routine once they've been quiet for a minute." />
         </StackPanel>
     </ScrollViewer>
 </Window>

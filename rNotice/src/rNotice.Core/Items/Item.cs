@@ -102,6 +102,12 @@ public sealed record Item
     /// <summary>Planned as part of a group: the group item (<see cref="Source.Group"/>) carries the time.</summary>
     public Guid? GroupId { get; init; }
 
+    /// <summary>
+    /// Teams one-on-one chats only: where the chat is with the classify routine. Null when it
+    /// was never sent, or the routine was bypassed.
+    /// </summary>
+    public Routines.RoutineInfo? Routine { get; init; }
+
     /// <summary>Time spent on it in sessions that have ended, in minutes.</summary>
     public int WorkedMinutes { get; init; }
 

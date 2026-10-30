@@ -1,5 +1,6 @@
 using System.Globalization;
 using rNotice.Core.Items;
+using rNotice.Core.Routines;
 using rNotice.Core.Rules;
 using rNotice.Core.Scheduling;
 
@@ -201,7 +202,8 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     public string NoteLinkText => HasNoteLink ? Item.Note![NoteSplit..] : "";
 
     /// <summary>The Salesforce case number in the subject or excerpt, if there is one.</summary>
-    public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Snippet);
+    public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Routine?.Description) ??
+                                 CaseLinks.FindCaseNumber(Item.Snippet);
 
     /// <summary>A case number with a Lightning link found for it.</summary>
     public bool HasCaseLink => !string.IsNullOrEmpty(Item.CaseUrl) && CaseNumber is not null;
@@ -247,6 +249,7 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
             if (trailing is not null) parts.Add(trailing);
             if (Item.IsRead is { } read) parts.Add(read ? "read in Outlook" : "unread");
             if (WorkLine is { Length: > 0 } work) parts.Add(work);
+            if (RoutineLine is { Length: > 0 } routine) parts.Add(routine);
             return string.Join("  -  ", parts);
         }
     }
@@ -263,8 +266,28 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     /// <summary>Unread mail is bold in the queue, as in Outlook. Read mail says so.</summary>
     public bool IsUnread => Item.IsRead == false;
     public string Reason => $"{Item.Classification.Priority}/{Item.Classification.Interrupt.ToString().ToLowerInvariant()} — {Item.Classification.Reason}";
-    public string? Snippet => Item.Snippet;
-    public bool HasSnippet => !string.IsNullOrWhiteSpace(Item.Snippet);
+    /// <summary>
+    /// Where the chat is with the classify routine: "Waiting for routine", "Routine suggests P2
+    /// (45%)" when it was too unsure to act on, and so on. Empty when it was never involved.
+    /// </summary>
+    public string RoutineLine => Item.Routine switch
+    {
+        null => "",
+        { Status: RoutineStatus.Waiting } => "Waiting for routine",
+        { Status: RoutineStatus.Sent, SentUtc: { } sent } => $"Routine working since {Display.Time(sent)}",
+        { Status: RoutineStatus.Sent } => "Routine working",
+        { Status: RoutineStatus.NoAnswer } => "Routine didn't answer",
+        { Status: RoutineStatus.Unavailable } => "Routine unavailable",
+        { IsSuggestion: true } r => $"Routine suggests {r.Priority} ({r.Confidence}%)",
+        var r => $"Routine: {r.Priority} · {r.Confidence}%"
+    };
+
+    /// <summary>The routine's description of the task, then the message itself.</summary>
+    public string? Snippet => Item.Routine?.Description is { Length: > 0 } description
+        ? description + (Item.Snippet is { Length: > 0 } s ? "\n\nLast message:\n" + s : "")
+        : Item.Snippet;
+
+    public bool HasSnippet => !string.IsNullOrWhiteSpace(Snippet);
     public bool HasSource => Item.SourceRef is not null;
     public bool HasJoin => Item.JoinUrl is not null;
     public bool CanPlan => Item.Stage == Stage.Intake;

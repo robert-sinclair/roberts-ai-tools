@@ -1,4 +1,5 @@
 using rNotice.Core.Items;
+using rNotice.Core.Routines;
 using rNotice.Core.Rules;
 using rNotice.Core.Sources;
 using rNotice.Core.Store;
@@ -22,10 +23,12 @@ public sealed record SyncReport(
 /// Only call these with a <b>complete</b> poll — every page fetched. Anything missing from the
 /// poll is treated as gone, so a partial poll would delete live items.
 /// </summary>
-public sealed class SourceSync(ItemStore store, Intake intake)
+/// <param name="routine">The classify routine is set up: one-on-one chats with new messages are queued for it.</param>
+public sealed class SourceSync(ItemStore store, Intake intake, bool routine = false)
 {
     private readonly ItemStore _store = store;
     private readonly Intake _intake = intake;
+    private readonly bool _routine = routine;
 
     /// <summary>
     /// Calendar items mirror the calendar. A meeting that was cancelled, moved out of the window,
@@ -207,10 +210,16 @@ public sealed class SourceSync(ItemStore store, Intake intake)
         {
             if (_intake.IsMyOneOnOneReply(message))
             {
+                if (_intake.IsFollowUp(message))
+                {
+                    if (FollowUp(message, nowUtc)) updated++;
+                    continue;
+                }
+                // Answered. A request still out for it is cancelled: its result won't match.
                 if (_store.GetBySource(Source.Teams, message.ChatId) is { Stage: Stage.Intake, IsWorking: false } answered &&
                     message.CreatedUtc > answered.ReceivedUtc)
                 {
-                    _store.Save(answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null }, nowUtc);
+                    _store.Save(answered with { Stage = Stage.Done, Note = "You replied in Teams", NoteLink = null, Routine = null }, nowUtc);
                     updated++;
                 }
                 continue;
@@ -260,12 +269,64 @@ public sealed class SourceSync(ItemStore store, Intake intake)
             }
 
             // A merge keeps the first message's time; the item is about the latest one.
+            var newer = ingest.Outcome == IngestOutcome.Inserted;
             if (ingest is { Outcome: IngestOutcome.Updated or IngestOutcome.Unchanged, Item: { } merged } &&
                 merged.ReceivedUtc != item.ReceivedUtc)
+            {
+                newer = item.ReceivedUtc > merged.ReceivedUtc;
                 _store.Save(merged with { ReceivedUtc = item.ReceivedUtc, LastFiredUtc = item.LastFiredUtc ?? merged.LastFiredUtc }, nowUtc);
+            }
+
+            if (newer) QueueForRoutine(item.SourceId, message, nowUtc);
         }
 
         return new SyncReport(inserted, updated, 0, 0, skipped);
+    }
+
+    /// <summary>
+    /// A new message in a one-on-one chat queues it for the classify routine, replacing any
+    /// request still out (its result won't match and is dropped). Not for a chat you said
+    /// you'd follow up on, and not for backlog read on a first start.
+    /// </summary>
+    private void QueueForRoutine(string sourceId, ChatMessage message, DateTimeOffset nowUtc)
+    {
+        if (!_routine || message.ChatType != ChatType.OneOnOne || nowUtc - message.CreatedUtc > MailAlertWindow) return;
+        if (_store.GetBySource(Source.Teams, sourceId) is not { Stage: Stage.Intake } item) return;
+        if (item.Classification.By == ClassifiedBy.User) return;
+        _store.Save(item with { Routine = new RoutineInfo { Status = RoutineStatus.Waiting } }, nowUtc);
+    }
+
+    /// <summary>
+    /// You said you'll follow up: the chat goes to Intake as P1, with no routine call, and any
+    /// request out for it is cancelled. A planned chat stays planned.
+    /// </summary>
+    private bool FollowUp(ChatMessage mine, DateTimeOffset nowUtc)
+    {
+        var classification = new Classification(Priority.P1, Interrupt.Silent, ClassifiedBy.User, "You said you'd follow up");
+        if (_store.GetBySource(Source.Teams, mine.ChatId) is { } existing)
+        {
+            if (existing.Stage == Stage.Planned) return false;
+            _store.Save(existing with
+            {
+                Stage = Stage.Intake, Classification = classification, Routine = null,
+                Note = "You said you'd follow up", NoteLink = null
+            }, nowUtc);
+            return true;
+        }
+
+        _store.Save(new Item
+        {
+            Id = Guid.NewGuid(),
+            Source = Source.Teams,
+            SourceId = mine.ChatId,
+            SourceRef = mine.WebUrl,
+            Title = $"Follow up with {mine.ChatName ?? "Teams chat"}",
+            Snippet = TextMatch.Truncate(mine.TextPreview, 2000),
+            ReceivedUtc = mine.CreatedUtc,
+            Classification = classification,
+            Note = "You said you'd follow up"
+        }, nowUtc);
+        return true;
     }
 
     private const string FrozenMarker = "|planned|";

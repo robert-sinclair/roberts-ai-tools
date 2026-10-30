@@ -36,6 +36,13 @@ public sealed record RulesOptions
     /// <summary>How much of a message's text is stored: up to 2000 characters (500 before 0.9.13).</summary>
     public int SnippetLength { get; init; } = 2000;
 
+    /// <summary>
+    /// Your own one-on-one message containing one of these puts the chat in Intake as P1, and
+    /// skips the classify routine. Matched anywhere in the message, ignoring case.
+    /// </summary>
+    public IReadOnlyList<string> FollowUpPhrases { get; init; } =
+        ["I'll follow up", "I will follow up", "I'll get back to you", "let me follow up", "I'll look into it"];
+
     /// <summary>The category rNotice puts on events it promotes.</summary>
     public string PromotedCategory { get; init; } = "rNotice";
 }

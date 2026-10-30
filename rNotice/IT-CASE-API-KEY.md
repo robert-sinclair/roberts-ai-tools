@@ -1,8 +1,12 @@
 # Draft reply to IT: why an API key
 
-**Draft, 2026-10-30.** IT declined the key requested on 2026-10-29 (`IT-REQUEST-ANTHROPIC-API.md`)
-and asked Robert to show that an API key is required and gives a benefit. Fill in the bracketed
-parts before sending. The routine timing should be measured, not guessed.
+**Draft, 2026-10-30. Shelved:** not sent. Robert is running the classify routine for a few weeks
+first (`ROUTINE-CLASSIFY.md`, 0.10.0). Its real timings and failures will make this case
+stronger or answer it.
+
+IT declined the key requested on 2026-10-29 (`IT-REQUEST-ANTHROPIC-API.md`) and asked Robert to
+show that an API key is required and gives a benefit. Fill in the bracketed parts before
+sending. The routine timing should be measured, not guessed.
 
 ---
 
