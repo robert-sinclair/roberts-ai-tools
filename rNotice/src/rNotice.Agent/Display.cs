@@ -64,6 +64,7 @@ internal static class Display
     public static string SourceLabel(Source s) => s switch
     {
         Source.Workbook => "Task",
+        Source.FollowUp => "Follow up",
         Source.Calendar => "Meeting",
         Source.Mail => "Email",
         Source.Teams => "Chat",
@@ -129,18 +130,17 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     public void Tick()
     {
         PropertyChanged?.Invoke(this, new(nameof(Countdown)));
-        PropertyChanged?.Invoke(this, new(nameof(CanSnoozeMeeting)));
+        PropertyChanged?.Invoke(this, new(nameof(WorkLine)));
     }
 
-    /// <summary>How long before the start a snoozed meeting alert returns. Set by the alert window.</summary>
-    public static int MeetingSnoozeSeconds { get; set; } = 10;
-
     /// <summary>
-    /// A meeting alert can be put off until just before the start — while that's still a few
-    /// seconds away. Rechecked every second, so the button goes once there's no time to snooze.
+    /// How long the meeting runs, when rNotice can move it — set by the alert window from the
+    /// calendar read. 0 for a meeting somebody else organises, and for anything that isn't one.
     /// </summary>
-    public bool CanSnoozeMeeting =>
-        IsMeeting && Item.DueUtc is { } start && DateTimeOffset.UtcNow < start.AddSeconds(-MeetingSnoozeSeconds - 5);
+    public int RebookMinutes { get; init; }
+
+    /// <summary>Only a meeting you organise can be moved: Graph refuses the rest.</summary>
+    public bool CanRebookMeeting => IsMeeting && RebookMinutes > 0;
 
     /// <summary>A meeting's one line: when, both zones, and who organised it.</summary>
     public string MeetingLine => Item.DueUtc is { } start
@@ -164,7 +164,8 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     public Item? NextUp { get; init; }
     public bool HasNextUp => NextUp is not null;
     public string NextUpLine => NextUp is { PlannedStartUtc: { } s } next ? $"Next up: {next.Title} at {Display.Time(s)}" : "";
-    public bool CanStartWork => !IsMeeting && Item.IsOpen && !Item.IsWorking;
+    /// <summary>Meetings included: being in one is the clearest case of "I'm on it".</summary>
+    public bool CanStartWork => Item.IsOpen && !Item.IsWorking;
 
     /// <summary>"Working since 11:06 · 25 min", or "worked 1 h 05 min" once it isn't in progress.</summary>
     public string WorkLine

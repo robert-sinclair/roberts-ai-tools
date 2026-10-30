@@ -35,15 +35,28 @@
                 <TextBlock Text="{Binding Countdown}" FontSize="40" FontWeight="SemiBold" Foreground="#2B6CB0" />
                 <TextBlock Text="{Binding Title}" FontSize="30" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
                 <TextBlock Text="{Binding MeetingLine}" FontSize="17" Opacity="0.8" TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding WorkLine}" FontSize="17" Opacity="0.8" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Visibility="{Binding IsWorking, Converter={StaticResource Visible}}" />
                 <WrapPanel Margin="0,24,0,0">
                     <Button Content="Join" Tag="{Binding Id}" Click="OnJoin" Style="{StaticResource JoinButton}"
                             Visibility="{Binding HasJoin, Converter={StaticResource Visible}}" />
+                    <Button Content="Working on it" Tag="{Binding Id}" Click="OnStartWork" Style="{StaticResource MeetingButton}"
+                            FontWeight="SemiBold" ToolTip="You're in it: no more alerts for it, and a check-in when it should end"
+                            Visibility="{Binding CanStartWork, Converter={StaticResource Visible}}" />
                     <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource MeetingButton}"
                             Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
                     <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource MeetingButton}" />
-                    <Button Tag="{Binding Id}" Click="OnSnoozeMeeting" Loaded="OnSnoozeMeetingLoaded" Style="{StaticResource MeetingButton}"
-                            ToolTip="Hide this and the dim; both come back just before the meeting starts"
-                            Visibility="{Binding CanSnoozeMeeting, Converter={StaticResource Visible}}" />
+                    <!-- Rebook moves the meeting itself. The slot, then the button: two deliberate steps. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0"
+                                Visibility="{Binding CanRebookMeeting, Converter={StaticResource Visible}}">
+                        <ComboBox Tag="{Binding Id}" MinWidth="300" FontSize="16" VerticalContentAlignment="Center"
+                                  Loaded="OnMeetingRebookLoaded" DropDownOpened="OnMeetingRebookOpened"
+                                  ToolTip="Where the meeting could move to: its own length, on the quarter hour, inside your work hours, clear of other meetings and plans" />
+                        <Button Content="Rebook" Tag="{Binding Id}" Click="OnMeetingRebook" Style="{StaticResource MeetingButton}"
+                                Margin="8,0,0,0" ToolTip="Moves the meeting in Outlook. Everyone invited gets the update." />
+                    </StackPanel>
+                    <Button Content="Follow up" Tag="{Binding Id}" Click="OnFollowUp" Style="{StaticResource MeetingButton}"
+                            ToolTip="Plan a new 'Follow up - …' a week on. This meeting is left as it is." />
                 </WrapPanel>
             </StackPanel>
         </DataTemplate>

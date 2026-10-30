@@ -28,7 +28,6 @@ public partial class AlertWindow : Window
     internal AlertWindow(AgentHost host, IReadOnlyList<Item> items, TimeSpan arming)
     {
         _host = host;
-        ItemView.MeetingSnoozeSeconds = host.MeetingSnoozeSeconds;
         InitializeComponent();
         foreach (var item in items) _shown[item.Id] = item.Stage;
         Arm(arming);
@@ -108,7 +107,11 @@ public partial class AlertWindow : Window
         if (!live.Select(i => i.Id).SequenceEqual(_views.Select(v => v.Id)) ||
             live.Any(i => _views.First(v => v.Id == i.Id) is var v && (v.Item != i || v.NextUp?.Id != _host.NextUp(i.Id)?.Id)))
         {
-            _views = live.Select(i => new ItemView(i) { NextUp = _host.NextUp(i.Id) }).ToList();
+            _views = live.Select(i => new ItemView(i)
+            {
+                NextUp = _host.NextUp(i.Id),
+                RebookMinutes = _host.MeetingRebookMinutes(i.Id)
+            }).ToList();
             ItemsList.ItemsSource = _views;
         }
 
@@ -248,16 +251,40 @@ public partial class AlertWindow : Window
         };
         return $"{kind} · {when} ({(c.Minutes == 60 ? "1 h" : $"{c.Minutes} min")})";
     }
-    /// <summary>Off this window either way: snoozed for real, or just closed if it was a preview.</summary>
-    private void OnSnoozeMeeting(object sender, RoutedEventArgs e)
+
+    // ── Moving a meeting, and following one up ──────────────────────────────────────────────
+
+    private void OnMeetingRebookLoaded(object sender, RoutedEventArgs e) => FillMeetingRebook((ComboBox)sender);
+
+    /// <summary>Fresh choices every time it opens: the calendar may have changed since.</summary>
+    private void OnMeetingRebookOpened(object? sender, EventArgs e) => FillMeetingRebook((ComboBox)sender!);
+
+    private void FillMeetingRebook(ComboBox box)
     {
-        _host.SnoozeMeeting(IdOf(sender));
-        _shown.Remove(IdOf(sender));
+        var kept = (box.SelectedItem as RebookOption)?.Choice;
+        var options = _host.MeetingRebookChoices((Guid)box.Tag).Select(c => new RebookOption(c, Describe(c))).ToList();
+        box.ItemsSource = options;
+        box.SelectedIndex = Math.Max(0, options.FindIndex(o => o.Choice == kept));
+        box.IsEnabled = options.Count > 0;
+    }
+
+    /// <summary>
+    /// Moves the meeting to what the dropdown shows — in Outlook, so everyone invited is told.
+    /// Choosing in the dropdown alone moves nothing.
+    /// </summary>
+    private void OnMeetingRebook(object sender, RoutedEventArgs e)
+    {
+        var id = IdOf(sender);
+        var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
+        if (box?.SelectedItem is not RebookOption option) return;
+        _host.RebookMeeting(id, option.Choice);
+        _shown.Remove(id);
         Reload();
     }
 
-    private void OnSnoozeMeetingLoaded(object sender, RoutedEventArgs e) =>
-        ((Button)sender).Content = $"Snooze until {_host.MeetingSnoozeSeconds}s before";
+    /// <summary>The meeting stays on this window: following it up doesn't deal with it.</summary>
+    private void OnFollowUp(object sender, RoutedEventArgs e) => _host.FollowUp(IdOf(sender), this);
+
     private void OnOpen(object sender, RoutedEventArgs e) => AgentHost.OpenLink(ItemOf(sender)?.SourceRef);
 
     /// <summary>
