@@ -8,7 +8,10 @@ public enum Source
     Teams,
 
     /// <summary>Several items planned together under one title (<c>GroupPlan</c>). Made by you, not polled.</summary>
-    Group
+    Group,
+
+    /// <summary>A follow-up on something else (<c>FollowUp</c>). Made by you, not polled.</summary>
+    FollowUp
 }
 
 /// <summary>

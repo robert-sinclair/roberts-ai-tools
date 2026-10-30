@@ -697,7 +697,7 @@ public partial class QueueWindow : Window
                 break;
             case Key.Enter when selected is not null: AgentHost.OpenLink(selected.SourceRef); break;
             case Key.F2 when selected is not null && CanEditTitle(selected): BeginTitleEdit(); break;
-            case Key.W when selected is not null && selected.IsOpen && selected.Source != Source.Calendar:
+            case Key.W when selected is not null && selected.IsOpen:
                 if (selected.IsWorking) _host.StopWork(selected.Id); else _host.StartWork(selected.Id);
                 break;
             default: return;
@@ -776,7 +776,7 @@ public partial class QueueWindow : Window
         }
         if (CanEditTitle(item))
             menu.Items.Add(Entry("Edit title", "F2", () => { Select(item, _area); BeginTitleEdit(); }));
-        if (item.Source != Source.Calendar && item.IsOpen)
+        if (item.IsOpen)
             menu.Items.Add(item.IsWorking
                 ? Entry("Stop working (not done)", "W", () => _host.StopWork(item.Id))
                 : Entry("Working on it", "W", () => _host.StartWork(item.Id)));

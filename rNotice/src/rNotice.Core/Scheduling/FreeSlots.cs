@@ -75,6 +75,17 @@ public static class FreeSlots
         return new DateTimeOffset(rounded, zone.GetUtcOffset(rounded)).ToUniversalTime();
     }
 
+    /// <summary>
+    /// Midnight, local, <paramref name="daysOn"/> days from the day <paramref name="fromUtc"/>
+    /// falls on, moved forward if that lands outside the working week.
+    /// </summary>
+    public static DateTimeOffset StartOfWorkingDay(DateTimeOffset fromUtc, WorkHours hours, int daysOn)
+    {
+        var day = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(fromUtc, hours.Zone).DateTime).AddDays(daysOn);
+        for (var i = 0; i < 7 && !hours.Days.Contains(day.DayOfWeek); i++) day = day.AddDays(1);
+        return At(day, TimeOnly.MinValue, hours.Zone);
+    }
+
     private static DateTimeOffset At(DateOnly day, TimeOnly time, TimeZoneInfo zone)
     {
         var local = day.ToDateTime(time);

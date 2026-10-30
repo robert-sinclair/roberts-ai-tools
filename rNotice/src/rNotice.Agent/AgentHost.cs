@@ -753,8 +753,13 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// <summary>"I'm working on this": alerts stop until the check-in; the plan stays put.</summary>
     public void StartWork(Guid id)
     {
+        // A meeting carries no planned block of its own, so its check-in is the meeting's end.
+        var meetingEnd = _store.Get(id) is { Source: Source.Calendar } meeting
+            ? _meetingEvents.FirstOrDefault(e => e.Id == meeting.SourceId)?.EndUtc
+            : null;
+
         // The check-in comes no later than the next plan's alert: that's where you hand over.
-        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes) is var w && w.FireAtUtc is { } checkIn
+        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes, meetingEnd) is var w && w.FireAtUtc is { } checkIn
             ? w with { FireAtUtc = Overrun.CheckIn(_store.List(), w, checkIn) }
             : w);
         if (_store.Get(id) is { FireAtUtc: { } checkIn } item)
@@ -889,15 +894,21 @@ internal sealed class AgentHost(Application app) : IDisposable
             Log.Info($"'{item.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min");
     }
 
-    /// <summary>The Plan dialog, or null if cancelled. <paramref name="groupOf"/> &gt; 0 asks for a title too.</summary>
-    private PlanDialog? ShowPlanDialog(Item item, Guid except, Window? owner, int groupOf = 0)
+    /// <summary>
+    /// The Plan dialog, or null if cancelled. <paramref name="groupOf"/> &gt; 0 asks for a title
+    /// too. <paramref name="suggestFrom"/> moves where the suggestions — and so the day the
+    /// dialog opens on — start: a follow-up begins a week out, not today.
+    /// </summary>
+    private PlanDialog? ShowPlanDialog(Item item, Guid except, Window? owner, int groupOf = 0, DateTimeOffset? suggestFrom = null)
     {
         var hours = _settings.ToWorkHours();
+        var from = suggestFrom is { } s && s > DateTimeOffset.UtcNow ? s : DateTimeOffset.UtcNow;
         var dialog = new PlanDialog(item, _settings.PlanMinutes, item.PlannedStartUtc is null ? _settings.PromoteByDefault : item.PromoteToCalendar,
-            minutes => FreeSlots.Find(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except)),
+            minutes => FreeSlots.Find(from, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except)),
             _calendarKnownUtc, hours,
             day => DayGrid.Build(day, hours, AgendaFor(day, except), DateTimeOffset.UtcNow),
-            groupOf);
+            groupOf,
+            DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(from, hours.Zone).DateTime));
         if (owner is { IsVisible: true })
         {
             dialog.Owner = owner;
@@ -1037,10 +1048,14 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     /// <summary>
     /// Meetings, plus everything else you've planned a time for — so a second plan doesn't land
-    /// on the first. The item being planned is left out, so re-planning can keep its own slot.
+    /// on the first. The item being planned is left out, so re-planning can keep its own slot;
+    /// so is <paramref name="exceptEventId"/>, the meeting being moved, for the same reason.
     /// </summary>
-    private IEnumerable<TimeBlock> BlockedTime(Guid except) =>
-        _meetingBlocks.Concat(_store.List(Stage.Planned)
+    private IEnumerable<TimeBlock> BlockedTime(Guid except, string? exceptEventId = null) =>
+        (exceptEventId is null
+            ? _meetingBlocks
+            : _meetingEvents.Where(e => e.Id != exceptEventId).Select(e => new TimeBlock(e.StartUtc, e.EndUtc)).ToList())
+        .Concat(_store.List(Stage.Planned)
             .Where(i => i.Id != except && i.Source != Source.Calendar && i.PlannedStartUtc is not null)
             .Select(i => new TimeBlock(i.PlannedStartUtc!.Value,
                 i.PlannedStartUtc.Value.AddMinutes(i.PlannedMinutes ?? _settings.PlanMinutes))));
@@ -1183,27 +1198,77 @@ internal sealed class AgentHost(Application app) : IDisposable
     public void Snooze(Guid id) =>
         Update(id, i => i.Snooze(DateTimeOffset.UtcNow.AddMinutes(_settings.SnoozeMinutes)));
 
-    public int MeetingSnoozeSeconds => _settings.MeetingSnoozeSeconds;
+    // ── Moving a meeting, and following one up ──────────────────────────────────────────────
 
     /// <summary>
-    /// Takes a meeting's alert and dim away until <c>meetingSnoozeSeconds</c> before it starts,
-    /// then brings both back. Does nothing if that moment has already passed, or if the real
-    /// alert hasn't fired yet — a preview — so previewing never moves the real takeover.
+    /// How long a meeting runs, when rNotice can move it at all: one you organise, not all-day,
+    /// still in the calendar read. 0 for everything else — Graph refuses to move a meeting
+    /// somebody else owns, so offering it would be a button that only ever fails.
     /// </summary>
-    public void SnoozeMeeting(Guid id)
+    public int MeetingRebookMinutes(Guid id) =>
+        _store.Get(id) is { Source: Source.Calendar } item &&
+        _meetingEvents.FirstOrDefault(e => e.Id == item.SourceId) is { IsOrganizer: true, IsAllDay: false } ev
+            ? (int)Math.Round((ev.EndUtc - ev.StartUtc).TotalMinutes)
+            : 0;
+
+    /// <summary>
+    /// Where a meeting could move to: the same rules as a task's Rebook, at the meeting's own
+    /// length, with its current slot counted as free.
+    /// </summary>
+    public IReadOnlyList<RebookChoice> MeetingRebookChoices(Guid id)
     {
-        if (_store.Get(id) is not { DueUtc: { } start } item) return;
-        if (item.LastFiredUtc is null && item.FireAtUtc > DateTimeOffset.UtcNow) return;
-        var until = start.AddSeconds(-_settings.MeetingSnoozeSeconds);
-        var wait = until - DateTimeOffset.UtcNow;
-        if (wait <= TimeSpan.Zero) return;
+        var minutes = MeetingRebookMinutes(id);
+        if (minutes <= 0) return [];
+        var eventId = _store.Get(id)?.SourceId;
+        return Rebook.Choices(DateTimeOffset.UtcNow, _settings.ToWorkHours(),
+            BlockedTime(except: id, exceptEventId: eventId).ToList(), [minutes]);
+    }
 
-        Update(id, i => i.Snooze(until));
+    /// <summary>
+    /// Moves the meeting itself — a write to the real Outlook event, which sends an update to
+    /// everyone invited. Picking a slot and pressing Rebook are the two deliberate steps; there
+    /// is no further confirmation. The item follows on the next calendar read, which is asked
+    /// for straight away rather than waited out.
+    /// </summary>
+    public async void RebookMeeting(Guid id, RebookChoice choice)
+    {
+        if (_store.Get(id) is not { Source: Source.Calendar } item) return;
+        var end = choice.StartUtc.AddMinutes(choice.Minutes);
+        try
+        {
+            await _calendar.MoveEventAsync(item.SourceId, choice.StartUtc, end, CancellationToken.None);
+            Log.Info($"Calendar: moved the meeting '{item.Title}' to {Display.Time(choice.StartUtc)}; everyone invited was notified");
+            RefreshNow();
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Calendar: couldn't move the meeting '{item.Title}'", ex);
+            _tray.Notify("Meeting not moved", $"{item.Title} — it is still where it was. See the log.");
+        }
+    }
 
-        // The loop ticks every 5 seconds; a one-off tick brings it back on time, not up to 5 s late.
-        var timer = new DispatcherTimer { Interval = wait };
-        timer.Tick += (_, _) => { timer.Stop(); Tick(); };
-        timer.Start();
+    /// <summary>
+    /// "Follow up": a new item titled <c>Follow up - &lt;title&gt;</c>, planned a week on. The
+    /// Plan dialog opens on that week's suggestions, and cancelling there saves nothing — the
+    /// draft only becomes an item once a time is chosen. The original is left alone.
+    /// </summary>
+    public void FollowUp(Guid id, Window? owner)
+    {
+        if (_store.Get(id) is not { } item) return;
+        var now = DateTimeOffset.UtcNow;
+        var hours = _settings.ToWorkHours();
+        var from = rNotice.Core.Scheduling.FollowUp.PlanFrom(item.DueUtc ?? now, hours);
+        var draft = rNotice.Core.Scheduling.FollowUp.From(item, now);
+
+        if (ShowPlanDialog(draft, except: Guid.Empty, owner, suggestFrom: from) is not { } dialog) return;
+
+        _store.Save(draft.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
+            dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0), now);
+        Log.Info(dialog.StartUtc is { } start
+            ? $"Follow-up '{draft.Title}' planned for {Display.Time(start)}, {dialog.Minutes} min"
+            : $"Follow-up '{draft.Title}' added with no time");
+        Changed?.Invoke();
+        _ = PromoteAsync();
     }
 
     private void Update(Guid id, Func<Item, Item> change)

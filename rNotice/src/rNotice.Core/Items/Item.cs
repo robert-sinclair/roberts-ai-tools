@@ -127,10 +127,14 @@ public sealed record Item
     /// when the planned block ends, or after <paramref name="defaultMinutes"/> for a task with no
     /// planned time or whose block has already ended. Starting again while on it changes nothing.
     /// </summary>
-    public Item StartWork(DateTimeOffset nowUtc, int defaultMinutes)
+    /// <param name="blockEndUtc">
+    /// When the block being worked ends, for an item that doesn't carry its own planned time — a
+    /// meeting, whose end is the meeting's. Null falls back to the planned block.
+    /// </param>
+    public Item StartWork(DateTimeOffset nowUtc, int defaultMinutes, DateTimeOffset? blockEndUtc = null)
     {
         if (IsWorking) return this;
-        var blockEnd = PlannedStartUtc?.AddMinutes(PlannedMinutes ?? defaultMinutes);
+        var blockEnd = blockEndUtc ?? PlannedStartUtc?.AddMinutes(PlannedMinutes ?? defaultMinutes);
         var checkIn = blockEnd > nowUtc ? blockEnd.Value : nowUtc.AddMinutes(defaultMinutes);
         return this with { WorkStartedUtc = nowUtc, FireAtUtc = checkIn, LastFiredUtc = null, SnoozedUntilUtc = null };
     }

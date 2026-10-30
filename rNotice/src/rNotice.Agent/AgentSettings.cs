@@ -60,9 +60,6 @@ public sealed record AgentSettings
     public int ReplyLookbackDays { get; init; } = 60;
     public int RetentionDays { get; init; } = 30;
     public int SnoozeMinutes { get; init; } = 15;
-
-    /// <summary>How long before a meeting starts its snoozed alert comes back.</summary>
-    public int MeetingSnoozeSeconds { get; init; } = 10;
     public int TakeoverGraceSeconds { get; init; } = 300;
 
     /// <summary>How dark the takeover dims every monitor: 0.1 (barely) to 0.9 (nearly black).</summary>
