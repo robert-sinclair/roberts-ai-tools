@@ -141,7 +141,7 @@ public class RoutineTests
     }
 
     [Fact]
-    public async Task Fire_sends_the_token_and_beta_headers_and_returns_the_session()
+    public async Task Fire_sends_the_token_and_version_and_returns_the_session()
     {
         var fake = new FakeHandler().Respond(HttpStatusCode.OK,
             """{"type":"routine_fire","claude_code_session_id":"session_01","claude_code_session_url":"https://claude.ai/code/session_01"}""");
@@ -150,8 +150,8 @@ public class RoutineTests
 
         var req = fake.Requests.Single();
         Assert.Equal(("Bearer", "tok"), (req.Headers.Authorization!.Scheme, req.Headers.Authorization.Parameter));
-        Assert.Equal("experimental-cc-routine-2026-04-01", req.Headers.GetValues("anthropic-beta").Single());
-        Assert.Equal("2023-06-01", req.Headers.GetValues("anthropic-version").Single());
+        Assert.False(req.Headers.Contains("anthropic-beta"));
+        Assert.Equal("2026-10-21", req.Headers.GetValues("anthropic-version").Single());
         Assert.Equal("payload", JsonDocument.Parse(fake.Bodies.Single()!).RootElement.GetProperty("text").GetString());
         Assert.Equal(new RoutineFire("session_01", "https://claude.ai/code/session_01"), fire);
     }

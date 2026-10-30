@@ -12,15 +12,15 @@ public sealed class RoutineException(string message) : Exception(message);
 /// <summary>
 /// Starts the classify routine through its API trigger. The call returns as soon as the
 /// session exists: no result comes back here. The routine writes it to OneDrive.
-/// (<see href="https://code.claude.com/docs/en/routines">Automate work with routines</see>,
-/// "Trigger a routine through the API".) The endpoint is a research preview, under a dated
-/// beta header.
+/// Headers per the API reference
+/// (<see href="https://platform.claude.com/docs/en/api/claude-code/routines-fire">Trigger a routine through the API</see>,
+/// checked 2026-10-30): <c>anthropic-version: 2026-10-21</c>, and no beta header, which is no
+/// longer needed. The endpoint is experimental.
 /// </summary>
 public sealed class RoutineClient(HttpClient http)
 {
     private const string Prefix = "https://api.anthropic.com/v1/claude_code/routines/";
-    private const string Beta = "experimental-cc-routine-2026-04-01";
-    private const string Version = "2023-06-01";
+    private const string Version = "2026-10-21";
 
     private readonly HttpClient _http = http;
 
@@ -36,7 +36,6 @@ public sealed class RoutineClient(HttpClient http)
 
         using var request = new HttpRequestMessage(HttpMethod.Post, fireUrl);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        request.Headers.TryAddWithoutValidation("anthropic-beta", Beta);
         request.Headers.TryAddWithoutValidation("anthropic-version", Version);
         request.Content = new StringContent(JsonSerializer.Serialize(new { text }), Encoding.UTF8, "application/json");
 
