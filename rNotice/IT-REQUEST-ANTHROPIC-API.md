@@ -4,7 +4,8 @@
 kept as the record of what was promised. The step 7 classifier is built to these promises. If
 the build needs to go past them, IT is told first.
 
-**Status:** waiting on IT.
+**Status: declined by IT, 2026-10-30.** Step 7 moves to a Claude Code routine on Robert's
+subscription instead: see `ROUTINE-CLASSIFY.md`.
 
 **What it promises, in short:**
 - Sent for each message: subject or chat name, sender, and the **first 2000 characters**.
