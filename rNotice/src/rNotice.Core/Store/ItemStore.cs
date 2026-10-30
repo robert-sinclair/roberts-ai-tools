@@ -141,6 +141,15 @@ public sealed class ItemStore : IDisposable
             value BLOB NOT NULL
         );
 
+        -- Salesforce case number → Case record ID, learned from links rNotice found and from the
+        -- routine. Ids only, no content. A case not referenced for six months drops off.
+        CREATE TABLE IF NOT EXISTS case_ids (
+            case_number TEXT PRIMARY KEY,
+            record_id   TEXT    NOT NULL,
+            learned_utc INTEGER NOT NULL,
+            seen_utc    INTEGER NOT NULL
+        );
+
         -- Time spent in a planned block that was left behind when the plan moved on. Times and
         -- ids only: the title comes from the item, and the row goes when the item is purged.
         CREATE TABLE IF NOT EXISTS worked_blocks (
@@ -175,6 +184,53 @@ public sealed class ItemStore : IDisposable
                 DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3)),
                 r.IsDBNull(4) ? null : r.GetString(4)));
         return blocks;
+    }
+
+    /// <summary>Records a case's record ID, or refreshes it. Returns true if the map changed.</summary>
+    public bool RememberCase(string caseNumber, string recordId, DateTimeOffset nowUtc)
+    {
+        if (CaseRecordId(caseNumber) == recordId)
+        {
+            TouchCase(caseNumber, nowUtc);
+            return false;
+        }
+        Execute("""
+            INSERT INTO case_ids (case_number, record_id, learned_utc, seen_utc) VALUES ($n, $id, $now, $now)
+            ON CONFLICT (case_number) DO UPDATE SET record_id = excluded.record_id, seen_utc = excluded.seen_utc
+            """, ("$n", caseNumber), ("$id", recordId), ("$now", nowUtc.ToUnixTimeMilliseconds()));
+        return true;
+    }
+
+    /// <summary>A case's record ID, if rNotice has learned it.</summary>
+    public string? CaseRecordId(string caseNumber)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT record_id FROM case_ids WHERE case_number = $n";
+        cmd.Parameters.AddWithValue("$n", caseNumber);
+        return cmd.ExecuteScalar() as string;
+    }
+
+    /// <summary>
+    /// Marks a case as referenced now, so it stays in the map. At most once a day: the polls
+    /// see the same cases every minute, and a six-month clock needs no finer grain.
+    /// </summary>
+    public void TouchCase(string caseNumber, DateTimeOffset nowUtc) =>
+        Execute("UPDATE case_ids SET seen_utc = $now WHERE case_number = $n AND seen_utc < $dayAgo",
+            ("$n", caseNumber), ("$now", nowUtc.ToUnixTimeMilliseconds()),
+            ("$dayAgo", nowUtc.AddDays(-1).ToUnixTimeMilliseconds()));
+
+    /// <summary>Drops cases not referenced since <paramref name="cutoffUtc"/>. Returns how many.</summary>
+    public int ForgetCases(DateTimeOffset cutoffUtc) =>
+        Execute("DELETE FROM case_ids WHERE seen_utc < $cutoff", ("$cutoff", cutoffUtc.ToUnixTimeMilliseconds()));
+
+    public int CaseCount
+    {
+        get
+        {
+            using var cmd = _db.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM case_ids";
+            return Convert.ToInt32(cmd.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
     }
 
     public string? GetState(string key)

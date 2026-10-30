@@ -204,7 +204,9 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
 
     /// <summary>The Salesforce case number in the subject or excerpt, if there is one.</summary>
     public string? CaseNumber => CaseLinks.FindCaseNumber(Item.Title) ?? CaseLinks.FindCaseNumber(Item.Routine?.Description) ??
-                                 CaseLinks.FindCaseNumber(Item.Snippet);
+                                 CaseLinks.FindCaseNumber(Item.Snippet) ??
+                                 // A bare number as the whole subject, such as a meeting called "00038033".
+                                 (Item.CaseUrl is { Length: > 0 } ? CaseLinks.FindAnyCaseNumber(Item.Title) : null);
 
     /// <summary>A case number with a Lightning link found for it.</summary>
     public bool HasCaseLink => !string.IsNullOrEmpty(Item.CaseUrl) && CaseNumber is not null;

@@ -1316,6 +1316,15 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Case lookups (0.10.3, 2026-10-30).** Asked by Robert: an Outlook event or email that names a
+case number but carries no link should still get the case's Lightning link. rNotice keeps a map
+of case number → Case record ID (`case_ids`, ids only), learned from every link it already has;
+a case not referenced for six months drops off. Open items about a known case are linked from
+the map after each poll, including a meeting titled only "00038033". A number not in the map is
+sent to the routine as a `caseLookup` request (up to 20 numbers, one at a time); its result file
+fills the map and links the items. Not found: asked again after a day. Details:
+`ROUTINE-CLASSIFY.md`, *Case lookups*.
+
 **Classify routine (0.10.0, 2026-10-30).** Step 7 runs as a Claude Code routine, not through an
 API key: IT declined the key, and the case for it is shelved while the routine runs for a few
 weeks. One-on-one Teams chats with a new message wait for the routine, and are sent once the chat

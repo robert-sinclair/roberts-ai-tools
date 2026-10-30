@@ -110,7 +110,7 @@ public partial class DevViewWindow : Window
         RoutineStatus.Text = r.Configured
             ? $"Set up. {r.Waiting} waiting, {r.Sent} out, {r.FiresLastHour} sent in the last hour."
             : "Not set up: paste the fire URL and token below.";
-        RoutineLast.Text = r.Last;
+        RoutineLast.Text = $"{r.Last}\nCase map: {r.CasesKnown} case(s) known. {r.CaseLookup}.";
     }
 
     private void OnSaveRoutine(object sender, RoutedEventArgs e)

@@ -57,6 +57,10 @@ internal sealed class AgentHost(Application app) : IDisposable
     // When each routine fire went out in the last hour, oldest first: the hourly cap.
     private readonly Queue<DateTimeOffset> _routineFires = new();
     private string _routineLast = "Nothing yet";
+    // The case lookup in flight, if any. One at a time; lost on restart, which only means asking again.
+    private (Guid Id, DateTimeOffset SentUtc, IReadOnlyList<string> CaseNumbers)? _caseLookup;
+    // When each case number was last asked about, so one the routine can't find isn't asked every minute.
+    private readonly Dictionary<string, DateTimeOffset> _caseAsked = [];
     private ItemStore _store = null!;
     private Scheduler _scheduler = null!;
     private SourceSync? _sync;
@@ -171,6 +175,8 @@ internal sealed class AgentHost(Application app) : IDisposable
         {
             var purged = _store.Purge(now, _settings.RetentionDays);
             if (purged > 0) Log.Info($"Purged {purged} closed item(s) older than {_settings.RetentionDays} days");
+            var forgotten = _store.ForgetCases(now - Routine.CaseMapKeep);
+            if (forgotten > 0) Log.Info($"Case map: dropped {forgotten} case(s) not referenced in six months");
             _nextPurge = now + PurgeInterval;
         }
 
@@ -299,6 +305,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
         var report = _sync!.SyncCalendar(events, now);
         LogSync("Calendar", report);
+        LinkCasesFromMap(now);
         MoveConflictsToIntake(now);
         _ = PromoteAsync();
         // The footer gets the count; what changed goes to the log.
@@ -368,6 +375,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         foreach (var (key, mark) in marks)
             _store.SetState(key, mark.ToString("o", CultureInfo.InvariantCulture));
 
+        LinkCasesFromMap(now);
         await RunRoutineAsync(now);
 
         var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Teams);
@@ -410,7 +418,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         Changed?.Invoke();
     }
 
-    public sealed record DevRoutine(bool Configured, int Waiting, int Sent, int FiresLastHour, string Last);
+    public sealed record DevRoutine(bool Configured, int Waiting, int Sent, int FiresLastHour, string Last, int CasesKnown, string CaseLookup);
 
     public DevRoutine DevRoutineNow()
     {
@@ -419,7 +427,101 @@ internal sealed class AgentHost(Application app) : IDisposable
             tracked.Count(i => i.Routine!.Status == RoutineStatus.Waiting),
             tracked.Count(i => i.Routine!.Status == RoutineStatus.Sent),
             _routineFires.Count(t => DateTimeOffset.UtcNow - t < TimeSpan.FromHours(1)),
-            _routineLast);
+            _routineLast,
+            _store.CaseCount,
+            _caseLookup is { } l ? $"Looking up {string.Join(", ", l.CaseNumbers)} since {Display.Time(l.SentUtc)}" : "No case lookup out");
+    }
+
+    // ── Case map: case number → record ID ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Learns every case link rNotice already has, then links open items about a known case.
+    /// Runs after each calendar, mail and Teams poll. Reads memory; writes only what changed.
+    /// </summary>
+    private void LinkCasesFromMap(DateTimeOffset now)
+    {
+        foreach (var item in _store.List())
+            if (!string.IsNullOrEmpty(item.CaseUrl) && Routine.CaseNumberOf(item) is { } number &&
+                CaseLinks.FindRecordId(item.CaseUrl) is { } recordId && _store.RememberCase(number, recordId, now))
+                Log.Info($"Case map: learned {number}");
+
+        var linked = 0;
+        foreach (var item in _store.List(Stage.Intake, Stage.Planned).Where(Routine.NeedsCaseLink))
+        {
+            var number = Routine.CaseNumberOf(item)!;
+            if (_store.CaseRecordId(number) is not { } recordId) continue;
+            _store.Save(item with { CaseUrl = CaseLinks.LightningUrl(_settings.SalesforceUrl, recordId) }, now);
+            _store.TouchCase(number, now);
+            linked++;
+        }
+        if (linked > 0)
+        {
+            Log.Info($"Case map: linked {linked} item(s)");
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Asks the routine for the record IDs of case numbers that open items mention but that
+    /// have no link and aren't in the map: one request at a time, up to 20 numbers, and a
+    /// number the routine couldn't find waits a day before it's asked again.
+    /// </summary>
+    private async Task LookUpCasesAsync(string fireUrl, string token, DateTimeOffset now)
+    {
+        if (_caseLookup is { } out_ && now - out_.SentUtc > Routine.Timeout)
+        {
+            RoutineNote($"no answer to case lookup {out_.Id} after {Routine.Timeout.TotalMinutes:0} min");
+            _caseLookup = null;
+        }
+        if (_caseLookup is not null) return;
+
+        var numbers = _store.List(Stage.Intake, Stage.Planned)
+            .Where(Routine.NeedsCaseLink)
+            .Select(i => Routine.CaseNumberOf(i)!)
+            .Distinct()
+            .Where(n => _store.CaseRecordId(n) is null &&
+                        !(_caseAsked.TryGetValue(n, out var asked) && now - asked < Routine.CaseRetry))
+            .Take(Routine.MaxCaseNumbers)
+            .ToList();
+        if (numbers.Count == 0) return;
+
+        while (_routineFires.Count > 0 && now - _routineFires.Peek() >= TimeSpan.FromHours(1)) _routineFires.Dequeue();
+        if (_routineFires.Count >= Routine.MaxFiresPerHour) return;
+
+        var requestId = Guid.NewGuid();
+        try
+        {
+            var fire = await _routineClient.FireAsync(fireUrl, token, Routine.CaseLookupText(requestId, _results.Folder, numbers), CancellationToken.None);
+            _routineFires.Enqueue(now);
+            _caseLookup = (requestId, now, numbers);
+            foreach (var n in numbers) _caseAsked[n] = now;
+            RoutineNote($"case lookup {requestId} for {string.Join(", ", numbers)} · {fire.SessionUrl}");
+        }
+        catch (Exception ex) when (ex is RoutineException or HttpRequestException or TaskCanceledException)
+        {
+            foreach (var n in numbers) _caseAsked[n] = now;
+            RoutineNote($"couldn't send case lookup: {ex.Message}");
+        }
+    }
+
+    /// <summary>Applies a case lookup's result: each found case goes into the map and links its items.</summary>
+    private void ApplyCaseLookup(Guid requestId, string json, DateTimeOffset now)
+    {
+        var asked = _caseLookup?.CaseNumbers ?? [];
+        _caseLookup = null;
+        if (Routine.ParseCaseLookup(json, out var error) is not { } result || result.RequestId != requestId)
+        {
+            RoutineNote($"case lookup {requestId} rejected ({error ?? "requestId inside doesn't match the file name"})");
+            return;
+        }
+
+        // Only numbers that were asked about: a result can't add cases nobody asked for.
+        var found = result.Found.Where(f => asked.Contains(f.CaseNumber)).ToList();
+        foreach (var (number, recordId) in found) _store.RememberCase(number, recordId, now);
+        var missing = asked.Except(found.Select(f => f.CaseNumber)).ToList();
+        RoutineNote($"case lookup {requestId}: found {found.Count} of {asked.Count}" +
+                    (missing.Count > 0 ? $"; not found {string.Join(", ", missing)} (asked again in a day)" : ""));
+        LinkCasesFromMap(now);
     }
 
     private void RoutineNote(string line)
@@ -446,8 +548,9 @@ internal sealed class AgentHost(Application app) : IDisposable
             return;
         }
 
-        if (_store.List().Any(i => i.Routine?.Status == RoutineStatus.Sent))
+        if (_caseLookup is not null || _store.List().Any(i => i.Routine?.Status == RoutineStatus.Sent))
             await ReadRoutineResultsAsync(now, ct);
+        await LookUpCasesAsync(fireUrl, token, now);
 
         foreach (var overdue in _store.List().Where(i => Routine.IsOverdue(i, now)))
         {
@@ -505,6 +608,18 @@ internal sealed class AgentHost(Application app) : IDisposable
         foreach (var file in await _results.ListJsonAsync(ct))
         {
             if (Routine.RequestIdOf(file.Name) is not { } requestId) continue;
+
+            if (_caseLookup?.Id == requestId)
+            {
+                string json;
+                try { json = await _results.ReadAsync(file.Id, ct); }
+                catch (System.Text.Json.JsonException) { json = ""; }
+                catch (GraphException ex) when (ex.IsNotFound) { continue; }
+                ApplyCaseLookup(requestId, json, now);
+                try { await _results.DeleteAsync(file.Id, ct); }
+                catch (GraphException ex) when (ex.IsNotFound) { }
+                continue;
+            }
 
             RoutineResult? result;
             string? error;
@@ -621,6 +736,7 @@ internal sealed class AgentHost(Application app) : IDisposable
                 .GroupBy(s => s.Reason).Select(g => $"{g.Count()} {g.Key.ToLowerInvariant()}")));
 
         await LinkCasesAsync(now);
+        LinkCasesFromMap(now);
 
         var open = _store.List(Stage.Intake).Count(i => i.Source == Source.Mail);
         return $"{open} in Intake";

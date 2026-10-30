@@ -67,6 +67,9 @@ public sealed record RoutineResult(
     string? CaseNumber,
     string? CaseUrl);
 
+/// <summary>What the routine found for a case lookup: record IDs as 18 characters.</summary>
+public sealed record CaseLookupResult(Guid RequestId, IReadOnlyList<(string CaseNumber, string RecordId)> Found);
+
 /// <summary>
 /// The pure half of the classify routine: what to send, when, and what a result does to an
 /// item. The calls themselves are in the agent. See ROUTINE-CLASSIFY.md.
@@ -188,6 +191,83 @@ public static class Routine
         static string? Str(JsonElement e, string name) =>
             e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { } s &&
             !string.IsNullOrWhiteSpace(s) ? s.Trim() : null;
+    }
+
+    // ── Case lookups ────────────────────────────────────────────────────────────────────
+
+    /// <summary>Case numbers per lookup request.</summary>
+    public const int MaxCaseNumbers = 20;
+
+    /// <summary>A case number the routine didn't find isn't asked about again for this long.</summary>
+    public static readonly TimeSpan CaseRetry = TimeSpan.FromDays(1);
+
+    /// <summary>A case not referenced for this long drops off the map.</summary>
+    public static readonly TimeSpan CaseMapKeep = TimeSpan.FromDays(182);
+
+    private static readonly Regex RecordId = new(@"^500[0-9A-Za-z]{12}(?:[0-9A-Za-z]{3})?$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The case an item is about: a case number in the title ("Case 00038028", or a bare
+    /// 000xxxxx such as a meeting called "00038033"), else one with "Case" in front in its text.
+    /// </summary>
+    public static string? CaseNumberOf(Item item) =>
+        CaseLinks.FindAnyCaseNumber(item.Title) ?? CaseLinks.FindCaseNumber(item.Snippet);
+
+    /// <summary>
+    /// An open item about a case with no link yet. Mail first has its own message read for a
+    /// link (<c>CaseUrl</c> null means not looked yet, empty means looked and none), so mail
+    /// qualifies only once that found nothing. Groups carry their members' links already.
+    /// </summary>
+    public static bool NeedsCaseLink(Item item) =>
+        item.IsOpen && item.Source != Source.Group && CaseNumberOf(item) is not null &&
+        (item.Source == Source.Mail ? item.CaseUrl == "" : string.IsNullOrEmpty(item.CaseUrl));
+
+    /// <summary>The fire <c>text</c> for a case lookup.</summary>
+    public static string CaseLookupText(Guid requestId, string resultsFolder, IReadOnlyList<string> caseNumbers) =>
+        JsonSerializer.Serialize(new
+        {
+            requestId = requestId.ToString("D"),
+            kind = "caseLookup",
+            resultsFolder,
+            caseNumbers = caseNumbers.Take(MaxCaseNumbers)
+        });
+
+    /// <summary>
+    /// A case lookup's result file, checked. Each found case needs an eight-digit case number
+    /// and a Case record ID (prefix 500, 15 or 18 characters); anything else is skipped.
+    /// </summary>
+    public static CaseLookupResult? ParseCaseLookup(string json, out string? error)
+    {
+        error = null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            if (r.ValueKind != JsonValueKind.Object || !r.TryGetProperty("requestId", out var idProp) ||
+                idProp.ValueKind != JsonValueKind.String || !Guid.TryParse(idProp.GetString(), out var id))
+            {
+                error = "no requestId";
+                return null;
+            }
+
+            var found = new List<(string, string)>();
+            if (r.TryGetProperty("cases", out var cases) && cases.ValueKind == JsonValueKind.Array)
+                foreach (var c in cases.EnumerateArray())
+                {
+                    if (c.ValueKind != JsonValueKind.Object) continue;
+                    var number = c.TryGetProperty("caseNumber", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+                    var record = c.TryGetProperty("caseId", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString()?.Trim() : null;
+                    if (number is null || CaseLinks.FindAnyCaseNumber(number) != number.Trim() || record is null || !RecordId.IsMatch(record))
+                        continue;
+                    found.Add((number.Trim(), CaseLinks.To18(record)));
+                }
+            return new CaseLookupResult(id, found);
+        }
+        catch (JsonException ex)
+        {
+            error = $"not valid JSON ({ex.Message})";
+            return null;
+        }
     }
 
     /// <summary>A request went out.</summary>
