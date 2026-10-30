@@ -1316,6 +1316,13 @@ an event for a done task. Done before its block started frees the slot (plan cle
 removed). The calendar is now read from local midnight rather than an hour back, so today's
 finished meetings stay on the schedule (grey, as busy time).
 
+**Case map import (0.10.4, 2026-10-30).** Asked by Robert: fill the case map from Salesforce in
+one go. Dev view → *Case map*: **Copy Salesforce prompt** copies a prompt for a Claude chat with
+the read-only Salesforce connector, which returns every case changed in the last six months as
+`CaseNumber,CaseId,LastModifiedDate` CSV. **Import from clipboard** reads the chat's whole reply
+(`CaseCsv.Parse`) and stores each case with its last change as its last-referenced time, so it
+drops off six months after it last changed unless an item refers to it.
+
 **Case lookups (0.10.3, 2026-10-30).** Asked by Robert: an Outlook event or email that names a
 case number but carries no link should still get the case's Lightning link. rNotice keeps a map
 of case number → Case record ID (`case_ids`, ids only), learned from every link it already has;

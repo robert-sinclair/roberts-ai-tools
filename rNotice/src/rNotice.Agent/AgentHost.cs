@@ -461,6 +461,44 @@ internal sealed class AgentHost(Application app) : IDisposable
         }
     }
 
+    /// <summary>The prompt for another Claude chat with the read-only Salesforce connector: it returns cases as CSV.</summary>
+    public string CaseExportPrompt => CaseCsv.Prompt;
+
+    /// <summary>
+    /// Fills the case map from that chat's CSV, pasted from the clipboard. Cases last changed
+    /// more than six months ago are left out, since they'd drop off at the next purge. Then
+    /// links any open items the new cases cover. Returns a one-line summary.
+    /// </summary>
+    public string ImportCases(string text)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var parsed = CaseCsv.Parse(text);
+        if (parsed.Rows.Count == 0)
+            return parsed.Rejected > 0
+                ? $"No cases found: {parsed.Rejected} line(s) didn't read as CaseNumber,CaseId,LastModifiedDate."
+                : "No cases found on the clipboard.";
+
+        int added = 0, updated = 0, old = 0;
+        foreach (var row in parsed.Rows)
+        {
+            var changed = row.LastModifiedUtc ?? now;
+            if (now - changed > Routine.CaseMapKeep) { old++; continue; }
+            switch (_store.ImportCase(row.CaseNumber, row.RecordId, changed, now))
+            {
+                case "new": added++; break;
+                case "updated": updated++; break;
+            }
+        }
+        LinkCasesFromMap(now);
+
+        var summary = $"Imported {parsed.Rows.Count - old} case(s): {added} new, {updated} changed ID." +
+                      (old > 0 ? $" {old} older than six months left out." : "") +
+                      (parsed.Rejected > 0 ? $" {parsed.Rejected} line(s) rejected." : "") +
+                      $" The map now holds {_store.CaseCount}.";
+        Log.Info("Case map: " + summary);
+        return summary;
+    }
+
     /// <summary>
     /// Asks the routine for the record IDs of case numbers that open items mention but that
     /// have no link and aren't in the map: one request at a time, up to 20 numbers, and a

@@ -201,6 +201,23 @@ public sealed class ItemStore : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// A case from a Salesforce export. <paramref name="lastChangedUtc"/> is when the case last
+    /// changed: it counts as referenced then, so the six-month clock runs from real activity.
+    /// An existing entry keeps whichever time is later. Returns "new", "updated" or "same".
+    /// </summary>
+    public string ImportCase(string caseNumber, string recordId, DateTimeOffset lastChangedUtc, DateTimeOffset nowUtc)
+    {
+        var before = CaseRecordId(caseNumber);
+        Execute("""
+            INSERT INTO case_ids (case_number, record_id, learned_utc, seen_utc) VALUES ($n, $id, $now, $seen)
+            ON CONFLICT (case_number) DO UPDATE SET record_id = excluded.record_id,
+                seen_utc = MAX(case_ids.seen_utc, excluded.seen_utc)
+            """, ("$n", caseNumber), ("$id", recordId), ("$now", nowUtc.ToUnixTimeMilliseconds()),
+            ("$seen", lastChangedUtc.ToUnixTimeMilliseconds()));
+        return before is null ? "new" : before == recordId ? "same" : "updated";
+    }
+
     /// <summary>A case's record ID, if rNotice has learned it.</summary>
     public string? CaseRecordId(string caseNumber)
     {

@@ -260,6 +260,12 @@ link to the case should still get one.
 - **The routine's prompt changed** to handle `kind: caseLookup` (above). Paste the new
   `ROUTINE-PROMPT.txt` into the routine.
 - **Dev view** shows how many cases the map holds and any lookup out.
+- **Bulk import (0.10.4).** Dev view → *Case map* → **Copy Salesforce prompt** puts a prompt on
+  the clipboard for a Claude chat with the read-only Salesforce connector. It asks for every
+  case changed in the last six months as CSV (`CaseNumber,CaseId,LastModifiedDate`), in blocks
+  of up to 1000 rows. Copy the chat's whole reply, then **Import from clipboard**: rows are found
+  wherever they are in the text, bad lines are counted, and each case's six-month clock starts
+  from its `LastModifiedDate`. Cases older than six months are left out.
 
 ## Decisions (Robert, 2026-10-30)
 

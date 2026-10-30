@@ -128,6 +128,15 @@ public partial class DevViewWindow : Window
         RoutineResult.Text = "Removed.";
     }
 
+    private void OnCopyCasePrompt(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(_host.CaseExportPrompt);
+        CaseImportResult.Text = "Prompt copied. Paste it into a chat with the Salesforce connector.";
+    }
+
+    private void OnImportCases(object sender, RoutedEventArgs e) =>
+        CaseImportResult.Text = Clipboard.ContainsText() ? _host.ImportCases(Clipboard.GetText()) : "The clipboard has no text.";
+
     private void OnRefreshNow(object sender, RoutedEventArgs e) => _host.RefreshNow();
 
     private async void OnCheckPresence(object sender, RoutedEventArgs e)
