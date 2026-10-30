@@ -731,6 +731,9 @@ public partial class QueueWindow : Window
                 _host.PlanGroup(SelectedIntakeIds(), this);
                 break;
             case Key.P when selected is not null && CanPlan(selected): _host.Plan(selected.Id, this); break;
+            case Key.P when selected is not null && selected.Source == Source.Calendar && _host.CanMoveMeeting(selected.Id):
+                _host.MoveMeeting(selected.Id, this);
+                break;
             case Key.Delete when selected is not null: _host.SetStage(selected.Id, Stage.Dismissed); break;
             case Key.C when selected is not null: _host.SetStage(selected.Id, Stage.Done); break;
             case Key.S when selected is not null && selected.IsOpen && selected.Source != Source.Calendar:
@@ -803,6 +806,20 @@ public partial class QueueWindow : Window
 
         if (CanPlan(item))
             menu.Items.Add(Entry(item.Stage == Stage.Intake ? "Plan…" : "Change plan…", "P", () => _host.Plan(item.Id, this)));
+        if (item.Source == Source.Calendar && item.IsOpen)
+        {
+            if (_host.CanMoveMeeting(item.Id))
+            {
+                menu.Items.Add(Entry("Move meeting…", "P", () => _host.MoveMeeting(item.Id, this)));
+                var rebook = new MenuItem { Header = "Rebook" };
+                foreach (var choice in _host.MeetingRebookChoices(item.Id))
+                    rebook.Items.Add(Entry(AlertWindow.Describe(choice), "", () => _host.RebookMeeting(item.Id, choice)));
+                if (rebook.Items.Count > 0) menu.Items.Add(rebook);
+            }
+            else
+                // Graph only lets the organiser move a meeting; say so rather than hide it.
+                menu.Items.Add(new MenuItem { Header = "Move meeting… (only the organiser can)", IsEnabled = false });
+        }
         if (item.Source != Source.Calendar && item.Stage == Stage.Planned && item.PlannedStartUtc is { } planned)
         {
             if (!item.PromoteToCalendar)

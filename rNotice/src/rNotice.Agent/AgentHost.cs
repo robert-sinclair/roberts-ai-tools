@@ -1181,14 +1181,14 @@ internal sealed class AgentHost(Application app) : IDisposable
         Log.Info($"'{item.Title}' planned for {Display.Time(startUtc)}, {_settings.PlanMinutes} min (dropped on the calendar)");
     }
 
-    private IReadOnlyList<AgendaEntry> AgendaFor(DateOnly day, Guid except)
+    private IReadOnlyList<AgendaEntry> AgendaFor(DateOnly day, Guid except, string? exceptEventId = null)
     {
         var zone = _settings.ToWorkHours().Zone;
         var from = new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), zone.GetUtcOffset(day.ToDateTime(TimeOnly.MinValue))).ToUniversalTime();
         var to = from.AddDays(1);
 
         var meetings = _meetingEvents
-            .Where(e => e.StartUtc < to && e.EndUtc > from)
+            .Where(e => e.StartUtc < to && e.EndUtc > from && e.Id != exceptEventId)
             .Select(e => new AgendaEntry(e.StartUtc, e.EndUtc, e.Subject, IsMeeting: true));
 
         var plans = _store.List(Stage.Planned)
@@ -1384,9 +1384,51 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// is no further confirmation. The item follows on the next calendar read, which is asked
     /// for straight away rather than waited out.
     /// </summary>
-    public async void RebookMeeting(Guid id, RebookChoice choice)
+    public void RebookMeeting(Guid id, RebookChoice choice) => MoveMeetingTo(id, choice.StartUtc, choice.Minutes);
+
+    /// <summary>A meeting rNotice can move: one you organise, not all-day, in the calendar read.</summary>
+    public bool CanMoveMeeting(Guid id) => MeetingRebookMinutes(id) > 0;
+
+    /// <summary>
+    /// Moves a meeting to any time you pick in the Plan dialog, in its "move" mode: the day view
+    /// leaves the meeting out of what's busy and shows its current slot dashed; the length starts
+    /// at the meeting's own and can be changed. Choosing a time and pressing Move is the
+    /// confirmation, as on the alert.
+    /// </summary>
+    public void MoveMeeting(Guid id, Window? owner)
     {
         if (_store.Get(id) is not { Source: Source.Calendar } item) return;
+        if (_meetingEvents.FirstOrDefault(e => e.Id == item.SourceId) is not { IsOrganizer: true, IsAllDay: false } ev) return;
+
+        var minutes = (int)Math.Round((ev.EndUtc - ev.StartUtc).TotalMinutes);
+        var hours = _settings.ToWorkHours();
+        var now = DateTimeOffset.UtcNow;
+        // The dialog shows an item's current plan dashed; for a meeting, that's where it is now.
+        var shown = item with { PlannedStartUtc = ev.StartUtc, PlannedMinutes = minutes };
+        var dialog = new PlanDialog(shown, minutes, promote: false,
+            m => FreeSlots.Find(now, TimeSpan.FromMinutes(m), hours, BlockedTime(except: id, exceptEventId: ev.Id)),
+            _calendarKnownUtc, hours,
+            day => DayGrid.Build(day, hours, AgendaFor(day, id, ev.Id), DateTimeOffset.UtcNow),
+            firstDay: DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(ev.StartUtc > now ? ev.StartUtc : now, hours.Zone).DateTime),
+            moveMeeting: true);
+        if (owner is { IsVisible: true })
+        {
+            dialog.Owner = owner;
+            dialog.Topmost = owner.Topmost;
+        }
+        else
+        {
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            dialog.Topmost = true;
+        }
+        if (dialog.ShowDialog() != true || dialog.StartUtc is not { } start) return;
+        MoveMeetingTo(id, start, dialog.Minutes);
+    }
+
+    private async void MoveMeetingTo(Guid id, DateTimeOffset startUtc, int minutes)
+    {
+        if (_store.Get(id) is not { Source: Source.Calendar } item) return;
+        var choice = (StartUtc: startUtc, Minutes: minutes);
         var end = choice.StartUtc.AddMinutes(choice.Minutes);
         try
         {

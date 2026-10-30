@@ -238,7 +238,7 @@ public partial class AlertWindow : Window
         Reload();
     }
 
-    private static string Describe(RebookChoice c)
+    internal static string Describe(RebookChoice c)
     {
         var start = c.StartUtc.ToLocalTime();
         var end = start.AddMinutes(c.Minutes);

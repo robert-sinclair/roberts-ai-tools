@@ -1335,6 +1335,16 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Move meetings from the schedule (0.10.7, 2026-10-30).** Asked by Robert: replan anything on the
+calendar from rNotice. The right-click menu on an Outlook meeting (schedule or list) now has
+**Move meeting…** (also **P**) and a **Rebook** submenu with the alert's three quick slots. Move
+opens the Plan dialog in a "move" mode: the meeting's current slot shown dashed and left out of
+what's busy, its own length preselected (added to the list if it isn't a standard one), no "No
+time" and no "Put it on my Outlook calendar". Choosing a time and pressing Move is a `PATCH` on
+the real event, as Rebook on the alert (0.9.14), so everyone invited gets the update. Only for
+meetings you organise and not all-day; for anyone else's the entry shows greyed out as "(only
+the organiser can)", since Graph refuses the move.
+
 **Replies go to the routine (0.10.6, 2026-10-30).** Asked by Robert: chats were marked Done just
 because he replied. With the routine set up, your reply in a one-on-one chat sends it to the
 routine instead (note "You replied in Teams"), which closes it only if the reply settled it. The

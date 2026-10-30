@@ -19,7 +19,11 @@ namespace rNotice.Agent;
 /// </summary>
 public partial class PlanDialog : Window
 {
-    private static readonly int[] Durations = [15, 30, 45, 60, 90, 120];
+    private static readonly int[] StandardDurations = [15, 30, 45, 60, 90, 120];
+
+    // The lengths offered. Moving a meeting adds its own length if it isn't a standard one.
+    private readonly int[] Durations;
+    private readonly bool _moveMeeting;
     private const double CellHeight = 22;
 
     private static readonly Brush FreeBrush = Brushes.Transparent;
@@ -58,9 +62,13 @@ public partial class PlanDialog : Window
 
     internal PlanDialog(Item item, int defaultMinutes, bool promote, Func<int, IReadOnlyList<DateTimeOffset>> suggest,
         DateTimeOffset? calendarReadUtc, WorkHours hours, Func<DateOnly, IReadOnlyList<DayCell>> day, int groupOf = 0,
-        DateOnly? firstDay = null)
+        DateOnly? firstDay = null, bool moveMeeting = false)
     {
         _item = item;
+        _moveMeeting = moveMeeting;
+        Durations = moveMeeting && !StandardDurations.Contains(defaultMinutes)
+            ? StandardDurations.Append(defaultMinutes).Order().ToArray()
+            : StandardDurations;
         _suggest = suggest;
         _day = day;
         _hours = hours;
@@ -80,6 +88,15 @@ public partial class PlanDialog : Window
             GroupList.Text = item.Snippet;
             TitleBox.Text = item.Title;
             Loaded += (_, _) => { TitleBox.Focus(); TitleBox.SelectAll(); };
+        }
+
+        if (moveMeeting)
+        {
+            // A meeting always has a time and already is the Outlook event.
+            Title = "Move meeting";
+            ItemMeta.Text = "Moving it changes the real Outlook event. Everyone invited gets the update.";
+            NoTime.Visibility = Visibility.Collapsed;
+            OnCalendar.Visibility = Visibility.Collapsed;
         }
 
         NoTime.Content = item.DueUtc is { } due
@@ -227,8 +244,8 @@ public partial class PlanDialog : Window
         }
 
         PlanSelected.Content = _selStart is { } s
-            ? $"Plan {Display.Time(s)} – {Local(s.AddMinutes(_selMinutes)):HH:mm} ({Label(_selMinutes)})"
-            : "Select a time to plan";
+            ? $"{(_moveMeeting ? "Move to" : "Plan")} {Display.Time(s)} – {Local(s.AddMinutes(_selMinutes)):HH:mm} ({Label(_selMinutes)})"
+            : _moveMeeting ? "Select a time to move it to" : "Select a time to plan";
         PlanSelected.IsEnabled = _selStart is not null;
         NoTime.IsDefault = _selStart is null;
     }
