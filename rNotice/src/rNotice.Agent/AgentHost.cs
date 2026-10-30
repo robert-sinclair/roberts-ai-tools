@@ -1401,6 +1401,71 @@ internal sealed class AgentHost(Application app) : IDisposable
         }
     }
 
+    /// <summary>Whether the case map already knows this number — what the Create tab reports.</summary>
+    public bool KnownCase(string caseNumber) => _store.CaseRecordId(caseNumber) is not null;
+
+    /// <summary>
+    /// The Salesforce link a new item should start with: a record ID already written into its
+    /// text wins (and is learned), then the case map. Null when it names no case, or names one
+    /// nothing knows yet — which <see cref="LookUpCasesAsync"/> then asks the routine about.
+    /// </summary>
+    private string? CaseUrlFor(Item draft, DateTimeOffset now)
+    {
+        if (Routine.CaseNumberOf(draft) is not { } number) return null;
+
+        if ((CaseLinks.FindRecordId(draft.Title) ?? CaseLinks.FindRecordId(draft.Snippet)) is { } inText)
+        {
+            if (_store.RememberCase(number, inText, now)) Log.Info($"Case map: learned {number}");
+            return CaseLinks.LightningUrl(_settings.SalesforceUrl, inText);
+        }
+
+        if (_store.CaseRecordId(number) is not { } known) return null;
+        _store.TouchCase(number, now);
+        return CaseLinks.LightningUrl(_settings.SalesforceUrl, known);
+    }
+
+    /// <summary>
+    /// An item you typed into the queue's Create tab, taken straight into the Plan dialog.
+    /// Cancelling there saves nothing. True when an item was made.
+    ///
+    /// A case number in the title or the description is linked before the dialog opens, from a
+    /// Salesforce link in the text or from the case map. One neither knows goes to the routine
+    /// as soon as the item exists, and the item picks the link up when the answer lands.
+    /// </summary>
+    public bool CreateAndPlan(string title, string description, Window? owner)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return false;
+        var now = DateTimeOffset.UtcNow;
+        var draft = rNotice.Core.Scheduling.Created.From(title, description, now);
+        draft = draft with { CaseUrl = CaseUrlFor(draft, now) };
+
+        if (ShowPlanDialog(draft, except: Guid.Empty, owner) is not { } dialog) return false;
+
+        _store.Save(draft.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
+            dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0), now);
+        Log.Info(dialog.StartUtc is { } start
+            ? $"Created '{draft.Title}' for {Display.Time(start)}, {dialog.Minutes} min"
+            : $"Created '{draft.Title}' with no time");
+        Changed?.Invoke();
+        _ = PromoteAsync();
+
+        // Now that it's stored, the lookup can see it. Waiting for the next Teams poll would
+        // leave a case you just typed sitting there unlinked for a minute.
+        if (string.IsNullOrEmpty(draft.CaseUrl) && Routine.CaseNumberOf(draft) is not null) _ = LookUpCasesNowAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// A case lookup outside the Teams poll, when something has just asked for one. Its own
+    /// clock: the Plan dialog may have been open for a while, and the retry window is measured
+    /// from when the question actually goes out.
+    /// </summary>
+    private async Task LookUpCasesNowAsync()
+    {
+        if (_store.GetState(RoutineUrlKey) is not { } fireUrl || _store.GetState(RoutineTokenKey) is not { } token) return;
+        await LookUpCasesAsync(fireUrl, token, DateTimeOffset.UtcNow);
+    }
+
     /// <summary>
     /// "Follow up": a new item titled <c>Follow up - &lt;title&gt;</c>, planned a week on. The
     /// Plan dialog opens on that week's suggestions, and cancelling there saves nothing — the

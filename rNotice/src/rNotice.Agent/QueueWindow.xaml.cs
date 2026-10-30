@@ -31,7 +31,7 @@ public partial class QueueWindow : Window
     private readonly AgentHost _host;
     private readonly DispatcherTimer _countdown = new() { Interval = TimeSpan.FromSeconds(1) };
 
-    private enum Area { Intake, Done, Calendar }
+    private enum Area { Intake, Done, Calendar, Create }
     private Area _area = Area.Intake;
     private Guid? _selected;
     private DateTimeOffset? _selectedStart;   // where a calendar selection was, to find the next one
@@ -191,8 +191,50 @@ public partial class QueueWindow : Window
     private void OnTabChanged(object sender, SelectionChangedEventArgs e)
     {
         if (e.OriginalSource != Tabs) return;
+        if (Tabs.SelectedItem == CreateTab)
+        {
+            // Nothing is selected while you're typing, so the keys that act on a selected item
+            // have nothing to act on — and the detail pane isn't showing something you can't see.
+            Select(null, Area.Create);
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => CreateTitle.Focus());
+            return;
+        }
         var area = Tabs.SelectedItem == DoneTab ? Area.Done : Area.Intake;
         Select((ListFor(area).SelectedItem as ItemView)?.Item, area);
+    }
+
+    // ── Create ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Plan is for a title; the note says what will happen to a case number in either field —
+    /// linked from the map, or asked about once the item exists.
+    /// </summary>
+    private void OnCreateChanged(object sender, TextChangedEventArgs e)
+    {
+        // A TextBox raises TextChanged as the XAML is parsed, before the rest of the tab exists.
+        if (!IsInitialized) return;
+        CreatePlanButton.IsEnabled = !string.IsNullOrWhiteSpace(CreateTitle.Text);
+
+        var number = CaseLinks.FindAnyCaseNumber(CreateTitle.Text) ?? CaseLinks.FindCaseNumber(CreateDescription.Text);
+        CreateNote.Text = number is null ? ""
+            : CaseLinks.FindRecordId(CreateTitle.Text) is not null || CaseLinks.FindRecordId(CreateDescription.Text) is not null
+                ? $"Case {number} — linked from the address you've written."
+            : _host.KnownCase(number) ? $"Case {number} — rNotice knows it; the item will be linked."
+            : $"Case {number} — not in the case map. rNotice will ask the routine for it.";
+    }
+
+    private void OnCreateCancel(object sender, RoutedEventArgs e) => ClearCreate();
+
+    private void OnCreatePlan(object sender, RoutedEventArgs e)
+    {
+        if (_host.CreateAndPlan(CreateTitle.Text, CreateDescription.Text, this)) ClearCreate();
+    }
+
+    private void ClearCreate()
+    {
+        CreateTitle.Clear();
+        CreateDescription.Clear();
+        CreateTitle.Focus();
     }
 
     // ── Selection and detail ────────────────────────────────────────────────────────────────

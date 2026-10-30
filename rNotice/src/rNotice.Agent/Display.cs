@@ -66,6 +66,7 @@ internal static class Display
     {
         Source.Workbook => "Task",
         Source.FollowUp => "Follow up",
+        Source.Created => "Created",
         Source.Calendar => "Meeting",
         Source.Mail => "Email",
         Source.Teams => "Chat",

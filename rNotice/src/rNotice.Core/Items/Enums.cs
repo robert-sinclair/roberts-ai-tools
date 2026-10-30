@@ -11,7 +11,10 @@ public enum Source
     Group,
 
     /// <summary>A follow-up on something else (<c>FollowUp</c>). Made by you, not polled.</summary>
-    FollowUp
+    FollowUp,
+
+    /// <summary>Typed into the queue's Create tab (<c>Created</c>). Made by you, not polled.</summary>
+    Created
 }
 
 /// <summary>

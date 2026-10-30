@@ -150,6 +150,30 @@
                             <ListBox.ContextMenu><ContextMenu /></ListBox.ContextMenu>
                         </ListBox>
                     </TabItem>
+                    <!-- Something that arrived nowhere: type it, then plan it like anything else. -->
+                    <TabItem x:Name="CreateTab">
+                        <TabItem.Header>
+                            <TextBlock Text="Create" FontWeight="SemiBold" />
+                        </TabItem.Header>
+                        <DockPanel Margin="10">
+                            <DockPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" LastChildFill="False">
+                                <Button x:Name="CreatePlanButton" DockPanel.Dock="Right" Content="Plan" Click="OnCreatePlan"
+                                        Padding="18,4" FontWeight="SemiBold" IsEnabled="False"
+                                        ToolTip="Asks when you'll do it, as planning anything else does. Nothing is kept if you cancel there." />
+                                <Button DockPanel.Dock="Right" Content="Cancel" Click="OnCreateCancel" Padding="14,4" Margin="0,0,8,0"
+                                        ToolTip="Clears the title and the description" />
+                                <TextBlock x:Name="CreateNote" DockPanel.Dock="Left" Opacity="0.7" FontSize="12"
+                                           VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" />
+                            </DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="Title" FontWeight="SemiBold" Margin="0,0,0,3" />
+                            <TextBox x:Name="CreateTitle" DockPanel.Dock="Top" Padding="4,3" Margin="0,0,0,8"
+                                     TextChanged="OnCreateChanged" />
+                            <TextBlock DockPanel.Dock="Top" Text="Description" FontWeight="SemiBold" Margin="0,0,0,3"
+                                       ToolTip="Goes into the item, and into the Outlook event's description if you put it on your calendar" />
+                            <TextBox x:Name="CreateDescription" AcceptsReturn="True" TextWrapping="Wrap" Padding="4,3"
+                                     MinHeight="60" VerticalScrollBarVisibility="Auto" TextChanged="OnCreateChanged" />
+                        </DockPanel>
+                    </TabItem>
                 </TabControl>
 
                 <GridSplitter Grid.Row="1" Height="10" HorizontalAlignment="Stretch" VerticalAlignment="Center"
