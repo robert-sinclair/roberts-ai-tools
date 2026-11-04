@@ -34,7 +34,7 @@ public static class DayGrid
         var firstFree = FreeSlots.RoundUp(nowUtc, hours.Zone);
         var labelled = new HashSet<AgendaEntry>();
 
-        for (var t = day.ToDateTime(hours.Start); t < day.ToDateTime(hours.End); t = t.AddMinutes(15))
+        for (var t = day.ToDateTime(hours.Start); t < hours.EndOn(day); t = t.AddMinutes(15))
         {
             var start = new DateTimeOffset(t, hours.Zone.GetUtcOffset(t)).ToUniversalTime();
             var end = start + FreeSlots.Step;

@@ -18,6 +18,35 @@ public class FreeSlotsTests
     private static TimeBlock Meeting(int h1, int m1, int h2, int m2, int day = 22) => new(T(h1, m1, day), T(h2, m2, day));
 
     [Fact]
+    public void The_evening_opens_an_hour_before_work_ends_and_only_for_today()
+    {
+        Assert.Null(Hours.WithEvening(T(14, 59)).EveningDay);
+        Assert.Equal(new DateOnly(2026, 10, 22), Hours.WithEvening(T(15, 0)).EveningDay);
+        Assert.Equal(new DateOnly(2026, 10, 22), Hours.WithEvening(T(21, 30)).EveningDay);
+    }
+
+    [Fact]
+    public void In_the_evening_today_has_slots_up_to_midnight_and_tomorrow_ends_at_four()
+    {
+        var evening = Hours.WithEvening(T(15, 10));
+
+        var slots = FreeSlots.Find(T(15, 10), TimeSpan.FromHours(4), evening, [Meeting(15, 15, 16, 0)]);
+
+        Assert.Equal(T(16, 0), slots[0]);                 // 16:00–20:00 tonight
+        Assert.Equal(T(8, 0, day: 23), slots[1]);         // tomorrow, back to work hours
+        Assert.DoesNotContain(FreeSlots.Find(T(22, 0), HalfHour, Hours.WithEvening(T(22, 0)), []), s => s >= T(0, 0, day: 23) && s < T(8, 0, day: 23));
+        Assert.Equal(T(23, 30), FreeSlots.Find(T(23, 20), HalfHour, Hours.WithEvening(T(23, 20)), [])[0]);
+    }
+
+    [Fact]
+    public void The_day_view_runs_to_midnight_on_an_evening()
+    {
+        var cells = DayGrid.Build(new DateOnly(2026, 10, 22), Hours.WithEvening(T(15, 0)), [], T(15, 0));
+        Assert.Equal(T(23, 45), cells[^1].StartUtc);
+        Assert.Equal(T(15, 45), DayGrid.Build(new DateOnly(2026, 10, 22), Hours, [], T(15, 0))[^1].StartUtc);
+    }
+
+    [Fact]
     public void Starts_on_the_next_quarter_hour()
     {
         var slots = FreeSlots.Find(T(9, 2), HalfHour, Hours, []);

@@ -1055,7 +1055,7 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private PlanDialog? ShowPlanDialog(Item item, Guid except, Window? owner, int groupOf = 0, DateTimeOffset? suggestFrom = null)
     {
-        var hours = _settings.ToWorkHours();
+        var hours = PlanningHours(DateTimeOffset.UtcNow);
         var from = suggestFrom is { } s && s > DateTimeOffset.UtcNow ? s : DateTimeOffset.UtcNow;
         var dialog = new PlanDialog(item, _settings.PlanMinutes, item.PlannedStartUtc is null ? _settings.PromoteByDefault : item.PromoteToCalendar,
             minutes => FreeSlots.Find(from, TimeSpan.FromMinutes(minutes), hours, BlockedTime(except)),
@@ -1118,6 +1118,13 @@ internal sealed class AgentHost(Application app) : IDisposable
     // ── Planned calendar view ───────────────────────────────────────────────────────────────
 
     public WorkHours WorkHours => _settings.ToWorkHours();
+
+    /// <summary>
+    /// Work hours for choosing a time: from an hour before the day ends, today runs to midnight
+    /// (<see cref="WorkHours.WithEvening"/>). Alerts, overrun pushes and the schedule keep the
+    /// plain work hours.
+    /// </summary>
+    private WorkHours PlanningHours(DateTimeOffset nowUtc) => _settings.ToWorkHours().WithEvening(nowUtc);
 
     /// <summary>
     /// Everything on one day for the Planned calendar: your meetings (with their items, so
@@ -1335,7 +1342,7 @@ internal sealed class AgentHost(Application app) : IDisposable
 
     /// <summary>The alert's "Rebook in" choices. The item's own current slot counts as free.</summary>
     public IReadOnlyList<RebookChoice> RebookChoices(Guid id) =>
-        Rebook.Choices(DateTimeOffset.UtcNow, _settings.ToWorkHours(), BlockedTime(except: id).ToList());
+        Rebook.Choices(DateTimeOffset.UtcNow, PlanningHours(DateTimeOffset.UtcNow), BlockedTime(except: id).ToList());
 
     /// <summary>
     /// Plans the item into the chosen slot. A plan already on your Outlook calendar stays there
@@ -1374,7 +1381,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         var minutes = MeetingRebookMinutes(id);
         if (minutes <= 0) return [];
         var eventId = _store.Get(id)?.SourceId;
-        return Rebook.Choices(DateTimeOffset.UtcNow, _settings.ToWorkHours(),
+        return Rebook.Choices(DateTimeOffset.UtcNow, PlanningHours(DateTimeOffset.UtcNow),
             BlockedTime(except: id, exceptEventId: eventId).ToList(), [minutes]);
     }
 
@@ -1401,7 +1408,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         if (_meetingEvents.FirstOrDefault(e => e.Id == item.SourceId) is not { IsOrganizer: true, IsAllDay: false } ev) return;
 
         var minutes = (int)Math.Round((ev.EndUtc - ev.StartUtc).TotalMinutes);
-        var hours = _settings.ToWorkHours();
+        var hours = PlanningHours(DateTimeOffset.UtcNow);
         var now = DateTimeOffset.UtcNow;
         // The dialog shows an item's current plan dashed; for a meeting, that's where it is now.
         var shown = item with { PlannedStartUtc = ev.StartUtc, PlannedMinutes = minutes };

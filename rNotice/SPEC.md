@@ -1335,6 +1335,16 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Longer blocks and evening planning (0.10.9, 2026-11-03).** Asked by Robert. **How long** now
+offers 3 h and 4 h as well. From an hour before the working day ends (15:00 with a 16:00 end),
+today can be planned up to midnight: the Plan dialog's suggestions and day view, Move meeting, and
+the alert's Rebook all see today running to 24:00 (`WorkHours.WithEvening`). Only today: other
+days keep working hours. Alerts, overrun pushes and the main schedule are unchanged.
+
+**A click books How long (0.10.8, 2026-10-30).** A single click in the Plan dialog's day view
+selects the **How long** length from that quarter hour, stopping at the next meeting or plan;
+dragging away from it still sets a length of your own.
+
 **Move meetings from the schedule (0.10.7, 2026-10-30).** Asked by Robert: replan anything on the
 calendar from rNotice. The right-click menu on an Outlook meeting (schedule or list) now has
 **Move meeting…** (also **P**) and a **Rebook** submenu with the alert's three quick slots. Move

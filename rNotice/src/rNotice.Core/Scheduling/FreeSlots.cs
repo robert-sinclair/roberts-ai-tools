@@ -1,7 +1,31 @@
 namespace rNotice.Core.Scheduling;
 
-/// <summary>The hours you'll plan work into, in one fixed zone, on these days.</summary>
-public sealed record WorkHours(TimeOnly Start, TimeOnly End, TimeZoneInfo Zone, IReadOnlySet<DayOfWeek> Days);
+/// <summary>
+/// The hours you'll plan work into, in one fixed zone, on these days. On
+/// <paramref name="EveningDay"/>, planning runs on past <paramref name="End"/> to midnight.
+/// </summary>
+public sealed record WorkHours(TimeOnly Start, TimeOnly End, TimeZoneInfo Zone, IReadOnlySet<DayOfWeek> Days,
+    DateOnly? EveningDay = null)
+{
+    /// <summary>How long before the end of the working day the evening opens for planning.</summary>
+    public static readonly TimeSpan EveningOpensBefore = TimeSpan.FromHours(1);
+
+    /// <summary>Where planning stops on <paramref name="day"/>, local: the end of work, or midnight on an evening day.</summary>
+    public DateTime EndOn(DateOnly day) =>
+        day == EveningDay ? day.AddDays(1).ToDateTime(TimeOnly.MinValue) : day.ToDateTime(End);
+
+    /// <summary>
+    /// From an hour before the working day ends, today can be planned up to midnight. Asked by
+    /// Robert (2026-11-03): late in the day there was nowhere left to put work tonight. Only
+    /// today: tomorrow plans into working hours as usual.
+    /// </summary>
+    public WorkHours WithEvening(DateTimeOffset nowUtc)
+    {
+        var local = TimeZoneInfo.ConvertTime(nowUtc, Zone).DateTime;
+        var today = DateOnly.FromDateTime(local);
+        return local >= today.ToDateTime(End) - EveningOpensBefore ? this with { EveningDay = today } : this;
+    }
+}
 
 /// <summary>Time that's taken: a meeting, or something already planned.</summary>
 public sealed record TimeBlock(DateTimeOffset StartUtc, DateTimeOffset EndUtc)
@@ -37,7 +61,8 @@ public static class FreeSlots
             if (!hours.Days.Contains(day.DayOfWeek)) continue;
 
             var dayStart = At(day, hours.Start, hours.Zone);
-            var dayEnd = At(day, hours.End, hours.Zone);
+            var dayEndLocal = hours.EndOn(day);
+            var dayEnd = new DateTimeOffset(dayEndLocal, hours.Zone.GetUtcOffset(dayEndLocal)).ToUniversalTime();
             var cursor = RoundUp(dayStart > nowUtc ? dayStart : nowUtc, hours.Zone);
 
             while (cursor + duration <= dayEnd && slots.Count < max)

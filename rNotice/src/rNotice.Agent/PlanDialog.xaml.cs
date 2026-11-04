@@ -19,7 +19,7 @@ namespace rNotice.Agent;
 /// </summary>
 public partial class PlanDialog : Window
 {
-    private static readonly int[] StandardDurations = [15, 30, 45, 60, 90, 120];
+    private static readonly int[] StandardDurations = [15, 30, 45, 60, 90, 120, 180, 240];
 
     // The lengths offered. Moving a meeting adds its own length if it isn't a standard one.
     private readonly int[] Durations;
