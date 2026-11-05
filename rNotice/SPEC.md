@@ -1335,6 +1335,12 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**How long keeps your day (0.10.11, 2026-11-05).** Reported by Robert: after moving the Plan
+dialog to tomorrow, changing **How long** jumped back to today's first suggestion. Now only the
+dialog's opening picks the first suggestion. Later changes stay on the day shown. The selection
+keeps its start if the new length is free from there. Otherwise it moves to the first suggestion on
+that day, or is cleared if that day has none.
+
 **Book from the top of the hour (0.10.10, 2026-11-05).** Asked by Robert. The Plan dialog's day
 view (and Move meeting) now lets you pick from the start of the current hour: at 8:09 the 8:00
 cells are free to book. Earlier hours are still past. The suggested times still start from now

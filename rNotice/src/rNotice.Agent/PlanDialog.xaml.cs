@@ -50,6 +50,8 @@ public partial class PlanDialog : Window
     private bool _dragging;
     // The pointer has left the clicked quarter hour: from then on the drag sets the length.
     private bool _dragMoved;
+    // Set once the dialog's first How long has filled the suggestions.
+    private bool _durationSet;
 
     /// <summary>Set when the user chose to plan. <see cref="StartUtc"/> null means no time.</summary>
     public bool Planned { get; private set; }
@@ -144,8 +146,36 @@ public partial class PlanDialog : Window
             Slots.Children.Add(button);
         }
 
-        if (slots.Count > 0) Select(slots[0], minutes, showDay: true);
+        if (!_durationSet)
+        {
+            // On open: the first suggestion, wherever it falls.
+            _durationSet = true;
+            if (slots.Count > 0) Select(slots[0], minutes, showDay: true);
+            else { ClearSelection(); ShowDay(_shownDay); }
+            return;
+        }
+
+        // Later changes stay on the day you're looking at. Robert (2026-11-05): picking tomorrow
+        // and then changing How long jumped back to today. Keep your start time if the new length
+        // fits there, else the first suggestion on this day, else no selection.
+        if (_selStart is { } kept && DateOnly.FromDateTime(Local(kept)) == _shownDay && FitsAt(kept, minutes))
+        {
+            Select(kept, minutes, showDay: false);
+            return;
+        }
+        var onDay = slots.Where(x => DateOnly.FromDateTime(Local(x)) == _shownDay).Select(x => (DateTimeOffset?)x).FirstOrDefault();
+        if (onDay is { } first) Select(first, minutes, showDay: true);
         else { ClearSelection(); ShowDay(_shownDay); }
+    }
+
+    // Whether the whole length is free from this start in the day shown.
+    private bool FitsAt(DateTimeOffset startUtc, int minutes)
+    {
+        var at = -1;
+        for (var i = 0; i < _cells.Count; i++) if (_cells[i].StartUtc == startUtc) at = i;
+        if (at < 0) return false;
+        var (first, last) = DayGrid.ClickSelection(_cells, at, minutes);
+        return first == at && last - first + 1 == Math.Max(1, minutes / 15);
     }
 
     // ── Day view ────────────────────────────────────────────────────────────────────────────
