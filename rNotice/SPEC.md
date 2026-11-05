@@ -1335,6 +1335,11 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Book from the top of the hour (0.10.10, 2026-11-05).** Asked by Robert. The Plan dialog's day
+view (and Move meeting) now lets you pick from the start of the current hour: at 8:09 the 8:00
+cells are free to book. Earlier hours are still past. The suggested times still start from now
+(`DayGrid.StartOfHour`).
+
 **Longer blocks and evening planning (0.10.9, 2026-11-03).** Asked by Robert. **How long** now
 offers 3 h and 4 h as well. From an hour before the working day ends (15:00 with a 16:00 end),
 today can be planned up to midnight: the Plan dialog's suggestions and day view, Move meeting, and

@@ -39,11 +39,21 @@ public class DayGridTests
     }
 
     [Fact]
-    public void Earlier_today_is_past()
+    public void Earlier_hours_today_are_past()
     {
         var cells = DayGrid.Build(Friday, Hours, [], T(10, 5));
-        Assert.Equal(CellState.Past, cells[Index(10, 0)].State);
-        Assert.Equal(CellState.Free, cells[Index(10, 15)].State);
+        Assert.Equal(CellState.Past, cells[Index(9, 45)].State);
+        Assert.Equal(CellState.Free, cells[Index(10, 0)].State);
+    }
+
+    [Fact]
+    public void The_current_hour_can_be_booked_from_its_start()
+    {
+        var cells = DayGrid.Build(Friday, Hours, [], T(8, 50));
+        Assert.Equal(CellState.Free, cells[Index(8, 0)].State);
+        Assert.Equal(CellState.Free, cells[Index(8, 45)].State);
+        Assert.Equal(T(8, 0), DayGrid.StartOfHour(T(8, 9), Cst));
+        Assert.Equal(T(9, 0), DayGrid.StartOfHour(T(9, 0), Cst));
     }
 
     [Fact]

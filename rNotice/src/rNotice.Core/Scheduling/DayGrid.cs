@@ -31,7 +31,7 @@ public static class DayGrid
     {
         var entries = agenda.ToList();
         var cells = new List<DayCell>();
-        var firstFree = FreeSlots.RoundUp(nowUtc, hours.Zone);
+        var firstFree = StartOfHour(nowUtc, hours.Zone);
         var labelled = new HashSet<AgendaEntry>();
 
         for (var t = day.ToDateTime(hours.Start); t < hours.EndOn(day); t = t.AddMinutes(15))
@@ -56,6 +56,18 @@ public static class DayGrid
             cells.Add(new DayCell(start, state, label));
         }
         return cells;
+    }
+
+    /// <summary>
+    /// The earliest time you can pick by hand: the top of the current hour, local. Asked by
+    /// Robert (2026-11-05): at 8:09 he wants to book from 8:00, for work he's already started.
+    /// The suggestions in <see cref="FreeSlots.Find"/> still start from now.
+    /// </summary>
+    public static DateTimeOffset StartOfHour(DateTimeOffset utc, TimeZoneInfo zone)
+    {
+        var local = TimeZoneInfo.ConvertTime(utc, zone).DateTime;
+        var hour = new DateTime(local.Year, local.Month, local.Day, local.Hour, 0, 0);
+        return new DateTimeOffset(hour, zone.GetUtcOffset(hour)).ToUniversalTime();
     }
 
     /// <summary>
