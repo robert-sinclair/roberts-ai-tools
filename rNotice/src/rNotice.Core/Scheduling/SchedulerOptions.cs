@@ -51,6 +51,12 @@ public sealed record SchedulerOptions
     /// </summary>
     public int NotJoinedRepeatSeconds { get; init; } = 60;
 
+    /// <summary>
+    /// How long a check-in that has come up keeps later plans waiting for it. Past this, an
+    /// unanswered check-in no longer holds anything, and later plans alert on their own.
+    /// </summary>
+    public int HandOffHoldMinutes { get; init; } = 15;
+
     public QuietHours? QuietHours { get; init; }
 
     /// <summary>

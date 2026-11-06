@@ -14,9 +14,9 @@ public class OverrunTests
     private static DateTimeOffset T(int hour, int minute = 0, int day = 22) =>
         new DateTimeOffset(2026, 10, day, hour, minute, 0, TimeSpan.FromHours(-6)).ToUniversalTime();
 
-    private static Item Task(string title, int hour, int minute, int minutes) =>
+    private static Item Task(string title, int hour, int minute, int minutes, int day = 22) =>
         (Item(Interrupt.Silent, Priority.P3) with { Title = title, Source = Source.Teams, Id = Guid.NewGuid() })
-            .Plan(T(hour, minute), minutes);
+            .Plan(T(hour, minute, day), minutes);
 
     private static Dictionary<string, DateTimeOffset> Moves(IEnumerable<Push> pushes) =>
         pushes.ToDictionary(p => p.Task.Title, p => p.StartUtc);
@@ -103,6 +103,20 @@ public class OverrunTests
         var result = scheduler.Tick([a, b], T(10), []);
 
         Assert.Equal(["A"], result.Fired.Select(i => i.Title));
+    }
+
+    [Fact]
+    public void A_check_in_left_unanswered_stops_holding_later_plans()
+    {
+        var scheduler = new Scheduler(new SchedulerOptions());
+        // A's check-in came up at 10:00 and was never answered; A is still "working".
+        var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30) with { LastFiredUtc = T(10) };
+        var b = Task("B", 10, 10, 30);   // alerts 10:10 with the plan lead at 0
+        var c = Task("C", 14, 0, 30, day: 23);
+
+        Assert.True(scheduler.Tick([a, b], T(10, 10), []).IsEmpty);                  // still held
+        Assert.Equal(["B"], scheduler.Tick([a, b], T(10, 15), []).Fired.Select(i => i.Title));
+        Assert.Equal(["C"], scheduler.Tick([a, c], T(14, 0, day: 23), []).Fired.Select(i => i.Title));
     }
 
     [Fact]

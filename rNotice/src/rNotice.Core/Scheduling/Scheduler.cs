@@ -52,7 +52,12 @@ public sealed class Scheduler(SchedulerOptions options)
 
         // While you're working on something, a later plan doesn't alert on its own: the check-in
         // comes first and offers to start it (Overrun.CheckIn). One prompt at the hand-off, not two.
-        var handOff = all.Where(i => i.IsWorking && i.FireAtUtc is not null).Select(i => i.FireAtUtc).Min();
+        // Only a check-in still to come, or one up in the last HandOffHoldMinutes. Found
+        // 2026-11-06: two check-ins from Oct 27-28 were never answered, so those tasks stayed
+        // "working" and every plan since waited on a hand-off that had long gone.
+        var handOff = all.Where(i => i.IsWorking && i.FireAtUtc is not null &&
+                                     (i.LastFiredUtc is not { } fired || nowUtc - fired < TimeSpan.FromMinutes(_options.HandOffHoldMinutes)))
+                         .Select(i => i.FireAtUtc).Min();
 
         foreach (var item in all)
         {

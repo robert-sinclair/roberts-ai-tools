@@ -1347,6 +1347,14 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Unanswered check-ins no longer silence plans (0.10.13, 2026-11-06).** Reported by Robert: no
+pop-ups for anything booked that day. Cause: two tasks from Oct 27 and Oct 28 were still marked
+as being worked on, because their check-ins came up and were never answered. While any task is
+being worked on, later plans wait for its check-in, so they can be offered there instead of
+alerting twice. Every plan since Oct 27 waited on check-ins that had long gone. Now a check-in
+holds later plans only until it comes up, plus `HandOffHoldMinutes` (15). After that, plans
+alert on their own.
+
 **Meetings you haven't joined keep taking over (0.10.12, 2026-11-06).** Asked by Robert. Once a
 meeting with other people has started, the takeover (dim and alert) comes back every minute
 (`NotJoinedRepeatSeconds`) until you join, snooze, or mark it Done. Joining by Teams presence
