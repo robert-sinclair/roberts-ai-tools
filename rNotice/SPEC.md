@@ -1335,6 +1335,15 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Meetings you haven't joined keep taking over (0.10.12, 2026-11-06).** Asked by Robert. Once a
+meeting with other people has started, the takeover (dim and alert) comes back every minute
+(`NotJoinedRepeatSeconds`) until you join, snooze, or mark it Done. Joining by Teams presence
+also stops it. While the alert window still shows the meeting, it isn't raised again. All-day
+events and meetings only you are in don't repeat. "Other people" means someone else organised
+it, or you invited anyone besides yourself. To know that, the calendar read now asks Graph
+for `attendees` too, which Robert approved on 2026-11-06. Names and addresses are kept in memory
+on the event for now, not stored or logged. Robert wants them searchable in a later phase.
+
 **How long keeps your day (0.10.11, 2026-11-05).** Reported by Robert: after moving the Plan
 dialog to tomorrow, changing **How long** jumped back to today's first suggestion. Now only the
 dialog's opening picks the first suggestion. Later changes stay on the day shown. The selection

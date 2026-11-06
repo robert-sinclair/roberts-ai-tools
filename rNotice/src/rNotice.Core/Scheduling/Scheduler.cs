@@ -35,7 +35,13 @@ public sealed class Scheduler(SchedulerOptions options)
 {
     private readonly SchedulerOptions _options = options;
 
-    public TickResult Tick(IEnumerable<Item> items, DateTimeOffset nowUtc, IReadOnlyList<BusyBlock> calendar)
+    /// <param name="withOthers">
+    /// Event ids of meetings with someone besides you in them. Once one of these has started and
+    /// you haven't joined, it takes over again every <see cref="SchedulerOptions.NotJoinedRepeatSeconds"/>
+    /// until you join, snooze, or mark it Done.
+    /// </param>
+    public TickResult Tick(IEnumerable<Item> items, DateTimeOffset nowUtc, IReadOnlyList<BusyBlock> calendar,
+        IReadOnlySet<string>? withOthers = null)
     {
         var takeovers = new List<Item>();
         var alerts = new List<Item>();
@@ -50,6 +56,11 @@ public sealed class Scheduler(SchedulerOptions options)
 
         foreach (var item in all)
         {
+            if (withOthers is not null && NotJoined(item, nowUtc, withOthers))
+            {
+                takeovers.Add(item);
+                continue;
+            }
             if (!IsDue(item, nowUtc)) continue;
             if (handOff is { } h && WaitsForHandOff(item, h)) continue;
 
@@ -76,6 +87,17 @@ public sealed class Scheduler(SchedulerOptions options)
     }
 
     public static Item MarkFired(Item item, DateTimeOffset nowUtc) => item with { LastFiredUtc = nowUtc };
+
+    /// <summary>
+    /// A meeting with others, started, not joined, not done: it takes over now if it hasn't in
+    /// the last <see cref="SchedulerOptions.NotJoinedRepeatSeconds"/>. Ignores the grace period,
+    /// which only stops a stale window at startup.
+    /// </summary>
+    private bool NotJoined(Item item, DateTimeOffset nowUtc, IReadOnlySet<string> withOthers) =>
+        item.Source == Source.Calendar && item.Stage == Stage.Planned && item.IsOpen &&
+        item.JoinedUtc is null && item.DueUtc <= nowUtc && withOthers.Contains(item.SourceId) &&
+        !(item.SnoozedUntilUtc > nowUtc) &&
+        (item.LastFiredUtc is not { } last || nowUtc - last >= TimeSpan.FromSeconds(_options.NotJoinedRepeatSeconds));
 
     private static bool WaitsForHandOff(Item item, DateTimeOffset handOffUtc) =>
         !item.IsWorking && item.Stage == Stage.Planned && item.Source != Source.Calendar &&

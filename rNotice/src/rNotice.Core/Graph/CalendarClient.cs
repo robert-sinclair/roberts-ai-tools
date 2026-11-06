@@ -11,7 +11,7 @@ namespace rNotice.Core.Graph;
 public sealed class CalendarClient(GraphClient graph)
 {
     private const string Select =
-        "subject,body,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink";
+        "subject,body,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink,attendees";
 
     // The body as text rather than HTML, so the description needs no tag stripping.
     // (https://learn.microsoft.com/en-us/graph/api/user-list-calendarview — request headers)
@@ -146,7 +146,16 @@ public sealed class CalendarClient(GraphClient graph)
         WebLink: Str(e, "webLink"),
         Body: e.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.Object
             ? Description(Str(body, "content"))
-            : null);
+            : null,
+        Attendees: e.TryGetProperty("attendees", out var att) && att.ValueKind == JsonValueKind.Array
+            ? att.EnumerateArray().Select(Attendee).ToList()
+            : []);
+
+    private static EventAttendee Attendee(JsonElement a)
+    {
+        var email = a.TryGetProperty("emailAddress", out var em) && em.ValueKind == JsonValueKind.Object ? em : (JsonElement?)null;
+        return new EventAttendee(email is { } n ? Str(n, "name") : null, email is { } d ? Str(d, "address") : null, Str(a, "type"));
+    }
 
     // The Teams join block starts with a rule of underscores, then "Microsoft Teams meeting".
     // Everything from the rule on is join details rNotice already shows as Join.

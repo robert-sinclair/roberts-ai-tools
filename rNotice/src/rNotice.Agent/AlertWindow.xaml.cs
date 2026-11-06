@@ -62,6 +62,9 @@ public partial class AlertWindow : Window
         timer.Start();
     }
 
+    /// <summary>The item is on this window now.</summary>
+    internal bool Shows(Guid id) => _views.Any(v => v.Id == id);
+
     public void Add(IReadOnlyList<Item> items, bool takeover)
     {
         var wasMeeting = HasMeeting;

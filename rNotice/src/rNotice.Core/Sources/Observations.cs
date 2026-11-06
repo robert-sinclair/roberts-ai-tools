@@ -37,7 +37,21 @@ public sealed record CalendarEvent(
     string? JoinUrl = null,
     string? WebLink = null,
     // The description, as text, without the Teams join block.
-    string? Body = null);
+    string? Body = null,
+    // Who's invited, as Graph lists them (the organiser isn't in it). Read 2026-11-06 for the
+    // "not joined" takeover; Robert wants them searchable later.
+    IReadOnlyList<EventAttendee>? Attendees = null)
+{
+    /// <summary>
+    /// Someone besides you is in it: someone else organised it, or you invited anyone other than
+    /// yourself.
+    /// </summary>
+    public bool HasOthers(string myAddress) =>
+        !IsOrganizer || (Attendees ?? []).Any(a => !string.Equals(a.Address, myAddress, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>One invitee: <c>attendee.emailAddress</c> and <c>type</c> (required, optional, resource).</summary>
+public sealed record EventAttendee(string? Name, string? Address, string? Type);
 
 /// <summary>One inbox message from <c>messages/delta</c>.</summary>
 public sealed record MailMessage(

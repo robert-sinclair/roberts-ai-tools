@@ -65,6 +65,9 @@ public sealed record AgentSettings
     /// <summary>How dark the takeover dims every monitor: 0.1 (barely) to 0.9 (nearly black).</summary>
     public double TakeoverDim { get; init; } = 0.45;
 
+    /// <summary>How soon a started meeting with others you haven't joined takes over again.</summary>
+    public int NotJoinedRepeatSeconds { get; init; } = 60;
+
     /// <summary>
     /// How a planned task interrupts at its time: Takeover (dim every monitor, window on top),
     /// Alert (window only) or Toast. Never quieter than the item's own classification.
@@ -149,6 +152,7 @@ public sealed record AgentSettings
     public SchedulerOptions ToSchedulerOptions() => new()
     {
         TakeoverGraceSeconds = TakeoverGraceSeconds,
+        NotJoinedRepeatSeconds = NotJoinedRepeatSeconds,
         QuietHours = QuietHours is { } q ? new QuietHours(q.Start, q.End, TimeZoneInfo.Local) : null,
         PlanInterrupt = PlanInterrupt
     };

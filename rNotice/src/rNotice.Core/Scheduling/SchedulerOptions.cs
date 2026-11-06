@@ -45,6 +45,12 @@ public sealed record SchedulerOptions
     /// </summary>
     public int TakeoverGraceSeconds { get; init; } = 300;
 
+    /// <summary>
+    /// How soon a meeting with other people that you haven't joined takes over again once it's
+    /// started. Asked by Robert (2026-11-06): it keeps coming back until you join or mark it Done.
+    /// </summary>
+    public int NotJoinedRepeatSeconds { get; init; } = 60;
+
     public QuietHours? QuietHours { get; init; }
 
     /// <summary>

@@ -128,6 +128,31 @@ public class CalendarClientTests
     }
 
     [Fact]
+    public void Maps_attendees_and_knows_who_else_is_in_it()
+    {
+        var mine = CalendarClient.Map(Json("""
+            { "id": "1", "subject": "Block",
+              "start": { "dateTime": "2026-10-21T16:00:00", "timeZone": "UTC" },
+              "end":   { "dateTime": "2026-10-21T16:30:00", "timeZone": "UTC" },
+              "isOrganizer": true, "attendees": [] }
+            """));
+        var shared = CalendarClient.Map(Json("""
+            { "id": "2", "subject": "Sync",
+              "start": { "dateTime": "2026-10-21T16:00:00", "timeZone": "UTC" },
+              "end":   { "dateTime": "2026-10-21T16:30:00", "timeZone": "UTC" },
+              "isOrganizer": true,
+              "attendees": [ { "type": "required", "emailAddress": { "name": "Alice", "address": "a@x.com" } } ] }
+            """));
+        var invited = mine with { IsOrganizer = false };
+
+        Assert.False(mine.HasOthers("me@x.com"));
+        Assert.True(shared.HasOthers("me@x.com"));
+        Assert.Equal(("Alice", "a@x.com", "required"), (shared.Attendees![0].Name, shared.Attendees[0].Address, shared.Attendees[0].Type));
+        Assert.True(invited.HasOthers("me@x.com"));
+        Assert.False((shared with { Attendees = [new EventAttendee("Me", "ME@x.com", "required")] }).HasOthers("me@x.com"));
+    }
+
+    [Fact]
     public async Task Calendar_read_asks_for_the_body_as_text()
     {
         var fake = new FakeHandler().Respond(HttpStatusCode.OK, """{"value":[]}""");

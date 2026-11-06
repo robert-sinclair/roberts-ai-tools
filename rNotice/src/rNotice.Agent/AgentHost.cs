@@ -189,11 +189,19 @@ internal sealed class AgentHost(Application app) : IDisposable
     /// </summary>
     private void RunScheduler(DateTimeOffset now)
     {
-        var result = _scheduler.Tick(_store.List(Stage.Intake, Stage.Planned), now, _busy);
+        var withOthers = _me is { } me
+            ? _meetingEvents.Where(e => !e.IsAllDay && e.HasOthers(me.Address)).Select(e => e.Id).ToHashSet()
+            : null;
+        var result = _scheduler.Tick(_store.List(Stage.Intake, Stage.Planned), now, _busy, withOthers);
         if (result.IsEmpty) return;
 
+        // Marked fired even when already on screen, so the repeat counts from when you close it.
         foreach (var item in result.Fired)
             _store.Save(Scheduler.MarkFired(item, now), now);
+
+        // A meeting still on the alert window isn't shown again (no fresh dim every minute).
+        result = result with { Takeovers = result.Takeovers.Where(t => _alert?.Shows(t.Id) != true).ToList() };
+        if (result.IsEmpty) return;
 
         var windowed = result.Takeovers.Concat(result.Alerts).ToList();
         if (windowed.Count > 0)

@@ -158,6 +158,36 @@ public class SchedulerTests
         Assert.Empty(result.Deferred);
     }
 
+    private static Item LiveMeeting(DateTimeOffset? lastFired = null, DateTimeOffset? joined = null) =>
+        Item(Interrupt.Takeover, due: Now.AddMinutes(-10), stage: Stage.Planned, sourceId: "ev-1") with
+        { Source = Source.Calendar, LastFiredUtc = lastFired, JoinedUtc = joined };
+
+    private static readonly HashSet<string> Others = ["ev-1"];
+
+    [Fact]
+    public void A_meeting_with_others_you_havent_joined_takes_over_every_minute()
+    {
+        Assert.Single(_scheduler.Tick([LiveMeeting()], Now, Free, Others).Takeovers);
+        Assert.Single(_scheduler.Tick([LiveMeeting(lastFired: Now.AddSeconds(-60))], Now, Free, Others).Takeovers);
+        Assert.True(_scheduler.Tick([LiveMeeting(lastFired: Now.AddSeconds(-30))], Now, Free, Others).IsEmpty);
+    }
+
+    [Fact]
+    public void Joining_snoozing_or_marking_done_stops_the_repeat()
+    {
+        Assert.True(_scheduler.Tick([LiveMeeting(joined: Now.AddMinutes(-5))], Now, Free, Others).IsEmpty);
+        Assert.True(_scheduler.Tick([LiveMeeting() with { SnoozedUntilUtc = Now.AddMinutes(2) }], Now, Free, Others).IsEmpty);
+        Assert.True(_scheduler.Tick([LiveMeeting() with { Stage = Stage.Done }], Now, Free, Others).IsEmpty);
+    }
+
+    [Fact]
+    public void A_meeting_only_you_are_in_doesnt_repeat() =>
+        Assert.True(_scheduler.Tick([LiveMeeting(lastFired: Now.AddMinutes(-11))], Now, Free, new HashSet<string>()).IsEmpty);
+
+    [Fact]
+    public void A_meeting_not_started_yet_doesnt_repeat() =>
+        Assert.True(_scheduler.Tick([LiveMeeting(lastFired: Now.AddMinutes(-2)) with { DueUtc = Now.AddMinutes(1) }], Now, Free, Others).IsEmpty);
+
     [Fact]
     public void Overdue_non_meeting_takeover_comes_up_as_an_alert()
     {
