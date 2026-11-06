@@ -1283,6 +1283,18 @@ one means a poller and a mapping, nothing structural.
     call, in a meeting or presenting, mark the meeting joined (green), as Join in rNotice does.
     Kept to what was promised to IT: your own presence only, the `activity` field only, nothing
     stored, polled only while a meeting is under way.
+12. **Jira ticket intake.** *Not started. Added 2026-11-06 by Robert.* Jira tickets become a
+    source in the queue, alongside mail, calendar, Teams and the workbook. To decide before
+    building:
+    - Which tickets count: assigned to you, watched, mentioned, or a saved filter.
+    - How rNotice reads Jira, and what that asks of IT (the promises in the IT requests are the build spec).
+    - How a ticket maps to priority and interrupt.
+    - Whether ticket links follow the Salesforce case link rules.
+13. **Searchable meeting attendees.** *Not started. Added 2026-11-06 by Robert.* The calendar read
+    has fetched `attendees` since 0.10.12, but rNotice only keeps them in memory, to tell a shared
+    meeting from your own block. This step stores them and makes them searchable, for example to
+    find meetings with a given person. Storing names and addresses goes beyond what is kept
+    today, so agree it with Robert first and note it in the IT promises if needed.
 
 **Working on it (0.9.4, 2026-10-27).** A task can be marked in progress. Decided with Robert: the
 plan stays where it is; alerts stop until a check-in when the planned block ends (or after
