@@ -772,7 +772,9 @@ What else the spike showed:
 - **rNotice's own events aren't meetings.** They're kept out of meeting sync, busy time and
   clash detection; otherwise every promoted task would clash with itself.
 - **Not built:** the MCP tool, promote from the alert window or tray, workbook promotion (open
-  question 6), the orphan sweep, and the "scheduled after it was due" flag.
+  question 6), the orphan sweep, and the "scheduled after it was due" flag. Step 8 closed
+  without them on 2026-11-07. The MCP tool stays with step 9; workbook promotion is Phase 2
+  P2.5.
 
 Checked live on 2026-10-23: created a test event for 15 Dec, read it back through
 `calendarView` with its category, `showAs` tentative, reminder 0, no attendees; moved it;
@@ -1261,12 +1263,15 @@ one means a poller and a mapping, nothing structural.
    alone without a key. Going past any of them means telling IT first.
    **Built as a routine (0.10.0, 2026-10-30)** after IT declined the key: `ROUTINE-CLASSIFY.md`.
    P1 from the routine comes up as an alert window, P2 as a toast.
-   **Pending AI (2026-10-28):** when the model judges a Teams reply important, it should come up
-   as a top window alert (the alert window, no dim) instead of a toast. Until the API is
-   connected, replies stay as they are.
+   **Open work moved to Phase 2 (2026-11-07)**, below: P2.1 to P2.4.
 8. Promotion: calendar, workbook, demote, staggered reminders, drift, free slots.
    **Calendar promotion built 2026-10-23 (0.7.0)** — see *Promoting to the calendar*. Free
    slots shipped earlier (0.4.4). Workbook promotion is out (open question 6, still open).
+   **Closed 2026-11-07 by Robert, as built.** Done: calendar promotion, demote (Remove from
+   Outlook calendar, with confirmation), staggered reminders, free slots, and following an
+   rNotice event you move or delete in Outlook. Not needed: the rest of the drift detector
+   (orphan events, a done task whose event is still there, a plan booked after it was due) and
+   promoting from the alert window or tray. Workbook promotion moved to Phase 2 (P2.5).
 9. `rNotice.Mcp` + pipe protocol. **Includes the workbook acknowledge write-back** (from step
    4), proven by the 2026-10-21 spike, for `acknowledge_action`.
 10. Skill, README, install script.
@@ -1295,6 +1300,25 @@ one means a poller and a mapping, nothing structural.
     meeting from your own block. This step stores them and makes them searchable, for example to
     find meetings with a given person. Storing names and addresses goes beyond what is kept
     today, so agree it with Robert first and note it in the IT promises if needed.
+
+### Phase 2
+
+Started 2026-11-07 by Robert. Work that comes after the phase 1 build order above. The first
+items are step 7's open work.
+
+- **P2.1 Important Teams replies as a top window alert.** *From step 7, decided 2026-10-28.* When
+  the model judges a Teams reply important, it comes up in the alert window (no dim) instead of
+  as a toast. Waits for the model to judge replies.
+- **P2.2 Group chats to the routine.** *From step 7.* The routine classifies one-on-one chats
+  only (`ROUTINE-CLASSIFY.md`). Picked group chats still go by the @mention rule.
+- **P2.3 Mail classification.** *From step 7.* Mail stays rules-only until Teams classification
+  has run on real traffic.
+- **P2.4 API key case to IT.** *From step 7, shelved 2026-10-30.* IT declined the key. Reopen it
+  with real routine timings (about a minute per classification so far). The promises in
+  `IT-REQUEST-ANTHROPIC-API.md` stay the build spec if it's granted.
+- **P2.5 Workbook promotion.** *From step 8, open question 6.* Write a mail or Teams task as a new
+  row in the OneDrive workbook, by hand only. The one place rNotice would create a row. Decide
+  first whether the workbook should stay yours alone.
 
 **Working on it (0.9.4, 2026-10-27).** A task can be marked in progress. Decided with Robert: the
 plan stays where it is; alerts stop until a check-in when the planned block ends (or after
@@ -1567,6 +1591,7 @@ Teams chat ids (3, supplied at install), and one real design question (6).
    mail and Teams items live only in rNotice's own store and the workbook stays purely yours.
    Not blocking: it's a build-step-8 decision, and the app is complete without it.
    **Left out of step 8 (2026-10-23)**: calendar promotion shipped without it.
+   **Moved to Phase 2 as P2.5 (2026-11-07)** when step 8 closed.
 7. ~~Classifier model?~~ **Answered: `claude-opus-5-5`.** Configurable, so it can change after
    real behaviour is visible.
 8. ~~Can Bravura content go to the Anthropic API?~~ **Answered: yes, policy approval covers all
