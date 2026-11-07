@@ -23,6 +23,31 @@ public class PresenceTests
     public void Only_the_call_states_mean_joined(string? activity, bool joined) =>
         Assert.Equal(joined, Presence.IsInACall(activity));
 
+    private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(90), MaxWait = TimeSpan.FromSeconds(30);
+
+    private static TakeoverCheck Check(Item meeting, string? activity, DateTimeOffset? readUtc) =>
+        Presence.BeforeTakeover(meeting, Now, activity, readUtc, Fresh, MaxWait);
+
+    [Fact]
+    public void Already_in_the_call_means_no_takeover()
+    {
+        Assert.Equal(TakeoverCheck.InACall, Check(Meeting(3), "InACall", Now.AddSeconds(-20)));
+        Assert.Equal(TakeoverCheck.Show, Check(Meeting(3), "InAMeeting", Now.AddSeconds(-20)));
+    }
+
+    [Fact]
+    public void A_meeting_just_started_waits_for_a_fresh_reading_but_not_for_long()
+    {
+        var justStarted = Meeting(0) with { DueUtc = Now.AddSeconds(-5) };
+        Assert.Equal(TakeoverCheck.Wait, Check(justStarted, null, null));
+        Assert.Equal(TakeoverCheck.Wait, Check(justStarted, "InACall", Now.AddMinutes(-5)));   // stale
+        Assert.Equal(TakeoverCheck.Show, Check(Meeting(1), null, null));                         // no reading: show anyway
+    }
+
+    [Fact]
+    public void A_meeting_not_started_yet_takes_over_without_asking() =>
+        Assert.Equal(TakeoverCheck.Show, Check(Meeting(0) with { DueUtc = Now.AddMinutes(1) }, "InACall", Now));
+
     [Fact]
     public void In_a_call_during_one_meeting_marks_that_meeting() =>
         Assert.Equal("evt-1", Presence.MeetingJoined([Meeting(5)], Now, "InAConferenceCall")?.SourceId);

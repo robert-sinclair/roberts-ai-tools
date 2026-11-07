@@ -195,12 +195,23 @@ internal sealed class AgentHost(Application app) : IDisposable
         var result = _scheduler.Tick(_store.List(Stage.Intake, Stage.Planned), now, _busy, withOthers);
         if (result.IsEmpty) return;
 
+        // Already in the call (Teams presence): no takeover. A started meeting waits a few
+        // seconds for a fresh reading; waiting ones aren't marked fired, so they're asked again.
+        var check = result.Takeovers.ToDictionary(t => t.Id, t => _settings.PresenceEnabled
+            ? Presence.BeforeTakeover(t, now, _lastActivity, _lastActivityUtc, PresenceFresh, PresenceMaxWait)
+            : TakeoverCheck.Show);
+
         // Marked fired even when already on screen, so the repeat counts from when you close it.
         foreach (var item in result.Fired)
-            _store.Save(Scheduler.MarkFired(item, now), now);
+            if (check.GetValueOrDefault(item.Id) != TakeoverCheck.Wait)
+                _store.Save(Scheduler.MarkFired(item, now), now);
+
+        foreach (var t in result.Takeovers.Where(t => check[t.Id] == TakeoverCheck.InACall))
+            Log.Info($"Takeover skipped: {t.Title} (Teams shows you in a call)");
 
         // A meeting still on the alert window isn't shown again (no fresh dim every minute).
-        result = result with { Takeovers = result.Takeovers.Where(t => _alert?.Shows(t.Id) != true).ToList() };
+        result = result with { Takeovers = result.Takeovers
+            .Where(t => check[t.Id] == TakeoverCheck.Show && _alert?.Shows(t.Id) != true).ToList() };
         if (result.IsEmpty) return;
 
         var windowed = result.Takeovers.Concat(result.Alerts).ToList();
@@ -1232,6 +1243,10 @@ internal sealed class AgentHost(Application app) : IDisposable
     // ── Presence (step 11) ──────────────────────────────────────────────────────────────────
 
     private static readonly TimeSpan PresenceInterval = TimeSpan.FromMinutes(1);
+    // A reading this recent says whether you're in the call. At a meeting's start, its takeover
+    // waits up to PresenceMaxWait for one.
+    private static readonly TimeSpan PresenceFresh = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan PresenceMaxWait = TimeSpan.FromSeconds(30);
     private DateTimeOffset _nextPresenceUtc;
     private bool _presenceRunning;
     private string? _lastActivity;

@@ -1347,6 +1347,15 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**No takeover when you're already in the call (0.10.14, 2026-11-07).** Asked by Robert. Before a
+meeting that has started takes over the screen, rNotice looks at your last Teams presence
+reading. If it shows you in a call or presenting, the takeover is skipped and logged ("Takeover
+skipped"). When a meeting starts there's often no reading yet, so its takeover waits up to 30
+seconds for one. A reading counts for 90 seconds. If none arrives (sign-in, network), it takes
+over as before. The takeover a minute before the start isn't checked: presence is read only
+while a meeting is under way, as promised to IT. With overlapping meetings a call can't say
+which one you're in, so neither is marked joined, but neither takes over while you're in a call.
+
 **Unanswered check-ins no longer silence plans (0.10.13, 2026-11-06).** Reported by Robert: no
 pop-ups for anything booked that day. Cause: two tasks from Oct 27 and Oct 28 were still marked
 as being worked on, because their check-ins came up and were never answered. While any task is

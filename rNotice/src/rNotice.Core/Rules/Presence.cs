@@ -37,4 +37,31 @@ public static class Presence
     /// </summary>
     public static Item? MeetingJoined(IEnumerable<Item> items, DateTimeOffset nowUtc, string? activity) =>
         IsInACall(activity) && UnderWayNotJoined(items, nowUtc) is [var only] ? only : null;
+
+    /// <summary>
+    /// Asked before a meeting takes over the screen (Robert, 2026-11-07: if I'm already in it,
+    /// don't overlay). A meeting under way waits for a presence reading no older than
+    /// <paramref name="fresh"/>, but no more than <paramref name="maxWait"/> after it starts, so a
+    /// failed read never swallows the takeover. In a call: not shown. A meeting that hasn't
+    /// started is shown without asking: presence is read only while a meeting is under way, as
+    /// promised to IT.
+    /// </summary>
+    public static TakeoverCheck BeforeTakeover(Item item, DateTimeOffset nowUtc, string? activity,
+        DateTimeOffset? readUtc, TimeSpan fresh, TimeSpan maxWait)
+    {
+        if (item.Source != Source.Calendar || item.DueUtc > nowUtc) return TakeoverCheck.Show;
+        if (readUtc is not { } read || nowUtc - read > fresh)
+            return nowUtc - item.DueUtc < maxWait ? TakeoverCheck.Wait : TakeoverCheck.Show;
+        return IsInACall(activity) ? TakeoverCheck.InACall : TakeoverCheck.Show;
+    }
+}
+
+public enum TakeoverCheck
+{
+    /// <summary>Take over.</summary>
+    Show,
+    /// <summary>Hold for a presence reading; asked again next tick.</summary>
+    Wait,
+    /// <summary>Teams has you in a call: no takeover.</summary>
+    InACall,
 }
