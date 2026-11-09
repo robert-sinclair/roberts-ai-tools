@@ -36,7 +36,7 @@ internal sealed record DevPresence(bool Enabled, IReadOnlyList<string> MeetingsU
 /// Step 3 scope: workbook and calendar only, rules-only classification, nothing written back.
 /// Takeover-class items (meetings) come up in the alert window until step 4 adds the takeover.
 /// </summary>
-internal sealed class AgentHost(Application app) : IDisposable
+internal sealed partial class AgentHost(Application app) : IDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(30);
@@ -180,6 +180,7 @@ internal sealed class AgentHost(Application app) : IDisposable
             _nextPurge = now + PurgeInterval;
         }
 
+        TickJira(now);
         RunScheduler(now);
     }
 
@@ -665,6 +666,7 @@ internal sealed class AgentHost(Application app) : IDisposable
         foreach (var file in await _results.ListJsonAsync(ct))
         {
             if (Routine.RequestIdOf(file.Name) is not { } requestId) continue;
+            if (_jiraRequest?.Id == requestId) continue;   // the Jira routine's answer: read by CheckJiraAsync
 
             if (_caseLookup?.Id == requestId)
             {

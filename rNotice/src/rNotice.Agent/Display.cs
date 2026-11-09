@@ -67,6 +67,7 @@ internal static class Display
         Source.Workbook => "Task",
         Source.FollowUp => "Follow up",
         Source.Created => "Created",
+        Source.Jira => "Jira",
         Source.Calendar => "Meeting",
         Source.Mail => "Email",
         Source.Teams => "Chat",
@@ -155,6 +156,7 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
         Source.Calendar or Source.Mail => "Open in Outlook",
         Source.Workbook => "Open in Excel",
         Source.Teams => "Open in Teams",
+        Source.Jira => "Open in Jira",
         _ => "Open"
     };
 

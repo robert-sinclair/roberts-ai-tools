@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using rNotice.Core.Items;
+using rNotice.Core.Routines;
 using rNotice.Core.Rules;
 using rNotice.Core.Scheduling;
 
@@ -31,7 +32,7 @@ public partial class QueueWindow : Window
     private readonly AgentHost _host;
     private readonly DispatcherTimer _countdown = new() { Interval = TimeSpan.FromSeconds(1) };
 
-    private enum Area { Intake, Done, Calendar, Create }
+    private enum Area { Intake, Done, Calendar, Create, Jira }
     private Area _area = Area.Intake;
     private Guid? _selected;
     private DateTimeOffset? _selectedStart;   // where a calendar selection was, to find the next one
@@ -81,6 +82,7 @@ public partial class QueueWindow : Window
         PlannedHeader.Text = $"Planned ({items.Count(i => i.Stage == Stage.Planned && i.GroupId is null)})";
 
         BuildCalendar();
+        if (Tabs.SelectedItem == JiraTab) FillJira();
 
         // A calendar selection that's gone — done, dismissed, moved off this day — passes to the
         // next block, so the keys can carry on down the day.
@@ -199,6 +201,14 @@ public partial class QueueWindow : Window
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => CreateTitle.Focus());
             return;
         }
+        if (Tabs.SelectedItem == JiraTab)
+        {
+            // Tickets aren't items: the item keys have nothing to act on here.
+            Select(null, Area.Jira);
+            _host.JiraTabOpened();
+            FillJira();
+            return;
+        }
         var area = Tabs.SelectedItem == DoneTab ? Area.Done : Area.Intake;
         Select((ListFor(area).SelectedItem as ItemView)?.Item, area);
     }
@@ -235,6 +245,72 @@ public partial class QueueWindow : Window
         CreateTitle.Clear();
         CreateDescription.Clear();
         CreateTitle.Focus();
+    }
+
+    // ── Jira ────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>One ticket row. Grouped by <see cref="Priority"/>; rows arrive in order.</summary>
+    private sealed record JiraRow(string Key, string Summary, string Owner, string Status, string Age, string Priority, string Planned);
+
+    /// <summary>Grouped by priority, oldest first in each group, keeping the selected ticket selected.</summary>
+    private void FillJira()
+    {
+        JiraStatusText.Text = _host.JiraStatus;
+        JiraStatusText.ToolTip = string.IsNullOrEmpty(_host.JiraLast) ? null : _host.JiraLast;
+        JiraRefreshButton.IsEnabled = _host.JiraRoutineConfigured && !_host.JiraAsking;
+
+        var selected = (JiraList.SelectedItem as JiraRow)?.Key;
+        var now = DateTimeOffset.UtcNow;
+        var rows = Jira.Grouped(_host.JiraTickets?.Tickets ?? [])
+            .SelectMany(g => g.Tickets.Select(t => new JiraRow(t.Key, t.Summary, t.Owner ?? "Unassigned", t.Status ?? "",
+                Age(t.CreatedUtc, now), g.Priority, PlannedText(t.Key))))
+            .ToList();
+
+        var view = new ListCollectionView(rows);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(JiraRow.Priority)));
+        JiraList.ItemsSource = view;
+        JiraList.SelectedItem = rows.FirstOrDefault(r => r.Key == selected);
+        JiraHeader.Text = rows.Count > 0 ? $"Jira ({rows.Count})" : "Jira";
+        JiraPlanButton.IsEnabled = JiraList.SelectedItem is not null;
+    }
+
+    private static string Age(DateTimeOffset createdUtc, DateTimeOffset now) =>
+        (int)(now - createdUtc).TotalDays is var days && days < 1 ? "today" : $"{days} d";
+
+    /// <summary>What rNotice has for the ticket: an open item, planned or not.</summary>
+    private string PlannedText(string key) => _host.JiraItem(key) switch
+    {
+        { Stage: Stage.Planned, PlannedStartUtc: { } start } => $"Planned {Display.Time(start)}",
+        { Stage: Stage.Planned } => "Planned",
+        { } => "In Intake",
+        null => ""
+    };
+
+    private void OnJiraSelection(object sender, SelectionChangedEventArgs e) =>
+        JiraPlanButton.IsEnabled = JiraList.SelectedItem is not null;
+
+    private void OnJiraPlan(object sender, RoutedEventArgs e)
+    {
+        if (JiraList.SelectedItem is JiraRow row) _host.PlanJira(row.Key, this);
+    }
+
+    private void OnJiraDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Only a double-click on a row: not on a header or the scroll bar.
+        if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(JiraList, d) is ListViewItem { Content: JiraRow row })
+            _host.PlanJira(row.Key, this);
+    }
+
+    private void OnJiraOpen(object sender, RoutedEventArgs e)
+    {
+        if (JiraList.SelectedItem is JiraRow row) AgentHost.OpenLink(Jira.TicketUrl(_host.JiraSite, row.Key));
+    }
+
+    private async void OnJiraRefresh(object sender, RoutedEventArgs e)
+    {
+        JiraRefreshButton.IsEnabled = false;
+        await _host.RefreshJiraAsync();
+        FillJira();
     }
 
     // ── Selection and detail ────────────────────────────────────────────────────────────────

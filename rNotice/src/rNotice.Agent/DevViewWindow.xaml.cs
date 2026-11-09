@@ -24,6 +24,7 @@ public partial class DevViewWindow : Window
         _clock.Start();
         Closed += (_, _) => _clock.Stop();
         RoutineUrl.Text = _host.RoutineFireUrl ?? "";
+        JiraRoutineUrl.Text = _host.JiraRoutineFireUrl ?? "";
         Render();
     }
 
@@ -111,6 +112,24 @@ public partial class DevViewWindow : Window
             ? $"Set up. {r.Waiting} waiting, {r.Sent} out, {r.FiresLastHour} sent in the last hour."
             : "Not set up: paste the fire URL and token below.";
         RoutineLast.Text = $"{r.Last}\nCase map: {r.CasesKnown} case(s) known. {r.CaseLookup}.";
+
+        JiraRoutineStatus.Text = _host.JiraRoutineConfigured ? $"Set up. {_host.JiraStatus}." : "Not set up: paste the fire URL and token below.";
+        JiraRoutineLast.Text = _host.JiraLast;
+    }
+
+    private void OnSaveJiraRoutine(object sender, RoutedEventArgs e)
+    {
+        var error = _host.SetJiraRoutine(JiraRoutineUrl.Text, JiraRoutineToken.Password);
+        JiraRoutineResult.Text = error ?? "Saved.";
+        if (error is null) JiraRoutineToken.Clear();
+    }
+
+    private void OnClearJiraRoutine(object sender, RoutedEventArgs e)
+    {
+        _host.ClearJiraRoutine();
+        JiraRoutineUrl.Text = "";
+        JiraRoutineToken.Clear();
+        JiraRoutineResult.Text = "Removed.";
     }
 
     private void OnSaveRoutine(object sender, RoutedEventArgs e)

@@ -14,7 +14,13 @@ public enum Source
     FollowUp,
 
     /// <summary>Typed into the queue's Create tab (<c>Created</c>). Made by you, not polled.</summary>
-    Created
+    Created,
+
+    /// <summary>
+    /// A Jira ticket you chose to plan, from the queue's Jira tab (<c>Jira</c>). Made by you, not
+    /// polled; nothing is written back to Jira.
+    /// </summary>
+    Jira
 }
 
 /// <summary>

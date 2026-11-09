@@ -49,6 +49,22 @@
             <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
                        Text="From the routine's API trigger at claude.ai/code/routines. Both are stored encrypted with Windows DPAPI under your account, never in settings.json. One-on-one Teams chats go to the routine once they've been quiet for a minute." />
 
+            <!-- Jira routine -->
+            <TextBlock Text="Jira routine" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,6" />
+            <TextBlock x:Name="JiraRoutineStatus" TextWrapping="Wrap" />
+            <TextBlock x:Name="JiraRoutineLast" Opacity="0.75" TextWrapping="Wrap" Margin="0,2,0,8" FontFamily="Consolas" FontSize="12" />
+            <TextBlock Text="Fire URL" Margin="0,4,0,2" />
+            <TextBox x:Name="JiraRoutineUrl" Padding="3,2" />
+            <TextBlock Text="Token (shown once when you generate it)" Margin="0,8,0,2" />
+            <PasswordBox x:Name="JiraRoutineToken" Padding="3,2" />
+            <DockPanel Margin="0,10,0,0">
+                <Button DockPanel.Dock="Left" Content="Save" Padding="12,3" Click="OnSaveJiraRoutine" />
+                <Button DockPanel.Dock="Left" Content="Remove" Padding="12,3" Margin="8,0,0,0" Click="OnClearJiraRoutine" />
+                <TextBlock x:Name="JiraRoutineResult" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Opacity="0.6" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                       Text="A routine of its own, set up from ROUTINE-JIRA.md, so the classify routine never has the Atlassian connector. Asked only when you open the Jira tab on a list over 30 minutes old, or press Refresh. Stored encrypted with Windows DPAPI, never in settings.json." />
+
             <!-- Case map import -->
             <TextBlock Text="Case map" FontSize="15" FontWeight="SemiBold" Margin="0,20,0,6" />
             <TextBlock TextWrapping="Wrap" Opacity="0.85"

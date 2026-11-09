@@ -1288,13 +1288,17 @@ one means a poller and a mapping, nothing structural.
     call, in a meeting or presenting, mark the meeting joined (green), as Join in rNotice does.
     Kept to what was promised to IT: your own presence only, the `activity` field only, nothing
     stored, polled only while a meeting is under way.
-12. **Jira ticket intake.** *Not started. Added 2026-11-06 by Robert.* Jira tickets become a
-    source in the queue, alongside mail, calendar, Teams and the workbook. To decide before
-    building:
-    - Which tickets count: assigned to you, watched, mentioned, or a saved filter.
-    - How rNotice reads Jira, and what that asks of IT (the promises in the IT requests are the build spec).
-    - How a ticket maps to priority and interrupt.
-    - Whether ticket links follow the Salesforce case link rules.
+12. **Jira ticket intake.** *Added 2026-11-06 by Robert.* **Built 2026-11-09 (0.11.0)** as a
+    Jira tab beside Intake, Done and Create. See `ROUTINE-JIRA.md`. Decided by Robert:
+    - **Which tickets:** a JQL filter (`jiraJql`), SAASK not done by default. Any project or
+      type works.
+    - **How it reads Jira:** through a routine of its own, as the classify routine does:
+      rNotice → routine → OneDrive → rNotice. rNotice holds no Jira credential.
+    - **Shown:** grouped by priority, then oldest first, with the owner.
+    - **No tie to Jira.** Planning a ticket makes an rNotice item and writes nothing back.
+      Done on that item doesn't mean the ticket is done.
+    - Tickets aren't items until you plan one, so they don't alert. Their links go to the
+      ticket in Jira.
 13. **Searchable meeting attendees.** *Not started. Added 2026-11-06 by Robert.* The calendar read
     has fetched `attendees` since 0.10.12, but rNotice only keeps them in memory, to tell a shared
     meeting from your own block. This step stores them and makes them searchable, for example to
@@ -1370,6 +1374,15 @@ happening, so an unlinked case is visible rather than silent.
 Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest have nothing to
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
+
+**Jira tab (0.11.0, 2026-11-09).** Build step 12; `ROUTINE-JIRA.md` has the details. The queue
+window has a fourth tab, **Jira**. It lists the tickets that match `jiraJql`, grouped by
+priority, then oldest first, with key, summary, owner, status, age, and whether rNotice already
+has an open item for it. A separate routine (*rNotice Jira*) reads Jira with the Atlassian
+connector and writes the list to the OneDrive `efficiency` folder. rNotice asks only when you
+open the tab on a list over 30 minutes old, or press Refresh. **Plan** makes a `Source.Jira`
+item through the ordinary Plan dialog. Nothing is written to Jira, and Done on the item is
+rNotice's Done only. The Jira routine's fire URL and token are set in the Dev view.
 
 **No takeover when you're already in the call (0.10.14, 2026-11-07).** Asked by Robert. Before a
 meeting that has started takes over the screen, rNotice looks at your last Teams presence

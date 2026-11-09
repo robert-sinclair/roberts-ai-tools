@@ -105,6 +105,15 @@ public sealed record AgentSettings
     /// </summary>
     public string SalesforceUrl { get; init; } = "https://bravurasecurity.lightning.force.com";
 
+    /// <summary>Your Jira site. Ticket links are built from it, never taken from the routine.</summary>
+    public string JiraUrl { get; init; } = "https://bravura-security.atlassian.net";
+
+    /// <summary>
+    /// The tickets the Jira tab lists, as JQL. Any project or filter works; the tab orders by
+    /// priority then age itself, so an ORDER BY here is ignored for display.
+    /// </summary>
+    public string JiraJql { get; init; } = "project = SAASK AND statusCategory != Done";
+
     /// <summary>Whether the Plan dialog's "Put it on my Outlook calendar" starts ticked.</summary>
     public bool PromoteByDefault { get; init; } = true;
 
