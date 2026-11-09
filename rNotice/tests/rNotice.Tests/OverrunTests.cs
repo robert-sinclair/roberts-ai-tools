@@ -1,5 +1,6 @@
 using rNotice.Core.Items;
 using rNotice.Core.Scheduling;
+using rNotice.Core.Sources;
 using static rNotice.Tests.Make;
 
 namespace rNotice.Tests;
@@ -83,44 +84,52 @@ public class OverrunTests
         Assert.Null(Overrun.NextUp([a, later], a, 30));
     }
 
-    [Fact]
-    public void The_check_in_comes_no_later_than_the_next_plan_s_alert()
-    {
-        var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30);                 // block ends 10:00
-        var b = Task("B", 10, 0, 30).Plan(T(10), 30, true, alertLeadMinutes: 5);   // alerts 9:55
-
-        Assert.Equal(T(9, 55), Overrun.CheckIn([a, b], a, a.FireAtUtc!.Value));
-        Assert.Equal(T(10), Overrun.CheckIn([a], a, a.FireAtUtc!.Value));
-    }
+    // ── Check-ins (P2.6): only when nothing is booked right after the block ─────────────────
 
     [Fact]
-    public void While_working_the_next_plan_waits_for_the_check_in_instead_of_alerting_too()
+    public void A_check_in_comes_at_the_end_of_the_block_when_nothing_is_next()
     {
         var scheduler = new Scheduler(new SchedulerOptions());
         var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30);   // check-in 10:00
-        var b = Task("B", 10, 0, 30);                          // its own alert also 10:00
+        var later = Task("Later", 14, 0, 30);
 
-        var result = scheduler.Tick([a, b], T(10), []);
-
-        Assert.Equal(["A"], result.Fired.Select(i => i.Title));
+        Assert.True(scheduler.Tick([a, later], T(9, 59), []).IsEmpty);
+        Assert.Equal(["A"], scheduler.Tick([a, later], T(10), []).Takeovers.Select(i => i.Title));
     }
 
     [Fact]
-    public void A_check_in_left_unanswered_stops_holding_later_plans()
+    public void With_a_plan_booked_right_after_there_is_no_check_in_and_the_session_ends()
     {
         var scheduler = new Scheduler(new SchedulerOptions());
-        // A's check-in came up at 10:00 and was never answered; A is still "working".
-        var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30) with { LastFiredUtc = T(10) };
-        var b = Task("B", 10, 10, 30);   // alerts 10:10 with the plan lead at 0
-        var c = Task("C", 14, 0, 30, day: 23);
+        var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30);
+        var b = Task("B", 10, 0, 30);
 
-        Assert.True(scheduler.Tick([a, b], T(10, 10), []).IsEmpty);                  // still held
-        Assert.Equal(["B"], scheduler.Tick([a, b], T(10, 15), []).Fired.Select(i => i.Title));
-        Assert.Equal(["C"], scheduler.Tick([a, c], T(14, 0, day: 23), []).Fired.Select(i => i.Title));
+        // B pops up at its own T-1, while A is still being worked on.
+        Assert.Equal(["B"], scheduler.Tick([a, b], T(9, 59), []).Takeovers.Select(i => i.Title));
+
+        var atEnd = scheduler.Tick([a, Scheduler.MarkFired(b, T(9, 59))], T(10), []);
+        Assert.Empty(atEnd.Takeovers);
+        Assert.Equal(["A"], atEnd.Ended.Select(i => i.Title));
+
+        var stopped = Scheduler.EndSession(a, T(10));
+        Assert.False(stopped.IsWorking);
+        Assert.Equal(Stage.Planned, stopped.Stage);
+        Assert.True(scheduler.Tick([stopped], T(10, 1), []).IsEmpty);
     }
 
     [Fact]
-    public void Once_you_stop_working_the_next_plan_alerts_as_usual()
+    public void A_meeting_right_after_also_counts_but_a_free_one_doesnt()
+    {
+        var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30);
+        var standup = new BusyBlock(T(10), T(10, 15), ShowAs.Busy);
+
+        Assert.True(Scheduler.BookedAfter(a, [a], [standup]));
+        Assert.False(Scheduler.BookedAfter(a, [a], [standup with { ShowAs = ShowAs.Free }]));
+        Assert.False(Scheduler.BookedAfter(a, [a], [new BusyBlock(T(10, 30), T(11), ShowAs.Busy)]));   // a gap after
+    }
+
+    [Fact]
+    public void Once_you_stop_working_the_next_plan_pops_up_as_usual()
     {
         var scheduler = new Scheduler(new SchedulerOptions());
         var a = Task("A", 9, 0, 60).StartWork(T(9, 5), 30).StopWork(T(10)) with { Stage = Stage.Done };

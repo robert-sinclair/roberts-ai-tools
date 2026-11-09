@@ -803,6 +803,12 @@ public partial class QueueWindow : Window
             case Key.Right: ChangeDay(+1); break;
             case Key.Up when _area == Area.Calendar: StepCalendar(-1); break;
             case Key.Down when _area == Area.Calendar: StepCalendar(+1); break;
+            // Shift+P: the selected planned task's or meeting's pop-up, as it will appear (P2.6).
+            case Key.P when Keyboard.Modifiers == ModifierKeys.Shift:
+                if (selected is not null && !_host.PreviewPopup(selected.Id))
+                    MessageBox.Show(this, "Shift+P shows the pop-up for a meeting or a task planned with a time. Select one of those first.",
+                        "rNotice", MessageBoxButton.OK, MessageBoxImage.Information);
+                break;
             case Key.P when _area == Area.Intake && IntakeList.SelectedItems.Count > 1:
                 _host.PlanGroup(SelectedIntakeIds(), this);
                 break;

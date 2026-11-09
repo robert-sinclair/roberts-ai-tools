@@ -69,23 +69,6 @@ public static class Overrun
             .FirstOrDefault();
     }
 
-    /// <summary>
-    /// When to check in: <paramref name="checkInUtc"/>, or sooner if a later plan's alert comes
-    /// first — the check-in is the hand-off to it. While you're working, that plan's own alert
-    /// waits (<see cref="Scheduler"/>), so you get one prompt, not two.
-    /// </summary>
-    public static DateTimeOffset CheckIn(IEnumerable<Item> items, Item working, DateTimeOffset checkInUtc)
-    {
-        var from = working.PlannedStartUtc ?? working.WorkStartedUtc ?? checkInUtc;
-        var next = Later(items, working, from)
-            .Where(t => t.LastFiredUtc is null && t.FireAtUtc is not null)
-            .Select(t => t.FireAtUtc!.Value)
-            .Where(f => f > (working.WorkStartedUtc ?? DateTimeOffset.MinValue))
-            .DefaultIfEmpty(checkInUtc)
-            .Min();
-        return next < checkInUtc ? next : checkInUtc;
-    }
-
     /// <summary>Other open plans with a time, starting at or after <paramref name="fromUtc"/>.</summary>
     private static IEnumerable<Item> Later(IEnumerable<Item> items, Item working, DateTimeOffset fromUtc) =>
         items.Where(t => t.Id != working.Id && t.Stage == Stage.Planned && t.Source != Source.Calendar &&

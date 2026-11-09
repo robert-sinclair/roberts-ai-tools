@@ -119,7 +119,8 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
     {
         get
         {
-            if (Item.DueUtc is not { } start) return "";
+            if (Item.IsWorking) return "Check-in: your time's up";
+            if (PopupStart is not { } start) return "";
             var left = start - DateTimeOffset.UtcNow;
             return left.TotalHours >= 24 ? $"Starts {Display.Time(start)}"
                  : left.TotalMinutes >= 60 ? $"Starts in {(int)left.TotalHours} h {left.Minutes} min"
@@ -129,6 +130,46 @@ public sealed class ItemView(Item item) : System.ComponentModel.INotifyPropertyC
                  : $"Started {(int)-left.TotalMinutes} min ago";
         }
     }
+
+    /// <summary>What the pop-up counts down to: a meeting's start, or a task's planned start.</summary>
+    private DateTimeOffset? PopupStart => IsMeeting ? Item.DueUtc : Item.PlannedStartUtc ?? Item.DueUtc;
+
+    /// <summary>
+    /// The pop-up's line under the title. A meeting: when, and who organised it. A task: where
+    /// it came from, its planned block, and who from.
+    /// </summary>
+    public string PopupLine
+    {
+        get
+        {
+            if (IsMeeting) return MeetingLine;
+            var parts = new List<string> { Display.SourceLabel(Item.Source) };
+            if (Item.PlannedStartUtc is { } s)
+                parts.Add($"{Display.Time(s)} for {Item.PlannedMinutes ?? 30} min" + (Item.PromoteToCalendar ? ", on your Outlook calendar" : ""));
+            if (!string.IsNullOrWhiteSpace(Item.From)) parts.Add(Item.From!);
+            return string.Join("  ·  ", parts);
+        }
+    }
+
+    // ── The pop-up's buttons (P2.6): always all there, greyed out with a reason when they don't apply.
+
+    public string JoinTip => HasJoin ? "Opens the Teams call" : "No Teams link: this isn't an online meeting";
+
+    public string WorkTip => CanStartWork
+        ? "You're on it: no more pop-ups for it, and a check-in when it should end"
+        : Item.IsWorking ? "You're already working on it" : "It's closed";
+
+    public string KeepTip => IsWorking
+        ? "Grows the block by this much. Plans it runs into move along."
+        : "Only on a check-in, for a task you're working on";
+
+    public bool CanRebook => IsMeeting ? CanRebookMeeting : Item.IsOpen;
+
+    public string RebookTip => IsMeeting
+        ? CanRebookMeeting ? "Moves the meeting in Outlook. Everyone invited gets the update." : "Only a meeting you organise can be moved"
+        : "Next free slot, an hour or more later, or first thing next working day, clear of meetings and other plans";
+
+    public string OpenTip => HasSource ? OpenLabel : "Made in rNotice: there's nothing to open";
 
     public void Tick()
     {

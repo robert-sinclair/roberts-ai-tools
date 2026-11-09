@@ -61,7 +61,7 @@
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"
                            Text="A suggestion shows on the day view. Or pick your own time there: click for the How long length, drag to choose your own, Shift+click to extend." />
                 <TextBlock Opacity="0.65" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
-                           Text="With a time, rNotice reminds you and won't offer that slot again. On your Outlook calendar, rNotice alerts 5 minutes before and Outlook reminds you at the start." />
+                           Text="With a time, rNotice pops up a minute before and won't offer that slot again. On your Outlook calendar, Outlook also reminds you at the start." />
             </StackPanel>
 
             <!-- Right: the chosen day, quarter hour by quarter hour. -->

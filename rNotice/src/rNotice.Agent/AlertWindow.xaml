@@ -17,10 +17,10 @@
             <Setter Property="MinWidth" Value="72" />
         </Style>
         <Style x:Key="MeetingButton" TargetType="Button">
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="Padding" Value="28,10" />
-            <Setter Property="Margin" Value="0,0,12,0" />
-            <Setter Property="MinWidth" Value="140" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="18,8" />
+            <Setter Property="Margin" Value="0,0,12,10" />
+            <Setter Property="MinWidth" Value="110" />
         </Style>
         <Style x:Key="JoinButton" TargetType="Button" BasedOn="{StaticResource MeetingButton}">
             <Setter Property="Background" Value="#2B6CB0" />
@@ -29,87 +29,43 @@
             <Setter Property="BorderBrush" Value="#2B6CB0" />
         </Style>
 
-        <!-- A meeting starting now: big, a live countdown, Join first. -->
-        <DataTemplate x:Key="MeetingTemplate">
+        <!-- The one pop-up (P2.6): big, a live countdown, and the same buttons in the same places
+             every time. A button that doesn't apply is greyed out, and its tooltip says why. -->
+        <DataTemplate x:Key="PopupTemplate">
             <StackPanel Margin="0,4,0,18">
                 <TextBlock Text="{Binding Countdown}" FontSize="40" FontWeight="SemiBold" Foreground="#2B6CB0" />
                 <TextBlock Text="{Binding Title}" FontSize="30" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,0" />
-                <TextBlock Text="{Binding MeetingLine}" FontSize="17" Opacity="0.8" TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding PopupLine}" FontSize="17" Opacity="0.8" TextWrapping="Wrap" Margin="0,8,0,0" />
                 <TextBlock Text="{Binding WorkLine}" FontSize="17" Opacity="0.8" TextWrapping="Wrap" Margin="0,4,0,0"
                            Visibility="{Binding IsWorking, Converter={StaticResource Visible}}" />
                 <WrapPanel Margin="0,24,0,0">
                     <Button Content="Join" Tag="{Binding Id}" Click="OnJoin" Style="{StaticResource JoinButton}"
-                            Visibility="{Binding HasJoin, Converter={StaticResource Visible}}" />
+                            IsEnabled="{Binding HasJoin}" ToolTip="{Binding JoinTip}" ToolTipService.ShowOnDisabled="True" />
                     <Button Content="Working on it" Tag="{Binding Id}" Click="OnStartWork" Style="{StaticResource MeetingButton}"
-                            FontWeight="SemiBold" ToolTip="You're in it: no more alerts for it, and a check-in when it should end"
-                            Visibility="{Binding CanStartWork, Converter={StaticResource Visible}}" />
-                    <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource MeetingButton}"
-                            Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
-                    <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource MeetingButton}" />
-                    <!-- Rebook moves the meeting itself. The slot, then the button: two deliberate steps. -->
-                    <StackPanel Orientation="Horizontal" Margin="0,0,12,0"
-                                Visibility="{Binding CanRebookMeeting, Converter={StaticResource Visible}}">
-                        <ComboBox Tag="{Binding Id}" MinWidth="300" FontSize="16" VerticalContentAlignment="Center"
-                                  Loaded="OnMeetingRebookLoaded" DropDownOpened="OnMeetingRebookOpened"
-                                  ToolTip="Where the meeting could move to: its own length, on the quarter hour, inside your work hours, clear of other meetings and plans" />
-                        <Button Content="Rebook" Tag="{Binding Id}" Click="OnMeetingRebook" Style="{StaticResource MeetingButton}"
-                                Margin="8,0,0,0" ToolTip="Moves the meeting in Outlook. Everyone invited gets the update." />
+                            FontWeight="SemiBold" IsEnabled="{Binding CanStartWork}"
+                            ToolTip="{Binding WorkTip}" ToolTipService.ShowOnDisabled="True" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,10" IsEnabled="{Binding IsWorking}"
+                                ToolTip="{Binding KeepTip}" ToolTipService.ShowOnDisabled="True">
+                        <ComboBox Tag="{Binding Id}" MinWidth="170" FontSize="15" VerticalContentAlignment="Center" Loaded="OnKeepLoaded" />
+                        <Button Content="Still working" Tag="{Binding Id}" Click="OnKeepWorking" Style="{StaticResource MeetingButton}"
+                                Margin="8,0,0,0" />
                     </StackPanel>
+                    <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource MeetingButton}"
+                            ToolTip="Done in rNotice" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,12,10" IsEnabled="{Binding CanRebook}"
+                                ToolTip="{Binding RebookTip}" ToolTipService.ShowOnDisabled="True">
+                        <ComboBox Tag="{Binding Id}" MinWidth="280" FontSize="15" VerticalContentAlignment="Center"
+                                  Loaded="OnRebookLoaded" DropDownOpened="OnRebookOpened" />
+                        <Button Content="Rebook" Tag="{Binding Id}" Click="OnRebookBook" Style="{StaticResource MeetingButton}"
+                                Margin="8,0,0,0" />
+                    </StackPanel>
+                    <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource MeetingButton}"
+                            IsEnabled="{Binding HasSource}" ToolTip="{Binding OpenTip}" ToolTipService.ShowOnDisabled="True" />
                     <Button Content="Follow up" Tag="{Binding Id}" Click="OnFollowUp" Style="{StaticResource MeetingButton}"
-                            ToolTip="Plan a new 'Follow up - …' a week on. This meeting is left as it is." />
+                            ToolTip="Plans a new 'Follow up - ...' a week on. This one is left as it is." />
                 </WrapPanel>
             </StackPanel>
         </DataTemplate>
-
-        <!-- Anything else: compact. -->
-        <DataTemplate x:Key="TaskTemplate">
-            <Border BorderThickness="0,0,0,1" Padding="0,8,0,8"
-                    BorderBrush="{DynamicResource {x:Static SystemColors.ActiveBorderBrushKey}}">
-                <StackPanel>
-                    <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Meta}" Opacity="0.8" TextWrapping="Wrap" Margin="0,2,0,0" />
-                    <TextBlock Text="{Binding Reason}" FontStyle="Italic" Opacity="0.8" TextWrapping="Wrap" Margin="0,2,0,0" />
-                    <TextBlock Text="{Binding Snippet}" TextWrapping="Wrap" Margin="0,6,0,0" MaxHeight="60"
-                               TextTrimming="CharacterEllipsis"
-                               Visibility="{Binding HasSnippet, Converter={StaticResource Visible}}" />
-                    <TextBlock Text="{Binding NextUpLine}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0"
-                               Visibility="{Binding HasNextUp, Converter={StaticResource Visible}}" />
-                    <WrapPanel Margin="0,10,0,0">
-                        <Button Content="Start next" Tag="{Binding Id}" Click="OnStartNext" Style="{StaticResource TaskButton}"
-                                FontWeight="SemiBold" ToolTip="Stop this one (back to Intake, time kept) and start the next"
-                                Visibility="{Binding HasNextUp, Converter={StaticResource Visible}}" />
-                        <Button Content="Plan…" Tag="{Binding Id}" Click="OnPlan" Style="{StaticResource TaskButton}"
-                                Visibility="{Binding CanPlan, Converter={StaticResource Visible}}" />
-                        <Button Content="Working on it" Tag="{Binding Id}" Click="OnStartWork" Style="{StaticResource TaskButton}"
-                                FontWeight="SemiBold" ToolTip="No more alerts while you're on it; a check-in when the time's up"
-                                Visibility="{Binding CanStartWork, Converter={StaticResource Visible}}" />
-                        <Button Content="Mark done" Tag="{Binding Id}" Click="OnDone" Style="{StaticResource TaskButton}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
-                                    Visibility="{Binding IsWorking, Converter={StaticResource Visible}}">
-                            <TextBlock Text="Still working:" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <ComboBox Tag="{Binding Id}" MinWidth="90" Loaded="OnKeepLoaded"
-                                      ToolTip="A planned block grows by this much; plans it runs into move along" />
-                            <Button Content="Keep going" Tag="{Binding Id}" Click="OnKeepWorking" Style="{StaticResource TaskButton}"
-                                    Margin="6,0,0,0" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,8,6"
-                                    Visibility="{Binding CanSnooze, Converter={StaticResource Visible}}">
-                            <TextBlock Text="{Binding RebookLabel}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <ComboBox Tag="{Binding Id}" MinWidth="250" Loaded="OnRebookLoaded" DropDownOpened="OnRebookOpened"
-                                      ToolTip="Next free slot, an hour or more later, or first thing next working day: 30 min or 1 h, clear of meetings and other plans" />
-                            <Button Content="Book" Tag="{Binding Id}" Click="OnRebookBook" Style="{StaticResource TaskButton}"
-                                    Margin="6,0,0,0" FontWeight="SemiBold" ToolTip="Book the slot shown" />
-                        </StackPanel>
-                        <Button Content="{Binding OpenLabel}" Tag="{Binding Id}" Click="OnOpen" Style="{StaticResource TaskButton}"
-                                Visibility="{Binding HasSource, Converter={StaticResource Visible}}" />
-                    </WrapPanel>
-                </StackPanel>
-            </Border>
-        </DataTemplate>
-
-        <local:AlertTemplateSelector x:Key="Selector"
-                                     Meeting="{StaticResource MeetingTemplate}"
-                                     Task="{StaticResource TaskTemplate}" />
     </Window.Resources>
 
     <DockPanel x:Name="Root" Margin="18,14">
@@ -120,7 +76,7 @@
         </DockPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="ItemsList" ItemTemplateSelector="{StaticResource Selector}" />
+            <ItemsControl x:Name="ItemsList" ItemTemplate="{StaticResource PopupTemplate}" />
         </ScrollViewer>
     </DockPanel>
 </Window>

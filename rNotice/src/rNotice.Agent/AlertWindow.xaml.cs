@@ -108,13 +108,9 @@ public partial class AlertWindow : Window
         }
 
         if (!live.Select(i => i.Id).SequenceEqual(_views.Select(v => v.Id)) ||
-            live.Any(i => _views.First(v => v.Id == i.Id) is var v && (v.Item != i || v.NextUp?.Id != _host.NextUp(i.Id)?.Id)))
+            live.Any(i => _views.First(v => v.Id == i.Id) is var v && v.Item != i))
         {
-            _views = live.Select(i => new ItemView(i)
-            {
-                NextUp = _host.NextUp(i.Id),
-                RebookMinutes = _host.MeetingRebookMinutes(i.Id)
-            }).ToList();
+            _views = live.Select(i => new ItemView(i) { RebookMinutes = _host.MeetingRebookMinutes(i.Id) }).ToList();
             ItemsList.ItemsSource = _views;
         }
 
@@ -132,7 +128,7 @@ public partial class AlertWindow : Window
     {
         var (_, screenWidth, screenHeight) = MouseScreen();
 
-        if (HasMeeting)
+        // One pop-up (P2.6): always the large form.
         {
             // A window sizing itself to its content ignores a new Width. Switch that off, set
             // the width, and switch it back on so the height still follows the content.
@@ -153,7 +149,7 @@ public partial class AlertWindow : Window
     {
         var (screen, screenWidth, screenHeight) = MouseScreen();
         Left = screen.X + (screenWidth - ActualWidth) / 2;
-        Top = screen.Y + (screenHeight - ActualHeight) / (HasMeeting ? 2 : 3);
+        Top = screen.Y + (screenHeight - ActualHeight) / 2;
     }
 
     /// <summary>Working area of the monitor with the mouse, in this window's units.</summary>
@@ -195,16 +191,6 @@ public partial class AlertWindow : Window
         Reload();
     }
 
-    private void OnStartNext(object sender, RoutedEventArgs e)
-    {
-        var id = IdOf(sender);
-        if (_host.NextUp(id) is not { } next) return;
-        _host.SwitchTo(id, next.Id);
-        _shown.Remove(id);
-        _shown.Remove(next.Id);
-        Reload();
-    }
-
     // ── Rebook in ───────────────────────────────────────────────────────────────────────────
 
     private sealed record RebookOption(RebookChoice Choice, string Text)
@@ -224,7 +210,10 @@ public partial class AlertWindow : Window
     private void FillRebook(ComboBox box)
     {
         var kept = (box.SelectedItem as RebookOption)?.Choice;
-        var options = _host.RebookChoices((Guid)box.Tag).Select(c => new RebookOption(c, Describe(c))).ToList();
+        var id = (Guid)box.Tag;
+        var meeting = _views.FirstOrDefault(v => v.Id == id)?.IsMeeting == true;
+        var options = (meeting ? _host.MeetingRebookChoices(id) : _host.RebookChoices(id))
+            .Select(c => new RebookOption(c, Describe(c))).ToList();
         box.ItemsSource = options;
         box.SelectedIndex = Math.Max(0, options.FindIndex(o => o.Choice == kept));
         box.IsEnabled = options.Count > 0;
@@ -236,7 +225,9 @@ public partial class AlertWindow : Window
         var id = IdOf(sender);
         var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
         if (box?.SelectedItem is not RebookOption option) return;
-        _host.RebookAt(id, option.Choice);
+        // A meeting moves in Outlook, so everyone invited is told; a task is re-planned.
+        if (_views.FirstOrDefault(v => v.Id == id)?.IsMeeting == true) _host.RebookMeeting(id, option.Choice);
+        else _host.RebookAt(id, option.Choice);
         _shown.Remove(id);
         Reload();
     }
@@ -257,34 +248,6 @@ public partial class AlertWindow : Window
 
     // ── Moving a meeting, and following one up ──────────────────────────────────────────────
 
-    private void OnMeetingRebookLoaded(object sender, RoutedEventArgs e) => FillMeetingRebook((ComboBox)sender);
-
-    /// <summary>Fresh choices every time it opens: the calendar may have changed since.</summary>
-    private void OnMeetingRebookOpened(object? sender, EventArgs e) => FillMeetingRebook((ComboBox)sender!);
-
-    private void FillMeetingRebook(ComboBox box)
-    {
-        var kept = (box.SelectedItem as RebookOption)?.Choice;
-        var options = _host.MeetingRebookChoices((Guid)box.Tag).Select(c => new RebookOption(c, Describe(c))).ToList();
-        box.ItemsSource = options;
-        box.SelectedIndex = Math.Max(0, options.FindIndex(o => o.Choice == kept));
-        box.IsEnabled = options.Count > 0;
-    }
-
-    /// <summary>
-    /// Moves the meeting to what the dropdown shows — in Outlook, so everyone invited is told.
-    /// Choosing in the dropdown alone moves nothing.
-    /// </summary>
-    private void OnMeetingRebook(object sender, RoutedEventArgs e)
-    {
-        var id = IdOf(sender);
-        var box = ((FrameworkElement)sender).Parent is Panel panel ? panel.Children.OfType<ComboBox>().FirstOrDefault() : null;
-        if (box?.SelectedItem is not RebookOption option) return;
-        _host.RebookMeeting(id, option.Choice);
-        _shown.Remove(id);
-        Reload();
-    }
-
     /// <summary>The meeting stays on this window: following it up doesn't deal with it.</summary>
     private void OnFollowUp(object sender, RoutedEventArgs e) => _host.FollowUp(IdOf(sender), this);
 
@@ -303,14 +266,4 @@ public partial class AlertWindow : Window
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
-}
-
-/// <summary>Meetings get the large template; everything else the compact one.</summary>
-public sealed class AlertTemplateSelector : DataTemplateSelector
-{
-    public DataTemplate? Meeting { get; set; }
-    public DataTemplate? Task { get; set; }
-
-    public override DataTemplate? SelectTemplate(object item, DependencyObject container) =>
-        item is ItemView { IsMeeting: true } ? Meeting : Task;
 }

@@ -5,6 +5,7 @@ using static rNotice.Tests.Make;
 
 namespace rNotice.Tests;
 
+/// <summary>One pop-up (P2.6): meetings and tasks planned with a time, at T−1; nothing else.</summary>
 public class SchedulerTests
 {
     private static readonly IReadOnlyList<BusyBlock> Free = [];
@@ -15,147 +16,109 @@ public class SchedulerTests
 
     /// <summary>A quiet Teams message or mail, which you then planned for a time.</summary>
     private static Item PlannedQuiet(DateTimeOffset start) =>
-        (Item(Interrupt.Silent, Priority.P3) with { Source = Source.Teams }).Plan(start, 30);
+        (Item(Interrupt.Silent, Priority.P3) with { Source = Source.Teams }).Plan(start, 30, alertLeadMinutes: 5);
+
+    private static Item Meeting(DateTimeOffset start) =>
+        Item(Interrupt.Takeover, fireAt: start.AddSeconds(-60), due: start, stage: Stage.Planned) with { Source = Source.Calendar };
 
     [Fact]
-    public void A_planned_task_takes_over_at_its_time_even_if_it_came_in_silent()
+    public void A_planned_task_pops_up_a_minute_before_its_start_whatever_its_alert_lead_said()
     {
-        var task = PlannedQuiet(Now.AddMinutes(10));
+        var task = PlannedQuiet(Now.AddMinutes(10));   // planned with the old 5-minute lead
 
-        Assert.True(_scheduler.Tick([task], Now.AddMinutes(9), Free).IsEmpty);
-        Assert.Single(_scheduler.Tick([task], Now.AddMinutes(10), Free).Takeovers);
+        Assert.True(_scheduler.Tick([task], Now.AddMinutes(8), Free).IsEmpty);
+        Assert.True(_scheduler.Tick([task], Now.AddMinutes(9).AddSeconds(-1), Free).IsEmpty);
+        Assert.Single(_scheduler.Tick([task], Now.AddMinutes(9), Free).Takeovers);
     }
 
     [Fact]
-    public void How_a_plan_interrupts_is_a_setting()
+    public void A_meeting_pops_up_at_its_takeover_time()
     {
-        var alerts = new Scheduler(new SchedulerOptions { PlanInterrupt = Interrupt.Alert });
-        Assert.Single(alerts.Tick([PlannedQuiet(Now)], Now, Free).Alerts);
+        Assert.True(_scheduler.Tick([Meeting(Now.AddMinutes(2))], Now, Free).IsEmpty);
+        Assert.Single(_scheduler.Tick([Meeting(Now.AddSeconds(60))], Now, Free).Takeovers);
     }
 
     [Fact]
-    public void A_plan_found_long_after_its_start_comes_up_as_an_ordinary_alert()
-    {
-        // rNotice was off at 10:30 and started at 11:00: still overdue work, but no dim.
-        var result = _scheduler.Tick([PlannedQuiet(Now.AddMinutes(-30))], Now, Free);
-        Assert.Single(result.Alerts);
-        Assert.Empty(result.Takeovers);
-    }
+    public void A_plan_found_long_after_its_start_still_pops_up() =>
+        Assert.Single(_scheduler.Tick([PlannedQuiet(Now.AddMinutes(-30))], Now, Free).Takeovers);
 
     [Fact]
-    public void A_silent_item_with_no_plan_stays_silent() =>
-        Assert.True(_scheduler.Tick([Item(Interrupt.Silent, Priority.P3, fireAt: Now)], Now, Free).IsEmpty);
-
-    [Fact]
-    public void A_meeting_snoozed_to_just_before_its_start_comes_back_as_a_takeover()
-    {
-        var start = Now.AddSeconds(60);
-        var meeting = Item(Interrupt.Takeover, fireAt: Now, due: start) with { Source = Source.Calendar };
-        var snoozed = Scheduler.MarkFired(meeting, Now).Snooze(start.AddSeconds(-10));
-
-        Assert.Empty(_scheduler.Tick([snoozed], start.AddSeconds(-11), Free).Takeovers);
-        Assert.Single(_scheduler.Tick([snoozed], start.AddSeconds(-10), Free).Takeovers);
-    }
-
-    [Fact]
-    public void Due_items_fire_grouped_by_interrupt()
+    public void Nothing_else_pops_up()
     {
         var result = _scheduler.Tick(
         [
-            Item(Interrupt.Takeover, due: Now.AddSeconds(30)),
-            Item(Interrupt.Alert),
-            Item(Interrupt.Toast)
+            Item(Interrupt.Takeover, due: Now.AddSeconds(30)),                         // a workbook row set to take over
+            Item(Interrupt.Alert, Priority.P1) with { Source = Source.Teams },          // the routine's P1
+            Item(Interrupt.Toast) with { Source = Source.Mail },                        // a reply on your thread
+            Item(Interrupt.Alert, Priority.P1) with { Source = Source.Mail },           // VIP mail
+            Item(Interrupt.Alert, stage: Stage.Planned),                                // planned, no time
         ], Now, Free);
 
-        Assert.Single(result.Takeovers);
-        Assert.Single(result.Alerts);
-        Assert.Single(result.Toasts);
+        Assert.True(result.IsEmpty);
     }
 
     [Fact]
-    public void Not_yet_due_silent_closed_acked_and_already_fired_do_not_fire()
+    public void Closed_acked_already_fired_and_grouped_plans_do_not_pop_up()
     {
+        var task = PlannedQuiet(Now);
         var result = _scheduler.Tick(
         [
-            Item(fireAt: Now.AddMinutes(1)),
-            Item(Interrupt.Silent),
-            Item(stage: Stage.Done),
-            Item(stage: Stage.Dismissed),
-            Item() with { AckedAtUtc = Now.AddMinutes(-2) },
-            Item() with { LastFiredUtc = Now.AddMinutes(-1) },
-            Item() with { FireAtUtc = null }
+            task with { Stage = Stage.Done },
+            task with { Stage = Stage.Dismissed },
+            task with { AckedAtUtc = Now.AddMinutes(-2) },
+            task with { LastFiredUtc = Now.AddMinutes(-1) },
+            task with { GroupId = Guid.NewGuid() },
         ], Now, Free);
 
         Assert.True(result.IsEmpty);
-        Assert.Empty(result.Deferred);
     }
 
     [Fact]
-    public void Planned_items_still_fire() =>
-        Assert.Single(_scheduler.Tick([Item(stage: Stage.Planned)], Now, Free).Alerts);
-
-    [Fact]
-    public void Several_alerts_come_back_most_urgent_first()
+    public void Meetings_come_first_then_the_most_urgent()
     {
-        var p3 = Item(priority: Priority.P3);
-        var p1 = Item(priority: Priority.P1);
-        var p2 = Item(priority: Priority.P2);
+        var p3 = PlannedQuiet(Now) with { Classification = new Classification(Priority.P3, Interrupt.Silent, ClassifiedBy.Rule, "test") };
+        var p1 = PlannedQuiet(Now) with { Classification = new Classification(Priority.P1, Interrupt.Silent, ClassifiedBy.Rule, "test") };
+        var meeting = Meeting(Now.AddSeconds(30));
 
-        var alerts = _scheduler.Tick([p3, p1, p2], Now, Free).Alerts;
-
-        Assert.Equal([p1.Id, p2.Id, p3.Id], alerts.Select(a => a.Id));
+        Assert.Equal([meeting.Id, p1.Id, p3.Id], _scheduler.Tick([p3, p1, meeting], Now, Free).Takeovers.Select(t => t.Id));
     }
 
     [Fact]
-    public void Busy_meeting_defers_alerts_and_toasts_until_it_ends()
-    {
-        var result = _scheduler.Tick([Item(Interrupt.Alert), Item(Interrupt.Toast)], Now, InMeeting());
-
-        Assert.True(result.IsEmpty);
-        Assert.All(result.Deferred, d => Assert.Equal(Now.AddMinutes(30), d.UntilUtc));
-    }
-
-    [Fact]
-    public void Busy_meeting_defers_only_until_the_item_is_due()
-    {
-        var d = Assert.Single(_scheduler.Tick([Item(due: Now.AddMinutes(5))], Now, InMeeting()).Deferred);
-        Assert.Equal(Now.AddMinutes(5), d.UntilUtc);
-    }
-
-    [Fact]
-    public void Item_already_due_fires_through_a_busy_meeting() =>
-        Assert.Single(_scheduler.Tick([Item(due: Now)], Now, InMeeting()).Alerts);
-
-    [Theory]
-    [InlineData(ShowAs.Free)]
-    [InlineData(ShowAs.Tentative)]   // includes rNotice's own promoted blocks
-    [InlineData(ShowAs.WorkingElsewhere)]
-    public void Only_busy_and_oof_suppress(ShowAs showAs) =>
-        Assert.Single(_scheduler.Tick([Item()], Now, InMeeting(showAs)).Alerts);
-
-    [Fact]
-    public void Oof_suppresses() =>
-        Assert.Single(_scheduler.Tick([Item()], Now, InMeeting(ShowAs.Oof)).Deferred);
-
-    [Fact]
-    public void Takeover_ignores_busy_and_quiet_hours()
+    public void Busy_time_and_quiet_hours_hold_nothing()
     {
         var quiet = new Scheduler(new SchedulerOptions
         {
             QuietHours = new QuietHours(new TimeOnly(0, 0), new TimeOnly(23, 59), TimeZoneInfo.Utc)
         });
 
-        Assert.Single(quiet.Tick([Item(Interrupt.Takeover, due: Now.AddSeconds(60))], Now, InMeeting()).Takeovers);
+        Assert.Single(quiet.Tick([PlannedQuiet(Now.AddSeconds(60))], Now, InMeeting()).Takeovers);
     }
 
     [Fact]
-    public void Meeting_long_started_stays_in_the_queue_without_a_window()
+    public void A_meeting_snoozed_to_just_before_its_start_comes_back()
     {
-        var meeting = Item(Interrupt.Takeover, due: Now.AddMinutes(-10)) with { Source = Source.Calendar };
-        var result = _scheduler.Tick([meeting], Now, Free);
+        var start = Now.AddSeconds(60);
+        var snoozed = Scheduler.MarkFired(Meeting(start), Now).Snooze(start.AddSeconds(-10));
 
-        Assert.True(result.IsEmpty);
-        Assert.Empty(result.Deferred);
+        Assert.Empty(_scheduler.Tick([snoozed], start.AddSeconds(-11), Free).Takeovers);
+        Assert.Single(_scheduler.Tick([snoozed], start.AddSeconds(-10), Free).Takeovers);
+    }
+
+    [Fact]
+    public void Meeting_long_started_stays_in_the_queue_without_a_window() =>
+        Assert.True(_scheduler.Tick([Meeting(Now.AddMinutes(-10))], Now, Free).IsEmpty);
+
+    [Fact]
+    public void Meeting_still_pops_up_inside_the_grace_period() =>
+        Assert.Single(_scheduler.Tick([Meeting(Now.AddMinutes(-2))], Now, Free).Takeovers);
+
+    [Fact]
+    public void Snooze_holds_a_plan_then_rearms()
+    {
+        var snoozed = Scheduler.MarkFired(PlannedQuiet(Now.AddMinutes(-5)), Now.AddMinutes(-5)).Snooze(Now.AddMinutes(10));
+
+        Assert.True(_scheduler.Tick([snoozed], Now, Free).IsEmpty);
+        Assert.Single(_scheduler.Tick([snoozed], Now.AddMinutes(10), Free).Takeovers);
     }
 
     private static Item LiveMeeting(DateTimeOffset? lastFired = null, DateTimeOffset? joined = null) =>
@@ -187,44 +150,4 @@ public class SchedulerTests
     [Fact]
     public void A_meeting_not_started_yet_doesnt_repeat() =>
         Assert.True(_scheduler.Tick([LiveMeeting(lastFired: Now.AddMinutes(-2)) with { DueUtc = Now.AddMinutes(1) }], Now, Free, Others).IsEmpty);
-
-    [Fact]
-    public void Overdue_non_meeting_takeover_comes_up_as_an_alert()
-    {
-        var result = _scheduler.Tick([Item(Interrupt.Takeover, due: Now.AddMinutes(-10))], Now, Free);
-
-        Assert.Empty(result.Takeovers);
-        Assert.Single(result.Alerts);
-    }
-
-    [Fact]
-    public void Takeover_still_fires_inside_the_grace_period() =>
-        Assert.Single(_scheduler.Tick([Item(Interrupt.Takeover, due: Now.AddMinutes(-2))], Now, Free).Takeovers);
-
-    [Fact]
-    public void Snooze_holds_then_rearms()
-    {
-        var fired = Scheduler.MarkFired(Item(), Now.AddMinutes(-5));
-        var snoozed = fired.Snooze(Now.AddMinutes(10));
-
-        Assert.True(_scheduler.Tick([snoozed], Now, Free).IsEmpty);
-        Assert.Single(_scheduler.Tick([snoozed], Now.AddMinutes(10), Free).Alerts);
-    }
-
-    [Fact]
-    public void Quiet_hours_wrapping_midnight_defer_until_they_end()
-    {
-        // Mountain time, 22:00–07:00. 14:00Z on 21 Oct 2026 is 08:00 MDT — outside.
-        var zone = TimeZoneInfo.FindSystemTimeZoneById("Mountain Standard Time");
-        var scheduler = new Scheduler(new SchedulerOptions
-        {
-            QuietHours = new QuietHours(new TimeOnly(22, 0), new TimeOnly(7, 0), zone)
-        });
-
-        Assert.Single(scheduler.Tick([Item()], Now, Free).Alerts);
-
-        var lateNight = new DateTimeOffset(2026, 10, 22, 5, 0, 0, TimeSpan.Zero);   // 23:00 MDT on the 21st
-        var d = Assert.Single(scheduler.Tick([Item(fireAt: lateNight)], lateNight, Free).Deferred);
-        Assert.Equal(new DateTimeOffset(2026, 10, 22, 13, 0, 0, TimeSpan.Zero), d.UntilUtc);   // 07:00 MDT
-    }
 }

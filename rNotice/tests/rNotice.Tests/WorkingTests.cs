@@ -59,14 +59,14 @@ public class WorkingTests
     }
 
     [Fact]
-    public void While_working_nothing_fires_until_the_check_in_and_that_is_an_alert_not_a_takeover()
+    public void While_working_nothing_fires_until_the_check_in_and_that_is_the_one_pop_up()
     {
-        var working = PlannedTask(-5).StartWork(Now, 30);   // plan would take over; check-in at +25
+        var working = PlannedTask(-5).StartWork(Now, 30);   // check-in at +25
 
         Assert.True(_scheduler.Tick([working], Now.AddMinutes(24), []).IsEmpty);
         var result = _scheduler.Tick([working], Now.AddMinutes(25), []);
-        Assert.Single(result.Alerts);
-        Assert.Empty(result.Takeovers);
+        Assert.Single(result.Takeovers);
+        Assert.Empty(result.Alerts);
     }
 
     [Fact]

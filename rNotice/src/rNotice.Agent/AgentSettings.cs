@@ -163,7 +163,7 @@ public sealed record AgentSettings
         TakeoverGraceSeconds = TakeoverGraceSeconds,
         NotJoinedRepeatSeconds = NotJoinedRepeatSeconds,
         QuietHours = QuietHours is { } q ? new QuietHours(q.Start, q.End, TimeZoneInfo.Local) : null,
-        PlanInterrupt = PlanInterrupt
+        PopupLeadSeconds = Rules.TakeoverLeadSeconds
     };
 
     /// <summary>

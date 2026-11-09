@@ -1,13 +1,16 @@
 using rNotice.Core.Items;
+using rNotice.Core.Sources;
 
 namespace rNotice.Core.Scheduling;
 
 public sealed record Deferral(Item Item, DateTimeOffset UntilUtc, string Reason);
 
 /// <summary>
-/// What should reach the user right now, grouped by how. Several items at one level go up as
-/// one window with a list, not a stack — the grouping is here so the UI can't get it wrong.
-/// Each list is most urgent first.
+/// What should reach the user right now. Since P2.6 (2026-11-09) there is one kind of pop-up,
+/// so everything that fires is in <see cref="Takeovers"/>; <see cref="Alerts"/>,
+/// <see cref="Toasts"/> and <see cref="Deferred"/> stay empty and are kept for the callers.
+/// <see cref="Ended"/> are working sessions whose check-in was skipped because something is
+/// booked right after: the caller stops them.
 /// </summary>
 public sealed record TickResult(
     IReadOnlyList<Item> Takeovers,
@@ -15,26 +18,35 @@ public sealed record TickResult(
     IReadOnlyList<Item> Toasts,
     IReadOnlyList<Deferral> Deferred)
 {
-    public bool IsEmpty => Takeovers.Count == 0 && Alerts.Count == 0 && Toasts.Count == 0;
+    public IReadOnlyList<Item> Ended { get; init; } = [];
+
+    public bool IsEmpty => Takeovers.Count == 0 && Alerts.Count == 0 && Toasts.Count == 0 && Ended.Count == 0;
     public IEnumerable<Item> Fired => Takeovers.Concat(Alerts).Concat(Toasts);
 }
 
 /// <summary>
-/// Decides what fires, when, and how loudly. Pure: everything it needs is passed in, and it
-/// holds no state between ticks.
+/// Decides what pops up, and when. Pure: everything it needs is passed in, and it holds no
+/// state between ticks.
+///
+/// One pop-up (P2.6, Robert 2026-11-09), always the full one with the dim, and only for:
+/// <list type="bullet">
+/// <item>a meeting, at its takeover time (T−1);</item>
+/// <item>a task planned with a time, at T−<see cref="SchedulerOptions.PopupLeadSeconds"/>;</item>
+/// <item>a started meeting with others you haven't joined, every minute;</item>
+/// <item>a check-in when a working block ends, unless something is booked right after it.
+/// Then that event's own pop-up is the prompt, and the session is stopped instead.</item>
+/// </list>
+/// Nothing else pops up: mail, Teams chats (classified or not), @mentions and workbook rows
+/// wait in Intake.
 ///
 /// Firing is computed from the local store, never from a poll. A network outage delays seeing
-/// new work; it never delays an alert already known about. That is the property this class
-/// exists to protect.
-///
-/// The caller shows what comes back, then stores each fired item with
-/// <see cref="MarkFired"/> so it doesn't fire again. Deferred items aren't marked; they come
-/// back on a later tick once the suppression lifts.
+/// new work; it never delays a pop-up already known about.
 /// </summary>
 public sealed class Scheduler(SchedulerOptions options)
 {
     private readonly SchedulerOptions _options = options;
 
+    /// <param name="calendar">Meetings, for "is something booked right after this block".</param>
     /// <param name="withOthers">
     /// Event ids of meetings with someone besides you in them. Once one of these has started and
     /// you haven't joined, it takes over again every <see cref="SchedulerOptions.NotJoinedRepeatSeconds"/>
@@ -43,55 +55,63 @@ public sealed class Scheduler(SchedulerOptions options)
     public TickResult Tick(IEnumerable<Item> items, DateTimeOffset nowUtc, IReadOnlyList<BusyBlock> calendar,
         IReadOnlySet<string>? withOthers = null)
     {
-        var takeovers = new List<Item>();
-        var alerts = new List<Item>();
-        var toasts = new List<Item>();
-        var deferred = new List<Deferral>();
-
+        var popups = new List<Item>();
+        var ended = new List<Item>();
         var all = items as IReadOnlyCollection<Item> ?? items.ToList();
-
-        // While you're working on something, a later plan doesn't alert on its own: the check-in
-        // comes first and offers to start it (Overrun.CheckIn). One prompt at the hand-off, not two.
-        // Only a check-in still to come, or one up in the last HandOffHoldMinutes. Found
-        // 2026-11-06: two check-ins from Oct 27-28 were never answered, so those tasks stayed
-        // "working" and every plan since waited on a hand-off that had long gone.
-        var handOff = all.Where(i => i.IsWorking && i.FireAtUtc is not null &&
-                                     (i.LastFiredUtc is not { } fired || nowUtc - fired < TimeSpan.FromMinutes(_options.HandOffHoldMinutes)))
-                         .Select(i => i.FireAtUtc).Min();
 
         foreach (var item in all)
         {
             if (withOthers is not null && NotJoined(item, nowUtc, withOthers))
             {
-                takeovers.Add(item);
+                popups.Add(item);
                 continue;
             }
-            if (!IsDue(item, nowUtc)) continue;
-            if (handOff is { } h && WaitsForHandOff(item, h)) continue;
+            if (PopUpAt(item) is not { } at || !IsOpenForPopUp(item)) continue;
+            var effective = item.SnoozedUntilUtc is { } snooze && snooze > at ? snooze : at;
+            if (effective > nowUtc) continue;
 
-            var interrupt = EffectiveInterrupt(item, nowUtc);
-            if (interrupt == Interrupt.Silent) continue;
-
-            // Takeover ignores busy and quiet hours. It is mostly about meetings, so suppressing
-            // it during meetings would defeat it.
-            if (interrupt != Interrupt.Takeover && Suppression(item, nowUtc, calendar) is { } d)
+            if (item.IsWorking)
             {
-                deferred.Add(d);
+                if (BookedAfter(item, all, calendar)) ended.Add(item);
+                else popups.Add(item);
                 continue;
             }
 
-            (interrupt switch
-            {
-                Interrupt.Takeover => takeovers,
-                Interrupt.Alert => alerts,
-                _ => toasts
-            }).Add(item);
+            // A meeting well past its start is under way: you're in it or you aren't, and a
+            // window for it at startup is stale. (A meeting with others is handled above.)
+            if (item.Source == Source.Calendar && item.DueUtc is { } start &&
+                nowUtc > start.AddSeconds(_options.TakeoverGraceSeconds))
+                continue;
+
+            popups.Add(item);
         }
 
-        return new TickResult(Order(takeovers), Order(alerts), Order(toasts), deferred);
+        return new TickResult(Order(popups), [], [], []) { Ended = ended };
     }
 
     public static Item MarkFired(Item item, DateTimeOffset nowUtc) => item with { LastFiredUtc = nowUtc };
+
+    /// <summary>
+    /// A working session whose check-in was skipped: stopped, time kept, the task left where it
+    /// is. Marked fired so it doesn't come back.
+    /// </summary>
+    public static Item EndSession(Item item, DateTimeOffset nowUtc) => item.StopWork(nowUtc) with { LastFiredUtc = nowUtc };
+
+    /// <summary>
+    /// When an item pops up, or null if it never does: a meeting at its takeover time, a
+    /// check-in at its time, a task planned with a time a minute before its start.
+    /// </summary>
+    public DateTimeOffset? PopUpAt(Item item)
+    {
+        if (item.Source == Source.Calendar) return item.Stage == Stage.Planned ? item.FireAtUtc : null;
+        if (item.IsWorking) return item.FireAtUtc;
+        if (item.Stage == Stage.Planned && item.GroupId is null && item.PlannedStartUtc is { } start)
+            return start.AddSeconds(-_options.PopupLeadSeconds);
+        return null;
+    }
+
+    private static bool IsOpenForPopUp(Item item) =>
+        item.IsOpen && item.AckedAtUtc is null && item.LastFiredUtc is null;
 
     /// <summary>
     /// A meeting with others, started, not joined, not done: it takes over now if it hasn't in
@@ -104,77 +124,28 @@ public sealed class Scheduler(SchedulerOptions options)
         !(item.SnoozedUntilUtc > nowUtc) &&
         (item.LastFiredUtc is not { } last || nowUtc - last >= TimeSpan.FromSeconds(_options.NotJoinedRepeatSeconds));
 
-    private static bool WaitsForHandOff(Item item, DateTimeOffset handOffUtc) =>
-        !item.IsWorking && item.Stage == Stage.Planned && item.Source != Source.Calendar &&
-        item.PlannedStartUtc is not null && item.FireAtUtc >= handOffUtc;
-
     /// <summary>
-    /// The item's own interrupt, raised to <see cref="SchedulerOptions.PlanInterrupt"/> for a
-    /// task you planned with a time. Meetings keep their own: they're already takeovers.
+    /// Something takes the time right after a working block: a meeting not marked free, or
+    /// another planned task, that starts within a minute of the block's end or is already
+    /// running then.
     /// </summary>
-    private Interrupt BaseInterrupt(Item item)
+    public static bool BookedAfter(Item working, IEnumerable<Item> items, IReadOnlyList<BusyBlock> calendar)
     {
-        // Working on it: the only thing left to say is the check-in, and that needs no dim.
-        if (item.IsWorking) return Interrupt.Alert;
+        var end = working.PlannedStartUtc is { } s && working.PlannedMinutes is { } m ? s.AddMinutes(m) : working.FireAtUtc;
+        if (end is not { } blockEnd) return false;
+        var soon = blockEnd.AddMinutes(1);
 
-        var own = item.Classification.Interrupt;
-        var planned = item.Stage == Stage.Planned && item.PlannedStartUtc is not null && item.Source != Source.Calendar;
-        return planned && _options.PlanInterrupt > own ? _options.PlanInterrupt : own;
-    }
+        bool Takes(DateTimeOffset start, DateTimeOffset finish) => start <= soon && finish > blockEnd;
 
-    /// <summary>When the thing starts: a meeting's start, or a task's planned start.</summary>
-    private static DateTimeOffset? StartOf(Item item) => item.Source == Source.Calendar ? item.DueUtc : item.PlannedStartUtc ?? item.DueUtc;
-
-    private bool IsDue(Item item, DateTimeOffset nowUtc)
-    {
-        if (!item.IsOpen || item.AckedAtUtc is not null || item.LastFiredUtc is not null) return false;
-        if (BaseInterrupt(item) == Interrupt.Silent) return false;
-        if (item.FireAtUtc is not { } fireAt) return false;
-
-        var effective = item.SnoozedUntilUtc is { } snooze && snooze > fireAt ? snooze : fireAt;
-        return effective <= nowUtc;
-    }
-
-    /// <summary>
-    /// A takeover past its grace period is stale. For a meeting that means it's under way —
-    /// you're in it or you aren't — so it stays in the queue without a window. Found on the
-    /// first real run: startup otherwise alerts for every long block already in progress.
-    /// Anything else (a workbook row set to takeover) is still overdue work, so it comes up as
-    /// an ordinary alert.
-    /// </summary>
-    private Interrupt EffectiveInterrupt(Item item, DateTimeOffset nowUtc)
-    {
-        var interrupt = BaseInterrupt(item);
-        if (interrupt == Interrupt.Takeover && StartOf(item) is { } start &&
-            nowUtc > start.AddSeconds(_options.TakeoverGraceSeconds))
-        {
-            return item.Source == Source.Calendar ? Interrupt.Silent : Interrupt.Alert;
-        }
-        return interrupt;
-    }
-
-    /// <summary>
-    /// Quiet hours hold until they end. A busy meeting holds until it ends or the item falls due,
-    /// whichever is first — so something due mid-meeting still fires on time.
-    /// </summary>
-    private Deferral? Suppression(Item item, DateTimeOffset nowUtc, IReadOnlyList<BusyBlock> calendar)
-    {
-        if (_options.QuietHours is { } quiet && quiet.Contains(nowUtc))
-            return new Deferral(item, quiet.NextEnd(nowUtc), "Quiet hours");
-
-        if (item.DueUtc is { } due && due <= nowUtc) return null;
-
-        var busy = calendar.Where(b => b.Suppresses && b.Covers(nowUtc))
-                           .Select(b => (DateTimeOffset?)b.EndUtc)
-                           .Max();
-        if (busy is not { } busyUntil) return null;
-
-        var until = item.DueUtc is { } d && d < busyUntil ? d : busyUntil;
-        return new Deferral(item, until, "In a meeting");
+        return calendar.Any(b => b.ShowAs != ShowAs.Free && Takes(b.StartUtc, b.EndUtc)) ||
+               items.Any(i => i.Id != working.Id && i.Stage == Stage.Planned && i.Source != Source.Calendar &&
+                              i.GroupId is null && i.PlannedStartUtc is { } ps &&
+                              Takes(ps, ps.AddMinutes(i.PlannedMinutes ?? 30)));
     }
 
     private static List<Item> Order(List<Item> items) =>
-        items.OrderBy(i => i.Classification.Priority)
+        items.OrderBy(i => i.Source == Source.Calendar ? 0 : 1)
+             .ThenBy(i => i.Classification.Priority)
              .ThenBy(i => i.DueUtc ?? i.FireAtUtc)
              .ToList();
 }

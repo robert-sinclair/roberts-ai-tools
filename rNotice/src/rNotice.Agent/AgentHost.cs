@@ -196,6 +196,15 @@ internal sealed partial class AgentHost(Application app) : IDisposable
         var result = _scheduler.Tick(_store.List(Stage.Intake, Stage.Planned), now, _busy, withOthers);
         if (result.IsEmpty) return;
 
+        // A working block with something booked right after it gets no check-in: that event's
+        // own pop-up is the prompt. The session stops here, time kept, the task left planned.
+        foreach (var item in result.Ended)
+        {
+            _store.Save(Scheduler.EndSession(item, now), now);
+            Log.Info($"Stopped work on '{item.Title}': its block ended and something is booked next");
+        }
+        result = result with { Ended = [] };
+
         // Already in the call (Teams presence): no takeover. A started meeting waits a few
         // seconds for a fresh reading; waiting ones aren't marked fired, so they're asked again.
         var check = result.Takeovers.ToDictionary(t => t.Id, t => _settings.PresenceEnabled
@@ -215,18 +224,10 @@ internal sealed partial class AgentHost(Application app) : IDisposable
             .Where(t => check[t.Id] == TakeoverCheck.Show && _alert?.Shows(t.Id) != true).ToList() };
         if (result.IsEmpty) return;
 
-        var windowed = result.Takeovers.Concat(result.Alerts).ToList();
-        if (windowed.Count > 0)
-        {
-            // Every takeover is logged by name, so a day's count can be read back from the log.
-            foreach (var t in result.Takeovers) Log.Info($"Takeover: {t.Title}");
-            if (result.Alerts.Count > 0) Log.Info($"Alert: {string.Join("; ", result.Alerts.Select(i => i.Title))}");
-            ShowAlert(windowed, takeover: result.Takeovers.Count > 0);
-        }
-
-        foreach (var toast in result.Toasts)
-            _tray.Notify(toast.Title, toast.From is { } from ? $"{from} · {toast.Classification.Reason}" : Display.When(toast));
-
+        // One kind of pop-up (P2.6): always the full one, with the dim. Each is logged by name,
+        // so a day's count can be read back from the log.
+        foreach (var t in result.Takeovers) Log.Info($"Takeover: {t.Title}");
+        if (result.Takeovers.Count > 0) ShowAlert(result.Takeovers, takeover: true);
         Changed?.Invoke();
     }
 
@@ -934,10 +935,8 @@ internal sealed partial class AgentHost(Application app) : IDisposable
             ? _meetingEvents.FirstOrDefault(e => e.Id == meeting.SourceId)?.EndUtc
             : null;
 
-        // The check-in comes no later than the next plan's alert: that's where you hand over.
-        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes, meetingEnd) is var w && w.FireAtUtc is { } checkIn
-            ? w with { FireAtUtc = Overrun.CheckIn(_store.List(), w, checkIn) }
-            : w);
+        // The check-in is at the block's end. If something is booked right after, there's none (Scheduler).
+        Update(id, i => i.StartWork(DateTimeOffset.UtcNow, _settings.PlanMinutes, meetingEnd));
         if (_store.Get(id) is { FireAtUtc: { } checkIn } item)
             Log.Info($"Working on '{item.Title}'; check-in {Display.Time(checkIn)}");
     }
@@ -966,8 +965,7 @@ internal sealed partial class AgentHost(Application app) : IDisposable
             Log.Info($"'{task.Title}' pushed to {Display.Time(push.StartUtc)} ('{item.Title}' ran over)");
         }
 
-        var extended = item.RunOver(newEnd, newEnd);
-        Update(id, i => i.RunOver(newEnd, Overrun.CheckIn(_store.List(), extended, newEnd)));
+        Update(id, i => i.RunOver(newEnd, newEnd));
         Log.Info($"Still working on '{item.Title}' until {Display.Time(newEnd)}");
     }
 
@@ -1913,6 +1911,19 @@ internal sealed partial class AgentHost(Application app) : IDisposable
         var window = new QueueWindow(this);
         Changed += window.Reload;
         return window;
+    }
+
+    /// <summary>
+    /// Shift+P in the queue: the item's pop-up exactly as it will appear, dim and all, without
+    /// marking anything fired. Only for what pops up: a meeting, or a task planned with a time.
+    /// False for anything else.
+    /// </summary>
+    public bool PreviewPopup(Guid id)
+    {
+        if (_store.Get(id) is not { } item || _scheduler.PopUpAt(item) is null) return false;
+        Log.Info($"Pop-up preview: {item.Title}");
+        ShowAlert([item], takeover: true);
+        return true;
     }
 
     /// <summary>

@@ -1323,7 +1323,8 @@ items are step 7's open work.
 - **P2.5 Workbook promotion.** *From step 8, open question 6.* Write a mail or Teams task as a new
   row in the OneDrive workbook, by hand only. The one place rNotice would create a row. Decide
   first whether the workbook should stay yours alone.
-- **P2.6 One pop-up.** *Requirements gathered 2026-11-09 with Robert. Not started.* Replaces
+- **P2.6 One pop-up.** *Requirements gathered 2026-11-09 with Robert.* **Built 2026-11-09
+  (0.12.0)**, with the proposed buttons and the proposed answers below. Replaces
   today's split between takeover, alert window and Windows toast, and between the meeting and
   task layouts of the alert window.
 
@@ -1421,6 +1422,29 @@ happening, so an unlinked case is visible rather than silent.
 Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest have nothing to
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
+
+**One pop-up (0.12.0, 2026-11-09).** Phase 2 P2.6, built as specified there. This replaces
+the takeover, alert and toast levels described under *The UI* wherever they differ.
+- **What pops up**, always as the large window with every screen dimmed: a meeting at T−1; a
+  task planned with a time at T−1 (`popupLeadSeconds`, taken from `takeoverLeadSeconds`;
+  `planAlertLeadMinutes` no longer sets when it pops up); a started meeting with others you
+  haven't joined, every minute; and a check-in at the end of a working block.
+- **Check-ins** come only when nothing is booked right after the block: a meeting not marked
+  free, or another plan, starting within a minute of its end or already running then. If
+  something is, there's no check-in. The session stops at the block's end, the time is kept,
+  and the task stays planned. Later plans no longer wait for a check-in (the hand-off hold of
+  0.9.5 and 0.10.13 is gone), so Start next is gone too.
+- **Nothing else pops up.** Mail, Teams chats (whatever the routine says), @mentions, VIP mail
+  and workbook rows wait in Intake with their priority. There are no Windows toasts for items.
+  Busy time and quiet hours hold nothing, since everything left is a takeover.
+- **Buttons**, always all of them, in this order: Join, Working on it, Still working ▾, Mark
+  done, Rebook ▾, Open, Follow up, and Close at the top. One that doesn't apply is greyed out,
+  and its tooltip says why. Rebook moves a meeting in Outlook (only one you organise) and
+  re-plans a task.
+- **Shift+P** in the queue shows the selected meeting's or planned task's pop-up as it will
+  appear. Nothing is marked fired.
+- Windows notifications that aren't about an item stay. So does Outlook's own reminder on
+  rNotice events, at the start.
 
 **A task made recurring in Outlook is a meeting (0.11.2, 2026-11-09).** Reported by Robert: a
 daily 8:00 series wasn't in rNotice. It was an rNotice task he'd made recurring in Outlook on

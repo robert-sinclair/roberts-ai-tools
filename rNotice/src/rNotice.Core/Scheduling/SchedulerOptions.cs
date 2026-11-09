@@ -52,17 +52,12 @@ public sealed record SchedulerOptions
     public int NotJoinedRepeatSeconds { get; init; } = 60;
 
     /// <summary>
-    /// How long a check-in that has come up keeps later plans waiting for it. Past this, an
-    /// unanswered check-in no longer holds anything, and later plans alert on their own.
+    /// How long before a task's planned start its pop-up comes: one minute, the same as a
+    /// meeting's (P2.6). Set from the rules' <c>takeoverLeadSeconds</c>.
     /// </summary>
-    public int HandOffHoldMinutes { get; init; } = 15;
+    public int PopupLeadSeconds { get; init; } = 60;
 
+    /// <summary>Kept for settings.json. Nothing pops up for other work since P2.6, so quiet hours have nothing to hold.</summary>
     public QuietHours? QuietHours { get; init; }
 
-    /// <summary>
-    /// How a task you planned with a time interrupts when its time comes, at the least. The
-    /// plan is your decision that it matters then, so it never inherits a silent classification
-    /// from the mail or chat it came from. Found 2026-10-26: four planned tasks passed silently.
-    /// </summary>
-    public Interrupt PlanInterrupt { get; init; } = Interrupt.Takeover;
 }
