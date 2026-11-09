@@ -11,7 +11,7 @@ namespace rNotice.Core.Graph;
 public sealed class CalendarClient(GraphClient graph)
 {
     private const string Select =
-        "subject,body,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink,attendees";
+        "subject,body,start,end,isAllDay,isCancelled,showAs,categories,organizer,isOrganizer,onlineMeeting,webLink,attendees,type";
 
     // The body as text rather than HTML, so the description needs no tag stripping.
     // (https://learn.microsoft.com/en-us/graph/api/user-list-calendarview — request headers)
@@ -108,7 +108,7 @@ public sealed class CalendarClient(GraphClient graph)
         JsonElement ev;
         try
         {
-            ev = await _graph.GetAsync($"/me/events/{Uri.EscapeDataString(eventId)}?$select=categories", ct).ConfigureAwait(false);
+            ev = await _graph.GetAsync($"/me/events/{Uri.EscapeDataString(eventId)}?$select=categories,type", ct).ConfigureAwait(false);
         }
         catch (GraphException ex) when (ex.IsNotFound)
         {
@@ -119,6 +119,9 @@ public sealed class CalendarClient(GraphClient graph)
                    cats.EnumerateArray().Any(c => string.Equals(c.GetString(), category, StringComparison.OrdinalIgnoreCase));
         if (!ours)
             throw new InvalidOperationException($"Refusing to delete event {eventId}: it doesn't carry the '{category}' category.");
+        // rNotice never makes a series. A tagged one is a task you made recurring in Outlook: yours now.
+        if (Str(ev, "type") is "occurrence" or "exception" or "seriesMaster")
+            throw new InvalidOperationException($"Refusing to delete event {eventId}: it's part of a recurring series.");
 
         await _graph.SendAsync(HttpMethod.Delete, $"/me/events/{Uri.EscapeDataString(eventId)}", null, ct).ConfigureAwait(false);
         return true;
@@ -149,7 +152,8 @@ public sealed class CalendarClient(GraphClient graph)
             : null,
         Attendees: e.TryGetProperty("attendees", out var att) && att.ValueKind == JsonValueKind.Array
             ? att.EnumerateArray().Select(Attendee).ToList()
-            : []);
+            : [],
+        IsRecurring: Str(e, "type") is "occurrence" or "exception");
 
     private static EventAttendee Attendee(JsonElement a)
     {

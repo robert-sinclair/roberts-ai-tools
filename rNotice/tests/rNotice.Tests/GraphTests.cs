@@ -153,6 +153,21 @@ public class CalendarClientTests
     }
 
     [Fact]
+    public void A_tagged_series_is_a_meeting_not_an_rNotice_task()
+    {
+        static CalendarEvent Ev(string type) => CalendarClient.Map(Json($$"""
+            { "id": "1", "subject": "Plan Cii Upgrade", "type": "{{type}}", "categories": ["rNotice"],
+              "start": { "dateTime": "2026-11-09T14:00:00", "timeZone": "UTC" },
+              "end":   { "dateTime": "2026-11-09T14:15:00", "timeZone": "UTC" } }
+            """));
+
+        Assert.True(Ev("singleInstance").IsRNoticeTask("rNotice"));
+        Assert.False(Ev("occurrence").IsRNoticeTask("rNotice"));
+        Assert.False(Ev("exception").IsRNoticeTask("rNotice"));
+        Assert.False((Ev("singleInstance") with { Categories = [] }).IsRNoticeTask("rNotice"));
+    }
+
+    [Fact]
     public async Task Calendar_read_asks_for_the_body_as_text()
     {
         var fake = new FakeHandler().Respond(HttpStatusCode.OK, """{"value":[]}""");

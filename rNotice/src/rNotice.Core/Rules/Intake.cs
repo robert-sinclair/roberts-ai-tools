@@ -48,7 +48,7 @@ public sealed class Intake(RulesOptions options, Me me)
         if (e.IsAllDay) return IntakeResult.Skip("All-day event");
         if (e.EndUtc <= nowUtc) return IntakeResult.Skip("Already over");
 
-        if (e.Categories.Contains(_options.PromotedCategory, StringComparer.OrdinalIgnoreCase))
+        if (e.IsRNoticeTask(_options.PromotedCategory))
             return IntakeResult.Skip("Promoted by rNotice; its own item owns the alert");
 
         var blocked = TextMatch.FirstSubjectMatch(e.Subject, _options.MeetingBlocklist);

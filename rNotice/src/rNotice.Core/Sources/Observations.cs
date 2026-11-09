@@ -40,8 +40,18 @@ public sealed record CalendarEvent(
     string? Body = null,
     // Who's invited, as Graph lists them (the organiser isn't in it). Read 2026-11-06 for the
     // "not joined" takeover; Robert wants them searchable later.
-    IReadOnlyList<EventAttendee>? Attendees = null)
+    IReadOnlyList<EventAttendee>? Attendees = null,
+    // Part of a series (Graph type "occurrence" or "exception"). rNotice never creates one.
+    bool IsRecurring = false)
 {
+    /// <summary>
+    /// One of rNotice's own planned-task events: it carries rNotice's category and isn't part
+    /// of a series. A tagged series is a task you made recurring in Outlook (2026-11-09): from
+    /// then on it's a meeting like any other, since no rNotice item owns its occurrences.
+    /// </summary>
+    public bool IsRNoticeTask(string category) =>
+        !IsRecurring && Categories.Contains(category, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Someone besides you is in it: someone else organised it, or you invited anyone other than
     /// yourself.

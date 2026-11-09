@@ -296,8 +296,9 @@ internal sealed partial class AgentHost(Application app) : IDisposable
 
         // rNotice's own events are its planned tasks, not meetings. Counted as meetings they'd
         // come into the queue a second time, and every promoted task would clash with itself.
+        // A tagged series isn't one of them: it's a task you made recurring in Outlook.
         var category = _settings.Rules.PromotedCategory;
-        bool Ours(CalendarEvent e) => e.Categories.Contains(category, StringComparer.OrdinalIgnoreCase);
+        bool Ours(CalendarEvent e) => e.IsRNoticeTask(category);
         var events = all.Where(e => !Ours(e)).ToList();
 
         _busy = events.Where(e => !e.IsCancelled && !e.IsAllDay)

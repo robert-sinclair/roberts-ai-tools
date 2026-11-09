@@ -1375,6 +1375,15 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**A task made recurring in Outlook is a meeting (0.11.2, 2026-11-09).** Reported by Robert: a
+daily 8:00 series wasn't in rNotice. It was an rNotice task he'd made recurring in Outlook on
+Nov 4. Every occurrence kept the `rNotice` category, so rNotice skipped them all as its own
+events: no alert, no takeover, and not busy time, so plans were booked over it. The original
+task lost its event (a series gives each occurrence a new id) and stayed planned for Nov 4.
+rNotice never creates a series, so a tagged event that's part of one (Graph `type` occurrence
+or exception, now read with the calendar) is treated as an ordinary meeting. rNotice also
+refuses to delete any event that's part of a series.
+
 **Edit the title in the Plan dialog (0.11.1, 2026-11-09).** Asked by Robert: titles from Teams
 chats read as cold on a shared calendar. The Plan dialog's title is now a text box for anything
 but a meeting. What you type is your own title, the same as F2 in the queue: it's kept when the
