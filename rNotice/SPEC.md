@@ -1323,6 +1323,53 @@ items are step 7's open work.
 - **P2.5 Workbook promotion.** *From step 8, open question 6.* Write a mail or Teams task as a new
   row in the OneDrive workbook, by hand only. The one place rNotice would create a row. Decide
   first whether the workbook should stay yours alone.
+- **P2.6 One pop-up.** *Requirements gathered 2026-11-09 with Robert. Not started.* Replaces
+  today's split between takeover, alert window and Windows toast, and between the meeting and
+  task layouts of the alert window.
+
+  **Requirements:**
+  1. **One kind of pop-up.** Every pop-up uses today's large meeting layout: big title, a live
+     countdown, and every monitor dimmed behind it. No compact alert, and no Windows toasts for
+     items.
+  2. **What pops up, all at T−1 (one minute before):**
+     - A meeting. Unchanged.
+     - A planned task. Was T−5 (`planAlertLeadMinutes`).
+     - A meeting with others that has started and you haven't joined, every minute (0.10.12),
+       unless Teams shows you in the call (0.10.14).
+     - A check-in when the block of a task you're working on ends, **only when nothing is
+       booked right after it**. If a meeting or plan starts when the block ends, that event's
+       own T−1 pop-up is the prompt, and there's no check-in.
+  3. **What stops popping up.** These go to Intake silently, keeping their priority for the
+     sort: Teams chats, including after the routine classifies them (today P1 alerts and P2
+     toasts); replies on mail threads you sent in; VIP mail; Teams @mentions; workbook rows
+     coming due.
+  4. **The same buttons on every pop-up, in the same order.** A button that doesn't apply is
+     shown greyed out, with a tooltip saying why.
+  5. **Shift+P in the queue window** shows the selected planned task's or meeting's pop-up
+     exactly as it will appear, dim included. Nothing is marked fired. It replaces
+     `--preview-alert`, which only shows the next meeting.
+
+  **Proposed button set (to confirm):** Join · Working on it · Still working ▾ · Mark done ·
+  Rebook ▾ Book · Open · Follow up · Close.
+  - **Join:** needs a Teams link.
+  - **Working on it:** greyed when you're already working on it.
+  - **Still working ▾** (+15, 30 or 60 min): only on a check-in.
+  - **Rebook ▾ Book:** the next free slots, as today. A meeting can be moved only if you
+    organised it.
+  - **Open:** needs a link back to the source (Outlook, Teams, Excel or Jira).
+  - **Follow up:** plans a "Follow up - …" a week on, as it does for meetings today.
+  - **Start next** and **Plan…** go. A check-in only comes when nothing is next, and only
+    planned things pop up.
+
+  **Open questions, with a proposed answer:**
+  - *A task you're working on when the next event's T−1 pop-up comes.* Proposed: the session
+    stops when its block ends, the time is kept, and the task stays planned where it was. You
+    mark it done from the queue. Without this it stays "working" with no check-in, which is
+    how plans went quiet on Oct 27 (0.10.13).
+  - *Outlook's own reminder* on rNotice events fires at the start, a minute after rNotice's
+    pop-up. Proposed: keep it as the backstop for when rNotice isn't running.
+  - *Windows notifications that aren't about an item* ("Moved back to Intake", "Workbook
+    created", errors). Proposed: keep them. They're status, not prompts.
 
 **Working on it (0.9.4, 2026-10-27).** A task can be marked in progress. Decided with Robert: the
 plan stays where it is; alerts stop until a check-in when the planned block ends (or after
