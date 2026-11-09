@@ -58,7 +58,17 @@ public partial class PlanDialog : Window
     public DateTimeOffset? StartUtc { get; private set; }
     public int Minutes => _selMinutes > 0 ? _selMinutes : Durations[Math.Max(0, Duration.SelectedIndex)];
 
-    /// <summary>The title typed for a group plan; empty otherwise.</summary>
+    /// <summary>What the selection on the day view is labelled: the title as typed.</summary>
+    private string ShownTitle => PlanTitle is { Length: > 0 } t ? t : _item.Title;
+
+    /// <summary>The day view's selection follows the title as you type it.</summary>
+    private void OnTitleChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        ShowDay(_shownDay);
+    }
+
+    /// <summary>The title in the dialog: a group's, or your own for the item. Empty if cleared.</summary>
     public string PlanTitle => TitleBox.Text.Trim();
 
     /// <summary>Whether the plan goes on your Outlook calendar. Ignored for "no time".</summary>
@@ -83,6 +93,12 @@ public partial class PlanDialog : Window
         var view = new ItemView(item);
         ItemTitle.Text = view.Title;
         ItemMeta.Text = view.Meta;
+        TitleBox.Text = item.Title;
+        if (moveMeeting || item.Source == Source.Calendar)
+        {
+            TitleRow.Visibility = Visibility.Collapsed;
+            ItemTitle.Visibility = Visibility.Visible;
+        }
         if (groupOf > 0)
         {
             Title = $"Plan {groupOf} items together";
@@ -90,7 +106,6 @@ public partial class PlanDialog : Window
             ItemMeta.Text = $"{groupOf} items, one block. They stay in rNotice under it, and are done when it's done.";
             GroupPanel.Visibility = Visibility.Visible;
             GroupList.Text = item.Snippet;
-            TitleBox.Text = item.Title;
             Loaded += (_, _) => { TitleBox.Focus(); TitleBox.SelectAll(); };
         }
 
@@ -265,7 +280,7 @@ public partial class PlanDialog : Window
                 _ => FreeBrush
             };
             text.Foreground = selected ? Brushes.White : Brushes.Black;
-            text.Text = selected && i == first ? _item.Title : cell.Label ?? "";
+            text.Text = selected && i == first ? ShownTitle : cell.Label ?? "";
             text.FontWeight = selected && i == first ? FontWeights.SemiBold : FontWeights.Normal;
 
             // The plan this item has now, if you're re-planning it.

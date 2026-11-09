@@ -1062,6 +1062,9 @@ internal sealed partial class AgentHost(Application app) : IDisposable
 
         if (ShowPlanDialog(item, except: id, owner) is not { } dialog) return;
 
+        // A title changed in the dialog is yours from now on, and its Outlook event is renamed.
+        if (Retitled(item, dialog).Title is var title && title != item.Title) SetTitle(id, title);
+
         // Re-planning means doing it later: a session in progress ends here.
         Update(id, i => i.StopWork(DateTimeOffset.UtcNow).Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
             dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0));
@@ -1074,6 +1077,13 @@ internal sealed partial class AgentHost(Application app) : IDisposable
     /// too. <paramref name="suggestFrom"/> moves where the suggestions — and so the day the
     /// dialog opens on — start: a follow-up begins a week out, not today.
     /// </summary>
+    /// <summary>
+    /// The item with the Plan dialog's title, when you changed it there: your own title from
+    /// then on, kept when the source updates. A cleared box leaves the title as it was.
+    /// </summary>
+    private static Item Retitled(Item item, PlanDialog dialog) =>
+        item.Source != Source.Calendar && dialog.PlanTitle is { Length: > 0 } title && title != item.Title ? item.Rename(title) : item;
+
     private PlanDialog? ShowPlanDialog(Item item, Guid except, Window? owner, int groupOf = 0, DateTimeOffset? suggestFrom = null)
     {
         var hours = PlanningHours(DateTimeOffset.UtcNow);
@@ -1514,6 +1524,7 @@ internal sealed partial class AgentHost(Application app) : IDisposable
         draft = draft with { CaseUrl = CaseUrlFor(draft, now) };
 
         if (ShowPlanDialog(draft, except: Guid.Empty, owner) is not { } dialog) return false;
+        draft = Retitled(draft, dialog);
 
         _store.Save(draft.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
             dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0), now);
@@ -1554,6 +1565,7 @@ internal sealed partial class AgentHost(Application app) : IDisposable
         var draft = rNotice.Core.Scheduling.FollowUp.From(item, now);
 
         if (ShowPlanDialog(draft, except: Guid.Empty, owner, suggestFrom: from) is not { } dialog) return;
+        draft = Retitled(draft, dialog);
 
         _store.Save(draft.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
             dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0), now);

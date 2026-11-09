@@ -1375,6 +1375,13 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**Edit the title in the Plan dialog (0.11.1, 2026-11-09).** Asked by Robert: titles from Teams
+chats read as cold on a shared calendar. The Plan dialog's title is now a text box for anything
+but a meeting. What you type is your own title, the same as F2 in the queue: it's kept when the
+chat or email updates, and the routine doesn't replace it. It's also the Outlook event's name,
+and an event that already exists is renamed to match. The selection on the dialog's day view
+shows the title as you type. Clearing the box leaves the title as it was.
+
 **Jira tab (0.11.0, 2026-11-09).** Build step 12; `ROUTINE-JIRA.md` has the details. The queue
 window has a fourth tab, **Jira**. It lists the tickets that match `jiraJql`, grouped by
 priority, then oldest first, with key, summary, owner, status, age, and whether rNotice already

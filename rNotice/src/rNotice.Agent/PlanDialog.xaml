@@ -14,13 +14,16 @@
     </Window.Resources>
 
     <DockPanel Margin="18,14">
-        <TextBlock x:Name="ItemTitle" DockPanel.Dock="Top" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-        <!-- Planning several items together: the block's title, and what goes in its description. -->
+        <!-- A meeting's title is the meeting's own: shown, not edited. -->
+        <TextBlock x:Name="ItemTitle" DockPanel.Dock="Top" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Visibility="Collapsed" />
+        <!-- Anything else: the title is yours to change, and it's what the Outlook event is called. -->
+        <DockPanel x:Name="TitleRow" DockPanel.Dock="Top">
+            <TextBlock Text="Title" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBox x:Name="TitleBox" FontSize="15" FontWeight="SemiBold" Padding="4,2" TextChanged="OnTitleChanged"
+                     ToolTip="Your title for it, and the name of its Outlook event. It stays when the chat or email updates. Clear it to go back to the original." />
+        </DockPanel>
+        <!-- Planning several items together: what goes in the block's description. -->
         <StackPanel x:Name="GroupPanel" DockPanel.Dock="Top" Visibility="Collapsed">
-            <DockPanel>
-                <TextBlock Text="Title" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <TextBox x:Name="TitleBox" FontSize="15" Padding="4,2" />
-            </DockPanel>
             <TextBlock Text="In the description:" Opacity="0.75" Margin="0,8,0,2" />
             <TextBlock x:Name="GroupList" FontSize="12" TextWrapping="Wrap" MaxHeight="140" TextTrimming="CharacterEllipsis" />
         </StackPanel>

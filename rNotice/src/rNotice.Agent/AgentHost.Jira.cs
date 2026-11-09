@@ -215,6 +215,7 @@ internal sealed partial class AgentHost
         var now = DateTimeOffset.UtcNow;
         var draft = Jira.From(ticket, _settings.JiraUrl, now);
         if (ShowPlanDialog(draft, except: Guid.Empty, owner) is not { } dialog) return;
+        draft = Retitled(draft, dialog);
 
         _store.Save(draft.Plan(dialog.StartUtc, dialog.StartUtc is null ? null : dialog.Minutes,
             dialog.Promote, dialog.Promote ? _settings.PlanAlertLeadMinutes : 0), now);
