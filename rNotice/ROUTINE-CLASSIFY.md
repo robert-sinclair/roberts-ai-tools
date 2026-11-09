@@ -119,8 +119,8 @@ look into it". The phrases are a list in `settings.json`, so you can add yours.
 - **Low confidence (under 60):** the priority is shown as a suggestion only. The item keeps its
   rules priority, stays silent, and shows "Routine suggests P2 (45%)". Title, description and
   case link are still applied.
-- **N0 at 95 or more:** the item is dismissed, with the summary as the reason. N0 under 95
-  stays in Intake, silent.
+- **N0 at 80 or more** (95 until 2026-11-09)**:** the item is closed as Done, with the summary
+  as the reason. N0 under 80 stays in Intake, silent.
 - **Interrupts by priority:** P1 is an alert window, no dim. P2 is a toast. P3 and N0 are
   silent.
 - **Planning stays yours.** The result updates the Intake item; it doesn't schedule it. When you
@@ -228,7 +228,7 @@ Where the build differs from the draft above, and why:
   last request. The routine needs the context to judge whether a request is already answered.
 - **A new message while a request is out replaces it** (the table above), rather than waiting
   for it. The result then reflects the whole conversation.
-- **N0 at 95 or more closes the item as Done, not Dismissed.** A dismissed chat leaves a
+- **N0 at 80 or more (95 until 2026-11-09) closes the item as Done, not Dismissed.** A dismissed chat leaves a
   tombstone when it's purged, and that would hide every later message in the chat for good.
   It's in the Done tab with the note "Routine: not a task (97%)".
 - **"I'll follow up"** makes the item P1 and silent: it's your own commitment, so it goes to the
@@ -296,6 +296,7 @@ link to the case should still get one.
 ## Decisions (Robert, 2026-10-30)
 
 1. **N0:** dismissed when confidence is 95 or more. Otherwise it stays in Intake, silent.
+   **Changed 2026-11-09:** closed as Done at 80 or more.
 2. **Planning:** planning an Intake item must create its Outlook event. The routine's result
    doesn't plan anything by itself.
 3. **Low confidence:** under 60 is a suggestion, not acted on.

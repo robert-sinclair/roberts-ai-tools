@@ -119,12 +119,12 @@ public class RoutineTests
     }
 
     [Fact]
-    public void Not_a_task_at_95_or_more_is_closed_and_under_95_stays_quietly()
+    public void Not_a_task_at_80_or_more_is_closed_and_under_80_stays_quietly()
     {
-        var sure = Routine.Apply(Waiting(Now), Result("N0", 95), Now);
-        var unsure = Routine.Apply(Waiting(Now), Result("N0", 94), Now);
+        var sure = Routine.Apply(Waiting(Now), Result("N0", 80), Now);
+        var unsure = Routine.Apply(Waiting(Now), Result("N0", 79), Now);
 
-        Assert.Equal((Stage.Done, "Routine: not a task (95%)"), (sure.Stage, sure.Note));
+        Assert.Equal((Stage.Done, "Routine: not a task (80%)"), (sure.Stage, sure.Note));
         Assert.Equal((Stage.Intake, Priority.P4, Interrupt.Silent), (unsure.Stage, unsure.Classification.Priority, unsure.Classification.Interrupt));
     }
 

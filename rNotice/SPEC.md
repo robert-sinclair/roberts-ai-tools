@@ -1423,6 +1423,11 @@ Nothing is selected while the tab is open, so **P**, **C**, **Del** and the rest
 act on — and the detail pane isn't showing an item you can't see. Typing was already safe: the key
 handler ignores keys raised from an editable text box.
 
+**"Not a task" closes at 80% (0.12.1, 2026-11-09).** Asked by Robert. An N0 from the routine
+with confidence 80 or more now goes straight to Done ("Routine: not a task (87%)"). It was 95.
+Under 80 it stays in Intake as P4, silent. The routine's prompt is unchanged: it still asks for
+95 or more when your reply plainly settles the request, which is above the new line.
+
 **One pop-up (0.12.0, 2026-11-09).** Phase 2 P2.6, built as specified there. This replaces
 the takeover, alert and toast levels described under *The UI* wherever they differ.
 - **What pops up**, always as the large window with every screen dimmed: a meeting at T−1; a

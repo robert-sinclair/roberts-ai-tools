@@ -47,7 +47,7 @@ public sealed record RoutineInfo
     public const int SuggestBelow = 60;
 
     /// <summary>An N0 this sure or more closes the item.</summary>
-    public const int CloseNotATaskAt = 95;
+    public const int CloseNotATaskAt = 80;   // was 95; lowered by Robert 2026-11-09
 
     /// <summary>Applied, but too unsure to act on: shown as "Routine suggests …".</summary>
     public bool IsSuggestion => Status == RoutineStatus.Answered && Confidence < SuggestBelow;
@@ -283,7 +283,7 @@ public static class Routine
     /// <list type="bullet">
     /// <item>Title (unless you edited it), description, case link and confidence always.</item>
     /// <item>Under 60: the priority is only a suggestion; the item keeps its classification.</item>
-    /// <item>N0 at 95 or more: closed as Done — not Dismissed, which would hide the chat's
+    /// <item>N0 at 80 or more: closed as Done — not Dismissed, which would hide the chat's
     /// later messages for good once it's purged.</item>
     /// <item>Otherwise P1 alerts, P2 toasts, P3 and N0 are silent.</item>
     /// </list>
