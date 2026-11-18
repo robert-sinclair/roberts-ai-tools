@@ -65,6 +65,25 @@ Decide once step 1 confirms how each source is reached. Current lean:
 - Linux host checks: scheduled Ansible playbook on the existing control node, calling the same upload code.
 - Schedule: monthly, and at least 2 weeks before each renewal date.
 
+## Status
+
+| Collector | State |
+| --- | --- |
+| `ssm_patching` | Built (`collectors/ssm_patching.py`). Findings and report logic tested with data from `hitachi-id-saas-test`. Not yet run end to end with boto3. |
+
+### First look at `hitachi-id-saas-test` (011126347217), Nov 18, 2026
+
+Patch windows in us-east-1, eu-central-1 and ca-central-1 run `AWS-RunPatchBaselineWithHooks` with `Operation=Install` weekly. All runs in the last 45 days succeeded.
+
+Problems a collector run will report:
+
+- **us-west-2 has not patched since Jul 4, 2024.** Both windows fail every week ("maximum error count exceeded"). Their targets use tag `Patch Group = Primary us-west-2`, but the instances are tagged `patchGroup = primary_us-west-2`. The task parameter names also contain spaces (`Reboot Option`), unlike the other regions.
+- **4 managed instances report no patch state:** 1 in us-east-1, 3 in eu-central-1.
+- **1 instance in us-east-1 has a security patch noncompliant** (i-077ff4236ae6392f7).
+- Most instances show `Scan` as their last operation even though the windows run `Install`. Not yet explained. Check whether a separate scan association runs after the windows.
+
+This is the test account. Drata evidence should come from production.
+
 ## Order of work
 
 1. **Access check.** Get a Drata API key. Confirm the workspace ID, read evidence metadata, upload one test file. Confirm which of the 2 SaaS AWS accounts is production.
